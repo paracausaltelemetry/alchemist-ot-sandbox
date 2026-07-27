@@ -1,9 +1,11 @@
 import type { AssetTypeId } from "../models/types";
 
-export type ImportFormat = "nmap-xml" | "zeek-conn" | "graphml" | "csv-inventory";
+export type ImportFormat = "nmap-xml" | "nmap-normal" | "nmap-grep" | "zeek-conn" | "graphml" | "csv-inventory";
 
 export const importFormatLabels: Record<ImportFormat, string> = {
   "nmap-xml": "Nmap XML",
+  "nmap-normal": "Nmap normal output",
+  "nmap-grep": "Nmap greppable",
   "zeek-conn": "Zeek conn.log",
   graphml: "Grassmarlin / GraphML",
   "csv-inventory": "CSV inventory"

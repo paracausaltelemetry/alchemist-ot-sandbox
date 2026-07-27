@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { App } from "../App";
 import { Dashboard, type DashboardIntent } from "./Dashboard";
+import { ItApp } from "./ItApp";
 import { initialView, LAST_VIEW_STORAGE_KEY, type AppView } from "../lib/appView";
 import { safeSetItem } from "../lib/safeStorage";
 
@@ -37,7 +38,7 @@ function initialTheme(): "dark" | "light" {
 
 function readLastView(): AppView | null {
   const stored = window.localStorage.getItem(LAST_VIEW_STORAGE_KEY);
-  return stored === "home" || stored === "app" ? stored : null;
+  return stored === "home" || stored === "app" || stored === "it" ? stored : null;
 }
 
 /** Tracks whether the viewport is phone/tablet-sized. The workbench is desktop-only. */
@@ -105,8 +106,20 @@ export function Root() {
     }
   }, []);
 
+  const openIt = useCallback(() => {
+    if (window.location.hash === "#it") {
+      setView("it");
+    } else {
+      window.location.hash = "it";
+    }
+  }, []);
+
   if (view === "home") {
-    return <Dashboard onEnter={enter} theme={theme} onToggleTheme={toggleTheme} isMobile={isMobile} />;
+    return <Dashboard onEnter={enter} onOpenIt={openIt} theme={theme} onToggleTheme={toggleTheme} isMobile={isMobile} />;
+  }
+
+  if (view === "it") {
+    return <ItApp onGoHome={goHome} theme={theme} onToggleTheme={toggleTheme} isMobile={isMobile} />;
   }
 
   // On phone/tablet App renders read-only (the topology canvas is desktop-only);

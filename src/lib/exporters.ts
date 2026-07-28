@@ -19,6 +19,10 @@ export function downloadJson(name: string, contents: string) {
   download(`${name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "ot-project"}.json`, contents, "application/json");
 }
 
+export function downloadMarkdown(name: string, contents: string) {
+  download(`${name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "it-network"}.md`, contents, "text/markdown");
+}
+
 export function downloadTopologySvg(project: OtProject, assessment: SecurityAssessment) {
   const minX = -40;
   const maxX = Math.max(1180, ...project.assets.map((asset) => asset.position.x + 220));

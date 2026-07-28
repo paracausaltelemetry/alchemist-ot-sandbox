@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ParsedImport } from "../import/types";
-import { analyseItNetwork, isPublicIp } from "./itAnalysis";
+import { analyseItNetwork, isPublicIp, itReportMarkdown } from "./itAnalysis";
 
 const parsed: ParsedImport = {
   format: "nmap-normal",
@@ -57,5 +57,16 @@ describe("analyseItNetwork", () => {
   it("builds an inventory", () => {
     expect(analysis.byOs).toEqual([{ label: "Linux", count: 1 }]);
     expect(analysis.byAssetType.reduce((sum, tally) => sum + tally.count, 0)).toBe(4);
+  });
+});
+
+describe("itReportMarkdown", () => {
+  it("renders the key sections", () => {
+    const md = itReportMarkdown(analyseItNetwork(parsed));
+    expect(md).toContain("# IT network map");
+    expect(md).toContain("## Risky exposed services");
+    expect(md).toContain("## Internet-facing hosts");
+    expect(md).toContain("203.0.113.10");
+    expect(md.trimEnd().endsWith("\n") || md.endsWith("\n")).toBe(true);
   });
 });

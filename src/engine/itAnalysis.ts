@@ -207,3 +207,53 @@ export function analyseItNetwork(parsed: ParsedImport): ItAnalysis {
     byAssetType: tally(hosts.map((host) => prettifyType(inferAssetType(host))))
   };
 }
+
+/** Renders an IT analysis as a shareable Markdown report. */
+export function itReportMarkdown(analysis: ItAnalysis): string {
+  const lines: string[] = ["# IT network map", ""];
+  lines.push(`- Hosts: ${analysis.totalHosts}`);
+  lines.push(`- Open ports: ${analysis.totalOpenPorts}`);
+  lines.push(`- Subnets: ${analysis.subnets.length}`);
+  if (analysis.flatNetwork) {
+    lines.push(`- Flat network: every host sits in ${analysis.largestSubnet?.cidr}`);
+  }
+
+  lines.push("", "## Risky exposed services", "");
+  if (analysis.riskyServices.length === 0) {
+    lines.push("None flagged.");
+  } else {
+    lines.push("| Severity | Host | Port | Reason |", "| --- | --- | --- | --- |");
+    for (const service of analysis.riskyServices) {
+      const host = service.hostname ? `${service.ip} (${service.hostname})` : service.ip;
+      lines.push(`| ${service.severity} | ${host} | ${service.port}/${service.transport ?? "tcp"} ${service.service} | ${service.reason} |`);
+    }
+  }
+
+  lines.push("", "## Internet-facing hosts", "");
+  if (analysis.internetFacing.length === 0) {
+    lines.push("None.");
+  } else {
+    for (const host of analysis.internetFacing) {
+      const name = host.hostname ? ` (${host.hostname})` : "";
+      lines.push(`- ${host.ip}${name} — ${host.openPorts} open ports`);
+    }
+  }
+
+  lines.push("", "## Inventory", "");
+  const section = (title: string, rows: Tally[]) => {
+    if (rows.length === 0) {
+      return;
+    }
+    lines.push(`**${title}**`, "");
+    for (const row of rows) {
+      lines.push(`- ${row.label}: ${row.count}`);
+    }
+    lines.push("");
+  };
+  section("By subnet", analysis.subnets.map((subnet) => ({ label: subnet.cidr, count: subnet.hostCount })));
+  section("By device type", analysis.byAssetType);
+  section("By OS", analysis.byOs);
+  section("By vendor", analysis.byVendor);
+
+  return `${lines.join("\n")}\n`;
+}

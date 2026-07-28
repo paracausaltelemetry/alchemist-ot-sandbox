@@ -1,9 +1,11 @@
-import { ArrowLeft, FileUp, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, FileUp, PlayCircle, Trash2, X } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { detectFormat, parseByFormat } from "../import";
 import { assembleTopology } from "../import/assemble";
-import { analyseItNetwork, type ItAnalysis } from "../engine/itAnalysis";
+import type { ImportedHost, ParsedImport } from "../import/types";
+import { analyseItNetwork, itReportMarkdown, type ItAnalysis } from "../engine/itAnalysis";
 import { assessProject } from "../engine/scoring";
+import { downloadJson, downloadMarkdown, downloadTopologySvg } from "../lib/exporters";
 import { blankProject } from "../data/sampleProject";
 import { layoutTiered } from "../data/canvasLayout";
 import { makeId } from "../models/factory";
@@ -18,6 +20,55 @@ interface ItAppProps {
   onToggleTheme: () => void;
   isMobile: boolean;
 }
+
+/** A small illustrative scan so the mapper can be tried without running Nmap. */
+const SAMPLE_SCAN = `Nmap scan report for edge-fw (198.51.100.4)
+Host is up.
+PORT     STATE SERVICE
+443/tcp  open  https
+22/tcp   open  ssh
+
+Nmap scan report for web-1 (198.51.100.10)
+Host is up.
+PORT     STATE SERVICE
+80/tcp   open  http
+443/tcp  open  https
+3389/tcp open  ms-wbt-server
+
+Nmap scan report for dc-1 (10.10.1.10)
+Host is up.
+PORT     STATE SERVICE
+53/tcp   open  domain
+389/tcp  open  ldap
+445/tcp  open  microsoft-ds
+88/tcp   open  kerberos-sec
+MAC Address: 00:15:5D:00:11:22 (Microsoft)
+OS details: Windows Server 2019
+
+Nmap scan report for file-1 (10.10.1.20)
+Host is up.
+PORT     STATE SERVICE
+445/tcp  open  microsoft-ds
+139/tcp  open  netbios-ssn
+
+Nmap scan report for db-1 (10.10.2.30)
+Host is up.
+PORT     STATE SERVICE
+3306/tcp open  mysql
+22/tcp   open  ssh
+
+Nmap scan report for hmi-legacy (10.10.2.40)
+Host is up.
+PORT     STATE SERVICE
+23/tcp   open  telnet
+5900/tcp open  vnc
+
+Nmap scan report for print-1 (10.10.1.55)
+Host is up.
+PORT    STATE SERVICE
+161/tcp open  snmp
+9100/tcp open jetdirect
+`;
 
 function buildProject(topology: ReturnType<typeof assembleTopology>): OtProject {
   const positions = layoutTiered(topology.assets, topology.subnets, topology.conduits);
@@ -41,13 +92,45 @@ function buildProject(topology: ReturnType<typeof assembleTopology>): OtProject 
 export function ItApp({ onGoHome, theme, onToggleTheme, isMobile }: ItAppProps) {
   const [project, setProject] = useState<OtProject | null>(null);
   const [analysis, setAnalysis] = useState<ItAnalysis | null>(null);
+  const [parsed, setParsed] = useState<ParsedImport | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [canvasMode, setCanvasMode] = useState<CanvasMode>("clean");
   const [fitSignal, setFitSignal] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [pasteText, setPasteText] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const assessment = useMemo(() => (project ? assessProject(project) : null), [project]);
+
+  // Colour the map by IT risk: internet-facing or high-severity services are high,
+  // other flagged services medium. Keyed by asset id for the canvas.
+  const riskByAssetId = useMemo(() => {
+    const map = new Map<string, "high" | "medium">();
+    if (!project || !analysis) {
+      return map;
+    }
+    const high = new Set<string>(analysis.internetFacing.map((host) => host.ip));
+    const medium = new Set<string>();
+    for (const service of analysis.riskyServices) {
+      if (service.severity === "high") {
+        high.add(service.ip);
+      } else if (service.severity === "medium") {
+        medium.add(service.ip);
+      }
+    }
+    for (const asset of project.assets) {
+      const ip = asset.ipAddress;
+      if (!ip) {
+        continue;
+      }
+      if (high.has(ip)) {
+        map.set(asset.id, "high");
+      } else if (medium.has(ip)) {
+        map.set(asset.id, "medium");
+      }
+    }
+    return map;
+  }, [project, analysis]);
 
   const ingest = useCallback((text: string, filename: string) => {
     const format = detectFormat(filename, text);
@@ -63,6 +146,7 @@ export function ItApp({ onGoHome, theme, onToggleTheme, isMobile }: ItAppProps) 
     const topology = assembleTopology(parsed);
     setProject(buildProject(topology));
     setAnalysis(analyseItNetwork(parsed));
+    setParsed(parsed);
     setSelectedId(null);
     setFitSignal((value) => value + 1);
     setError(null);
@@ -84,13 +168,42 @@ export function ItApp({ onGoHome, theme, onToggleTheme, isMobile }: ItAppProps) 
   const clear = useCallback(() => {
     setProject(null);
     setAnalysis(null);
+    setParsed(null);
     setSelectedId(null);
+    setPasteText("");
     setError(null);
   }, []);
+
+  const selectedHost = useMemo<ImportedHost | null>(() => {
+    if (!selectedId || !project || !parsed) {
+      return null;
+    }
+    const asset = project.assets.find((item) => item.id === selectedId);
+    if (!asset?.ipAddress) {
+      return null;
+    }
+    return parsed.hosts.find((host) => host.ip === asset.ipAddress) ?? null;
+  }, [selectedId, project, parsed]);
 
   const commitProject = useCallback((updater: OtProject | ((current: OtProject) => OtProject)) => {
     setProject((current) => (current ? (typeof updater === "function" ? updater(current) : updater) : current));
   }, []);
+
+  const exportJson = useCallback(() => {
+    if (analysis) {
+      downloadJson("it-network", JSON.stringify({ analysis, hosts: parsed?.hosts ?? [] }, null, 2));
+    }
+  }, [analysis, parsed]);
+  const exportReport = useCallback(() => {
+    if (analysis) {
+      downloadMarkdown("it-network", itReportMarkdown(analysis));
+    }
+  }, [analysis]);
+  const exportMap = useCallback(() => {
+    if (project && assessment) {
+      downloadTopologySvg(project, assessment);
+    }
+  }, [project, assessment]);
 
   const noop = useCallback(() => {}, []);
 
@@ -107,6 +220,14 @@ export function ItApp({ onGoHome, theme, onToggleTheme, isMobile }: ItAppProps) 
           <span>Upload an Nmap scan to map and assess the network</span>
         </div>
         <div className="it-toolbar-actions">
+          {project && analysis ? (
+            <div className="it-export" role="group" aria-label="Export">
+              <Download size={14} aria-hidden="true" />
+              <button type="button" className="text-button" onClick={exportJson} title="Download analysis as JSON">JSON</button>
+              <button type="button" className="text-button" onClick={exportReport} title="Download a Markdown report">Report</button>
+              <button type="button" className="text-button" onClick={exportMap} title="Download the map as SVG">Map</button>
+            </div>
+          ) : null}
           {project ? (
             <button type="button" className="text-button" onClick={clear}>
               <Trash2 size={15} aria-hidden="true" /> Clear
@@ -140,9 +261,27 @@ export function ItApp({ onGoHome, theme, onToggleTheme, isMobile }: ItAppProps) 
           </p>
           <pre className="it-cmd">nmap -sV -oX scan.xml 10.0.0.0/24</pre>
           <p className="it-note">Nmap XML (-oX), normal (-oN) and greppable (-oG) are all accepted. Everything runs in your browser; the scan never leaves this page.</p>
-          <button type="button" className="text-button primary" onClick={() => inputRef.current?.click()}>
-            <FileUp size={16} aria-hidden="true" /> Import Nmap scan
-          </button>
+          <div className="it-empty-actions">
+            <button type="button" className="text-button primary" onClick={() => inputRef.current?.click()}>
+              <FileUp size={16} aria-hidden="true" /> Import Nmap scan
+            </button>
+            <button type="button" className="text-button" onClick={() => ingest(SAMPLE_SCAN, "sample.txt")}>
+              <PlayCircle size={16} aria-hidden="true" /> Load sample
+            </button>
+          </div>
+          <details className="it-paste">
+            <summary>Or paste Nmap output</summary>
+            <textarea
+              className="it-paste-area"
+              value={pasteText}
+              placeholder="Paste the output of nmap -oN / -oG / -oX here"
+              spellCheck={false}
+              onChange={(event) => setPasteText(event.target.value)}
+            />
+            <button type="button" className="text-button" disabled={!pasteText.trim()} onClick={() => ingest(pasteText, "pasted.txt")}>
+              Map pasted output
+            </button>
+          </details>
         </section>
       ) : (
         <div className="it-workspace">
@@ -150,6 +289,11 @@ export function ItApp({ onGoHome, theme, onToggleTheme, isMobile }: ItAppProps) 
             <p className="it-mobile-note">The interactive map needs a larger screen. The analysis below still works.</p>
           ) : (
             <div className="it-canvas-wrap">
+              <div className="it-legend" aria-hidden="true">
+                <span><i data-risk="high" /> Exposed / high</span>
+                <span><i data-risk="medium" /> Risky service</span>
+                <span><i /> No flag</span>
+              </div>
               {assessment ? (
                 <TopologyCanvas
                   project={project}
@@ -158,6 +302,7 @@ export function ItApp({ onGoHome, theme, onToggleTheme, isMobile }: ItAppProps) 
                   highlightedConduitIds={[]}
                   canvasMode={canvasMode}
                   layoutMode="network"
+                  riskByAssetId={riskByAssetId}
                   connectMode={false}
                   connectSourceId={null}
                   canUndo={false}
@@ -188,6 +333,30 @@ export function ItApp({ onGoHome, theme, onToggleTheme, isMobile }: ItAppProps) 
             </div>
           )}
           <aside className="it-panel" aria-label="IT network analysis">
+            {selectedHost ? (
+              <div className="it-host-detail">
+                <div className="it-host-detail-head">
+                  <h3>{selectedHost.hostname || selectedHost.ip}</h3>
+                  <button type="button" className="text-button" onClick={() => setSelectedId(null)} aria-label="Clear selection">
+                    <X size={14} aria-hidden="true" />
+                  </button>
+                </div>
+                <dl className="it-host-meta">
+                  <div><dt>IP</dt><dd>{selectedHost.ip || "-"}</dd></div>
+                  {selectedHost.os ? <div><dt>OS</dt><dd>{selectedHost.os}</dd></div> : null}
+                  {selectedHost.vendor ? <div><dt>Vendor</dt><dd>{selectedHost.vendor}</dd></div> : null}
+                </dl>
+                <h4>Open ports ({selectedHost.ports.length})</h4>
+                <ul className="it-host-ports">
+                  {selectedHost.ports.map((port) => (
+                    <li key={`${port.port}-${port.transport ?? "tcp"}`}>
+                      <b>{port.port}/{port.transport ?? "tcp"}</b>
+                      <span>{port.service ?? ""}{port.product ? ` · ${port.product}` : ""}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
             <ItFindingsPanel analysis={analysis} />
           </aside>
         </div>

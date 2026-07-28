@@ -9,10 +9,12 @@ interface ImportWizardProps {
   onApply: (result: AssembledTopology, mode: "replace" | "merge") => void;
 }
 
-const FORMAT_ORDER: ImportFormat[] = ["nmap-xml", "zeek-conn", "graphml", "csv-inventory"];
+const FORMAT_ORDER: ImportFormat[] = ["nmap-xml", "nmap-normal", "nmap-grep", "zeek-conn", "graphml", "csv-inventory"];
 
 const FORMAT_HINTS: Record<ImportFormat, string> = {
   "nmap-xml": "nmap -oX scan.xml: discovered hosts, open ports, OS and MAC vendor.",
+  "nmap-normal": "nmap -oN scan.txt: the default human-readable report, pasted or uploaded.",
+  "nmap-grep": "nmap -oG scan.gnmap: one line per host, ports in a single field.",
   "zeek-conn": "Zeek/Bro conn.log (JSON lines or TSV): observed flows become assets and conduits.",
   graphml: "GraphML from Grassmarlin, Gephi or yEd: nodes and edges become assets and conduits.",
   "csv-inventory": "CSV with name/ip/type/vlan/protocols columns, or a source,target connections list."

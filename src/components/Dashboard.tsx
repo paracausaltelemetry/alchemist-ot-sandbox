@@ -42,6 +42,8 @@ export type DashboardIntent = "reference" | "methodology" | "tour";
 
 interface DashboardProps {
   onEnter: (intent?: DashboardIntent) => void;
+  /** Opens the IT-side network mapper (a separate view). */
+  onOpenIt?: () => void;
   theme: "dark" | "light";
   onToggleTheme: () => void;
   /** On phone/tablet the workbench is unavailable; the dashboard renders a hero-only gate. */
@@ -53,7 +55,7 @@ interface DashboardProps {
  * the assessment engines and the VerdictBanner hero, with a scenario picker and entry CTAs into the
  * workbench. Loading a scenario writes it to storage; the workbench reads the same slot on entry.
  */
-export function Dashboard({ onEnter, theme, onToggleTheme, isMobile = false }: DashboardProps) {
+export function Dashboard({ onEnter, onOpenIt, theme, onToggleTheme, isMobile = false }: DashboardProps) {
   const [project, setProject] = useState<OtProject>(() => loadStoredProject());
   const [projects, setProjects] = useState(() => listProjects());
   const [currentId, setCurrentId] = useState(() => getCurrentProjectId());
@@ -140,6 +142,12 @@ export function Dashboard({ onEnter, theme, onToggleTheme, isMobile = false }: D
                 <FilePlus2 size={15} aria-hidden="true" />
                 New blank
               </button>
+              {onOpenIt ? (
+                <button type="button" className="text-button" onClick={onOpenIt}>
+                  <Waypoints size={15} aria-hidden="true" />
+                  IT network mapper
+                </button>
+              ) : null}
             </div>
             {isMobile ? (
               <p className="mobile-gate-note">Topology editing is desktop-only; the assessment and report are available here.</p>

@@ -1,4 +1,4 @@
-export type AppView = "home" | "app";
+export type AppView = "home" | "app" | "it";
 
 /** Remembers the last view so a reload keeps you where you were. */
 export const LAST_VIEW_STORAGE_KEY = "alchemist-last-view";
@@ -10,6 +10,9 @@ export const LAST_VIEW_STORAGE_KEY = "alchemist-last-view";
 export function initialView(hash: string, lastView: AppView | null): AppView {
   if (hash === "#app") {
     return "app";
+  }
+  if (hash === "#it") {
+    return "it";
   }
   if (hash === "#home") {
     return "home";

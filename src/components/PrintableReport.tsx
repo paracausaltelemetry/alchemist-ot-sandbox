@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { getAssetType, getZone, standardReferences } from "../data/catalog";
 import { cafPrinciple } from "../data/caf";
 import type { CafStatus, OtProject, ReachabilityResult, SecurityAssessment } from "../models/types";
@@ -22,12 +23,18 @@ const CAF_STATUS_LABEL: Record<CafStatus, string> = {
 export function PrintableReport({ project, assessment, reachability }: PrintableReportProps) {
   const assetName = (id: string) => project.assets.find((asset) => asset.id === id)?.name ?? id;
   const engagement = project.engagement;
-  const securityLevels = assessSecurityLevels(project, project.zoneTargets);
-  const risk = assessRisk(project, assessment.findings);
-  const caf = assessCaf(project, assessment, securityLevels, risk);
-  const attackEntry = suggestEntry(project);
-  const attackTarget = suggestTarget(project, attackEntry);
-  const attackPath = analyzeAttackPath(project, attackEntry, attackTarget, assessment.findings);
+  // This document stays mounted and hidden so Ctrl+P works without a round trip through state.
+  // That is only affordable if it does no work: unmemoised, these four engines re-ran on every
+  // render of the workbench, including every selection click, alongside the analysis panel's copy.
+  const securityLevels = useMemo(() => assessSecurityLevels(project, project.zoneTargets), [project]);
+  const risk = useMemo(() => assessRisk(project, assessment.findings), [project, assessment.findings]);
+  const caf = useMemo(() => assessCaf(project, assessment, securityLevels, risk), [project, assessment, securityLevels, risk]);
+  const attackEntry = useMemo(() => suggestEntry(project), [project]);
+  const attackTarget = useMemo(() => suggestTarget(project, attackEntry), [project, attackEntry]);
+  const attackPath = useMemo(
+    () => analyzeAttackPath(project, attackEntry, attackTarget, assessment.findings),
+    [project, attackEntry, attackTarget, assessment.findings]
+  );
   const limitingFr = (frIds: string[]) => (frIds.length > 0 ? frIds.join(", ") : "None");
 
   return (

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   BookOpen,
@@ -65,12 +65,17 @@ export function Dashboard({ onEnter, onOpenIt, onSwitchView, theme, onToggleThem
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draftName, setDraftName] = useState("");
 
-  const assessment = assessProject(project);
-  const securityLevels = assessSecurityLevels(project, project.zoneTargets);
-  const risk = assessRisk(project, assessment.findings);
-  const caf = assessCaf(project, assessment, securityLevels, risk);
-  const entryId = suggestEntry(project);
-  const attackPath = analyzeAttackPath(project, entryId, suggestTarget(project, entryId), assessment.findings);
+  // Five engines behind the posture tiles. Unmemoised they re-ran on every dashboard render,
+  // including every rename keystroke in the saved-assessment list.
+  const assessment = useMemo(() => assessProject(project), [project]);
+  const securityLevels = useMemo(() => assessSecurityLevels(project, project.zoneTargets), [project]);
+  const risk = useMemo(() => assessRisk(project, assessment.findings), [project, assessment.findings]);
+  const caf = useMemo(() => assessCaf(project, assessment, securityLevels, risk), [project, assessment, securityLevels, risk]);
+  const entryId = useMemo(() => suggestEntry(project), [project]);
+  const attackPath = useMemo(
+    () => analyzeAttackPath(project, entryId, suggestTarget(project, entryId), assessment.findings),
+    [project, entryId, assessment.findings]
+  );
 
   const assetName = (id: string) => project.assets.find((asset) => asset.id === id)?.name ?? id;
   const slGaps = securityLevels.zones.filter((zone) => zone.achieved < zone.target).length;

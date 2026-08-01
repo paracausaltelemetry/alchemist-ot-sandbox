@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   CafPrincipleId,
   CafStatus,
@@ -106,15 +106,23 @@ export function AnalysisPanel({
     (finding) => (includeDocs || finding.category !== "documentation") && severityOn[finding.severity]
   );
   const hiddenFindingCount = assessment.findings.length - visibleFindings.length;
-  const securityLevels = assessSecurityLevels(project, project.zoneTargets);
-  const exposedTechniques = new Set(assessment.findings.flatMap((finding) => finding.techniques ?? []));
-  const risk = assessRisk(project, assessment.findings);
-  const caf = assessCaf(project, assessment, securityLevels, risk);
-  const findingById = new Map(assessment.findings.map((finding) => [finding.id, finding]));
+  // Four engines, previously re-run on every render of the workbench — including every selection
+  // click — and then a second time by the print document mounted alongside.
+  const securityLevels = useMemo(() => assessSecurityLevels(project, project.zoneTargets), [project]);
+  const risk = useMemo(() => assessRisk(project, assessment.findings), [project, assessment.findings]);
+  const caf = useMemo(() => assessCaf(project, assessment, securityLevels, risk), [project, assessment, securityLevels, risk]);
+  const exposedTechniques = useMemo(
+    () => new Set(assessment.findings.flatMap((finding) => finding.techniques ?? [])),
+    [assessment.findings]
+  );
+  const findingById = useMemo(() => new Map(assessment.findings.map((finding) => [finding.id, finding])), [assessment.findings]);
   const assetExists = (id: string | null): id is string => Boolean(id) && project.assets.some((asset) => asset.id === id);
   const attackEntryId = assetExists(attackEntryOverride) ? attackEntryOverride : suggestEntry(project);
   const attackTargetId = assetExists(attackTargetOverride) ? attackTargetOverride : suggestTarget(project, attackEntryId);
-  const attackPath = analyzeAttackPath(project, attackEntryId, attackTargetId, assessment.findings);
+  const attackPath = useMemo(
+    () => analyzeAttackPath(project, attackEntryId, attackTargetId, assessment.findings),
+    [project, attackEntryId, attackTargetId, assessment.findings]
+  );
 
   const captureBaseline = () => {
     setBaseline(project);

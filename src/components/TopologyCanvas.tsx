@@ -20,7 +20,7 @@ import {
   Split,
   type LucideIcon
 } from "lucide-react";
-import { useCallback, useMemo, useState, type CSSProperties } from "react";
+import { memo, useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   ASSET_NODE_HEIGHT,
   ASSET_NODE_WIDTH,
@@ -101,7 +101,12 @@ type AssetNodeData = {
 
 type AssetFlowNode = Node<AssetNodeData, "asset">;
 
-function AssetNode({ data }: NodeProps<AssetFlowNode>) {
+/**
+ * Memoised: a large model puts hundreds of these on the canvas, and moving or selecting one
+ * rebuilds the node array. Without this every card re-renders on every change, and on every
+ * frame of a drag. Its `data` is kept referentially stable by the cache in `projectNodes`.
+ */
+const AssetNode = memo(function AssetNode({ data }: NodeProps<AssetFlowNode>) {
   const type = getAssetType(data.asset.type);
   const zone = getZone(data.asset.zone);
   const badges = assetBadges(data.asset);
@@ -187,7 +192,7 @@ function AssetNode({ data }: NodeProps<AssetFlowNode>) {
       </div>
     </div>
   );
-}
+});
 
 const nodeTypes = {
   asset: AssetNode
@@ -208,6 +213,9 @@ const viewModeOptions: Array<{ mode: CanvasMode; label: string; Icon: LucideIcon
 
 /** Vertical padding around a network-layout tier so its ghost band clears the node cards. */
 const NETWORK_BAND_PAD = 20;
+
+/** Arrow-key presses closer together than this are one move for undo purposes. */
+const NUDGE_BURST_MS = 600;
 
 function assetWithLivePosition(asset: Asset, position: Point, layoutMode: LayoutMode): Asset {
   // In the Purdue projection a node's lane (y) defines its zone, so derive it live while
@@ -314,12 +322,38 @@ function TopologyCanvasInner({
     [isPurdue, project.assets]
   );
 
-  const projectNodes = useMemo<AssetFlowNode[]>(
-    () =>
-      project.assets.map((asset) => ({
+  // Selecting a node, or moving one, rebuilds this array — but leaves every other Asset
+  // referentially untouched. Reusing the flow node we built last time whenever nothing about it
+  // changed is what stops a single click re-rendering all 300 cards.
+  const flowCache = useRef(new Map<string, { asset: Asset; position: Point; flow: AssetFlowNode }>());
+
+  const projectNodes = useMemo<AssetFlowNode[]>(() => {
+    const cache = flowCache.current;
+    const next = project.assets.map((asset) => {
+      const position = purduePositions?.get(asset.id) ?? asset.position;
+      const selected = selectedId === asset.id;
+      const highlighted = highlightedAssets.has(asset.id);
+      const connectSource = connectSourceId === asset.id;
+
+      const cached = cache.get(asset.id);
+      if (
+        cached &&
+        cached.asset === asset &&
+        cached.position.x === position.x &&
+        cached.position.y === position.y &&
+        cached.flow.data.selected === selected &&
+        cached.flow.data.highlighted === highlighted &&
+        cached.flow.data.connectMode === connectMode &&
+        cached.flow.data.connectSource === connectSource &&
+        cached.flow.data.onRename === onRenameAsset
+      ) {
+        return cached.flow;
+      }
+
+      const flow: AssetFlowNode = {
         id: asset.id,
         type: "asset",
-        position: purduePositions?.get(asset.id) ?? asset.position,
+        position,
         // Announced to screen readers on the focusable node wrapper; the
         // frame's keyboard handler adds Enter to select and arrows to move.
         ariaLabel: `${asset.name}, ${getAssetType(asset.type).label}, ${getZone(asset.zone).name}. Press Enter to select, arrow keys to move.`,
@@ -331,22 +365,42 @@ function TopologyCanvasInner({
         },
         data: {
           asset,
-          selected: selectedId === asset.id,
-          highlighted: highlightedAssets.has(asset.id),
+          selected,
+          highlighted,
           connectMode,
-          connectSource: connectSourceId === asset.id,
+          connectSource,
           onRename: onRenameAsset
         },
-        zIndex: highlightedAssets.has(asset.id) ? 10 : 5
-      })),
-    [connectMode, connectSourceId, highlightedAssets, onRenameAsset, project.assets, purduePositions, selectedId]
-  );
+        zIndex: highlighted ? 10 : 5
+      };
+      cache.set(asset.id, { asset, position, flow });
+      return flow;
+    });
+
+    if (cache.size > next.length) {
+      const live = new Set(next.map((flow) => flow.id));
+      for (const id of [...cache.keys()]) {
+        if (!live.has(id)) {
+          cache.delete(id);
+        }
+      }
+    }
+    return next;
+  }, [connectMode, connectSourceId, highlightedAssets, onRenameAsset, project.assets, purduePositions, selectedId]);
 
   // A dragged node is snapped to the grid (or into a Purdue lane), and the snapped position is
   // mirrored into node data so the conduit overlay tracks the drag.
+  //
+  // This runs over the whole array on every change, so it returns the node untouched when nothing
+  // moved. Spreading unconditionally handed React Flow a new node, a new `data` and a new `asset`
+  // for every asset on every pointermove — three allocations each, and enough new references to
+  // defeat the memo on the card below.
   const normaliseNode = useCallback(
     (node: AssetFlowNode): AssetFlowNode => {
       const snapped = isPurdue ? snapAssetPosition(node.position) : snapToGrid(node.position);
+      if (snapped.x === node.position.x && snapped.y === node.position.y) {
+        return node;
+      }
       return {
         ...node,
         position: snapped,
@@ -514,6 +568,8 @@ function TopologyCanvasInner({
   // onAssetClick as a pointer click (select, or pick a connect endpoint), and
   // moves the asset with the arrow keys in the free network view.
   const NUDGE = CANVAS_GRID_X;
+  const lastNudgeAt = useRef(0);
+  const nudgeTarget = useRef<{ id: string; position: Point } | null>(null);
   const handleCanvasKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
       const nodeEl = (event.target as HTMLElement)?.closest?.(".react-flow__node");
@@ -534,14 +590,37 @@ function TopologyCanvasInner({
       const move = delta[event.key];
       if (!move) return;
       event.preventDefault();
-      onProjectChange((current) => ({
-        ...current,
-        assets: current.assets.map((asset) =>
-          asset.id === id ? { ...asset, position: { x: asset.position.x + move[0], y: asset.position.y + move[1] } } : asset
-        )
-      }));
+
+      // Presses inside a burst arrive faster than React re-renders, so `flowNodes` is stale for
+      // all but the first. Carry the intended position forward in a ref, or a held arrow key
+      // moves the node exactly one step no matter how long it is held.
+      const now = Date.now();
+      const startsBurst = now - lastNudgeAt.current > NUDGE_BURST_MS;
+      const pending = !startsBurst && nudgeTarget.current?.id === id ? nudgeTarget.current.position : undefined;
+      const from = pending ?? flowNodes.find((node) => node.id === id)?.position;
+      if (!from) return;
+
+      const position = { x: from.x + move[0], y: from.y + move[1] };
+      nudgeTarget.current = { id, position };
+      lastNudgeAt.current = now;
+
+      // Move it the way a drag does — through React Flow's own change pipeline — so the store is
+      // not reset for every asset on every keypress.
+      handleNodesChange([{ id, type: "position", position, dragging: false }]);
+
+      // Record history once per burst rather than per keypress. Holding an arrow key used to push
+      // a deep clone of the whole project into the undo stack at key-repeat rate; recording none
+      // of them would instead make keyboard moves — the accessible path — the only edit you
+      // cannot undo. So the first press of a burst is the undo point, and the repeats ride on it.
+      onProjectChange(
+        (project) => ({
+          ...project,
+          assets: project.assets.map((asset) => (asset.id === id ? { ...asset, position } : asset))
+        }),
+        startsBurst
+      );
     },
-    [NUDGE, isPurdue, onAssetClick, onProjectChange]
+    [NUDGE, flowNodes, handleNodesChange, isPurdue, onAssetClick, onProjectChange]
   );
 
   return (

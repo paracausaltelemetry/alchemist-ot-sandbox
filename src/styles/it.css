@@ -406,3 +406,13 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Advisory notice: the scan worked, but something about it is worth saying. Distinct from
+   .it-error, which means nothing was mapped. */
+.it-notice {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}

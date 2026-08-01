@@ -19,6 +19,7 @@ import { ItMapOutline } from "./ItMapOutline";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CommandPalette, type Command } from "./CommandPalette";
 import { createProject } from "../lib/projectStore";
+import { oversizeFileError, oversizeWarning } from "../lib/modelLimits";
 
 interface ItAppProps {
   onGoHome: () => void;
@@ -51,6 +52,7 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   const [canvasMode, setCanvasMode] = useState<ItCanvasMode>("topology");
   const [fitSignal, setFitSignal] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [pasteText, setPasteText] = useState("");
   const [showInferred, setShowInferred] = useState(true);
   const [promoteOpen, setPromoteOpen] = useState(false);
@@ -104,18 +106,27 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
       setError(result.warnings[0] ?? "No hosts were found in that scan.");
       return;
     }
+    const built = positioned(synthesiseItTopology(result));
     draggedPositions.current.clear();
-    setMap(positioned(synthesiseItTopology(result)));
+    setMap(built);
     setAnalysis(analyseItNetwork(result));
     setParsed(result);
     setSelectedId(null);
     setFitSignal((value) => value + 1);
+    // A /24 is the size this view is built for, so say when a scan is past what the canvas
+    // handles comfortably rather than letting it just feel slow.
+    setNotice(oversizeWarning(built.nodes.length, built.links.length, { node: "devices", link: "links" }));
     setError(null);
   }, []);
 
   const onFile = useCallback(
     (file: File | undefined) => {
       if (!file) {
+        return;
+      }
+      const tooLarge = oversizeFileError(file);
+      if (tooLarge) {
+        setError(tooLarge);
         return;
       }
       const reader = new FileReader();
@@ -127,6 +138,7 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   );
 
   const clear = useCallback(() => {
+    setNotice(null);
     draggedPositions.current.clear();
     setMap(null);
     setAnalysis(null);
@@ -311,6 +323,7 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
       </div>
 
       {error ? <p className="it-error" role="alert">{error}</p> : null}
+      {notice ? <p className="it-notice" role="status">{notice}</p> : null}
 
       {!map || !analysis ? (
         <section className="it-empty-state">

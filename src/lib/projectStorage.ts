@@ -9,6 +9,6 @@ export function loadStoredProject(): OtProject {
   return getCurrentProject();
 }
 
-export function writeStoredProject(project: OtProject): void {
-  saveCurrentProject(project);
+export function writeStoredProject(project: OtProject): boolean {
+  return saveCurrentProject(project);
 }

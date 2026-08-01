@@ -24,12 +24,39 @@ export function parseByFormat(text: string, format: ImportFormat): ParsedImport 
       return parseGraphml(text);
     case "csv-inventory":
       return parseInventoryCsv(text);
+    default:
+      // The union is exhaustive today, but a format arriving from stored or shared data must not
+      // return undefined and blow up in the caller's `.hosts`.
+      return {
+        format: "csv-inventory",
+        hosts: [],
+        flows: [],
+        warnings: [`Unrecognised import format "${String(format)}".`]
+      };
   }
 }
 
 /** Parses raw scan output and assembles it into Alchemist assets, conduits and subnets. */
 export function importTopology(text: string, format: ImportFormat): AssembledTopology {
   return assembleTopology(parseByFormat(text, format));
+}
+
+/** Column names that make a delimited file recognisable as an inventory rather than prose. */
+const INVENTORY_HEADERS = new Set([
+  "name", "hostname", "host", "device", "asset", "label",
+  "ip", "ipaddress", "ip address", "address", "ipv4",
+  "type", "assettype", "asset type", "devicetype", "device type", "role",
+  "zone", "level", "purdue", "vlan", "protocols", "services", "criticality",
+  "source", "src", "target", "destination", "dst", "orig_h", "resp_h"
+]);
+
+function looksLikeInventoryHeader(head: string): boolean {
+  const firstLine = head.split(/\r?\n/, 1)[0] ?? "";
+  const cells = firstLine.split(/[,\t;]/).map((cell) => cell.trim().toLowerCase().replace(/^"|"$/g, ""));
+  if (cells.length < 2) {
+    return false;
+  }
+  return cells.filter((cell) => INVENTORY_HEADERS.has(cell)).length >= 2;
 }
 
 /** Best-effort format guess from a file name and the first chunk of its contents. */
@@ -55,7 +82,13 @@ export function detectFormat(filename: string, text: string): ImportFormat | nul
   if (head.trim().startsWith("{") && /orig_h|resp_h/.test(head)) {
     return "zeek-conn";
   }
-  if (name.endsWith(".csv") || (head.includes(",") && /\n/.test(head))) {
+  if (name.endsWith(".csv") || name.endsWith(".tsv")) {
+    return "csv-inventory";
+  }
+  // Only claim CSV when the first line reads like a header of columns we understand. "Any text
+  // with a comma and a newline" matched READMEs and log files, so an unparseable file came back
+  // as a confident wrong parse instead of an honest "unrecognised".
+  if (looksLikeInventoryHeader(head)) {
     return "csv-inventory";
   }
   if (name.endsWith(".xml")) {

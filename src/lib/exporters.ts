@@ -3,7 +3,8 @@ import { protocolLabel, resolveProtocolFamily } from "../data/protocols";
 import { conduitParallelOffsets } from "../engine/conduitVisuals";
 import type { OtProject, SecurityAssessment } from "../models/types";
 
-function download(name: string, contents: string, type: string) {
+/** Triggers a browser download of `contents`. Shared with the IT exporters. */
+export function download(name: string, contents: string, type: string) {
   const blob = new Blob([contents], { type });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
@@ -13,6 +14,16 @@ function download(name: string, contents: string, type: string) {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
+}
+
+/** Escapes text for inclusion in generated SVG. Shared with the IT exporters. */
+export function escapeXml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 export function downloadJson(name: string, contents: string) {
@@ -109,13 +120,4 @@ function offsetLine(sourceX: number, sourceY: number, targetX: number, targetY: 
     labelX: (x1 + x2) / 2,
     labelY: (y1 + y2) / 2
   };
-}
-
-function escapeXml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
 }

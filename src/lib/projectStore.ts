@@ -1,5 +1,5 @@
 import { sampleProject } from "../data/sampleProject";
-import { safeSetItem, safeRemoveItem } from "./safeStorage";
+import { safeGetItem, safeSetItem, safeRemoveItem, reportStorageFailure } from "./safeStorage";
 import { parseProjectJson, serializeProject } from "../engine/serialization";
 import type { OtProject } from "../models/types";
 
@@ -39,7 +39,7 @@ function baselineKey(id: string): string {
 
 function readIndex(): SavedProjectMeta[] {
   try {
-    const raw = window.localStorage.getItem(INDEX_KEY);
+    const raw = safeGetItem(INDEX_KEY);
     const parsed = raw ? (JSON.parse(raw) as unknown) : [];
     return Array.isArray(parsed) ? (parsed as SavedProjectMeta[]) : [];
   } catch {
@@ -47,21 +47,42 @@ function readIndex(): SavedProjectMeta[] {
   }
 }
 
+/**
+ * Payload ids whose stored JSON would not parse. A corrupt payload must never be written over:
+ * silently replacing it with the sample destroys whatever might have been salvageable, and the
+ * user would see the sample project where their work used to be with no explanation.
+ */
+const corrupt = new Set<string>();
+
+export function isCorrupt(id: string): boolean {
+  return corrupt.has(id);
+}
+
 function writeIndex(index: SavedProjectMeta[]): void {
   safeSetItem(INDEX_KEY, JSON.stringify(index));
 }
 
 function readPayload(id: string): OtProject | null {
-  const raw = window.localStorage.getItem(payloadKey(id));
+  const raw = safeGetItem(payloadKey(id));
   if (!raw) {
     return null;
   }
   const parsed = parseProjectJson(raw);
-  return parsed.ok ? parsed.project : null;
+  if (!parsed.ok) {
+    corrupt.add(id);
+    reportStorageFailure("corrupt", `saved assessment ${id} could not be read; it has been left untouched.`);
+    return null;
+  }
+  corrupt.delete(id);
+  return parsed.project;
 }
 
-function writePayload(id: string, project: OtProject): void {
-  safeSetItem(payloadKey(id), serializeProject(project));
+/** Returns false when the write was refused or failed, so callers can tell the user. */
+function writePayload(id: string, project: OtProject): boolean {
+  if (corrupt.has(id)) {
+    return false;
+  }
+  return safeSetItem(payloadKey(id), serializeProject(project));
 }
 
 function addEntry(project: OtProject): SavedProjectMeta {
@@ -73,7 +94,7 @@ function addEntry(project: OtProject): SavedProjectMeta {
 
 /** Ensures a registry exists (migrating the legacy slot or seeding the sample) and returns the current id. */
 function ensureInitialised(): string {
-  const current = window.localStorage.getItem(CURRENT_KEY);
+  const current = safeGetItem(CURRENT_KEY);
   const index = readIndex();
   if (current && index.some((meta) => meta.id === current) && readPayload(current)) {
     return current;
@@ -85,7 +106,7 @@ function ensureInitialised(): string {
 
   // Seed from the legacy single slot if present, otherwise the bundled sample.
   let project = clone(sampleProject);
-  const legacy = window.localStorage.getItem(LEGACY_KEY);
+  const legacy = safeGetItem(LEGACY_KEY);
   if (legacy) {
     const parsed = parseProjectJson(legacy);
     if (parsed.ok) {
@@ -111,15 +132,22 @@ export function getCurrentProject(): OtProject {
   return readPayload(id) ?? clone(sampleProject);
 }
 
-/** Persists the working project into the current entry, keeping its index name and timestamp in sync. */
-export function saveCurrentProject(project: OtProject): void {
+/**
+ * Persists the working project into the current entry, keeping its index name and timestamp in
+ * sync. Returns false when the payload could not be written — the index is then left alone too,
+ * so the picker never advertises a name or timestamp that the stored content does not match.
+ */
+export function saveCurrentProject(project: OtProject): boolean {
   const id = ensureInitialised();
-  writePayload(id, project);
+  if (!writePayload(id, project)) {
+    return false;
+  }
   writeIndex(
     readIndex().map((meta) =>
       meta.id === id ? { ...meta, name: project.name || meta.name, updatedAt: new Date().toISOString() } : meta
     )
   );
+  return true;
 }
 
 export function openProject(id: string): void {
@@ -159,7 +187,7 @@ export function deleteProject(id: string): void {
   safeRemoveItem(baselineKey(id));
   const index = readIndex().filter((meta) => meta.id !== id);
   writeIndex(index);
-  if (window.localStorage.getItem(CURRENT_KEY) === id) {
+  if (safeGetItem(CURRENT_KEY) === id) {
     if (index.length > 0) {
       safeSetItem(CURRENT_KEY, index[0].id);
     } else {
@@ -170,7 +198,7 @@ export function deleteProject(id: string): void {
 
 /** The remediation baseline snapshot for the current assessment, if one has been set. */
 export function getBaseline(): OtProject | null {
-  const raw = window.localStorage.getItem(baselineKey(ensureInitialised()));
+  const raw = safeGetItem(baselineKey(ensureInitialised()));
   if (!raw) {
     return null;
   }

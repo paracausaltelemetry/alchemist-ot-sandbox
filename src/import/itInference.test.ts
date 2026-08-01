@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { classifyItDevice, isRouterLike } from "./itInference";
 import { inferAssetType } from "./inference";
-import type { ImportedHost, ImportedPort } from "./types";
+import type { ImportedHost } from "./types";
 
-function host(partial: Partial<ImportedHost> & { ports?: number[] }): ImportedHost {
-  const ports: ImportedPort[] = (partial.ports ?? []).map((port) => ({ port }));
-  return { ...partial, ports } as ImportedHost;
+/** Terse fixture: ports are given as bare numbers. */
+function host(partial: Omit<Partial<ImportedHost>, "ports"> & { ports?: number[] }): ImportedHost {
+  return { ...partial, ports: (partial.ports ?? []).map((port) => ({ port })) };
 }
 
 describe("classifyItDevice", () => {

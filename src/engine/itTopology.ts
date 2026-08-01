@@ -1,5 +1,5 @@
 import { classifyItDevice, isRouterLike } from "../import/itInference";
-import type { ImportedHost, ImportedTrace, ParsedImport } from "../import/types";
+import type { ImportedHost, ParsedImport } from "../import/types";
 import type { ItLink, ItLinkEvidence, ItMap, ItNode } from "../models/itMap";
 import type { Subnet } from "../models/types";
 import { isPublicIp } from "./itAnalysis";

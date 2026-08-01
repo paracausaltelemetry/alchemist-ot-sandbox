@@ -1,9 +1,10 @@
-import { ArrowLeft, Download, FileUp, PlayCircle, Trash2, X } from "lucide-react";
+import { ArrowLeft, Download, FileUp, PlayCircle, Share2, Trash2, X } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { detectFormat, parseByFormat } from "../import";
 import type { ImportedHost, ParsedImport } from "../import/types";
 import { analyseItNetwork, itReportMarkdown, type ItAnalysis } from "../engine/itAnalysis";
 import { synthesiseItTopology } from "../engine/itTopology";
+import { promoteToOtProject } from "../engine/itToOt";
 import { layoutItMap } from "../data/itLayout";
 import { SAMPLE_SCAN } from "../data/sampleScan";
 import { downloadJson, downloadMarkdown } from "../lib/exporters";
@@ -14,6 +15,8 @@ import type { AppView } from "../lib/appView";
 import { SiteMasthead } from "./SiteMasthead";
 import { ItNetworkCanvas, type ItCanvasMode, type ItRisk } from "./ItNetworkCanvas";
 import { ItFindingsPanel } from "./ItFindingsPanel";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { createProject } from "../lib/projectStore";
 
 interface ItAppProps {
   onGoHome: () => void;
@@ -21,6 +24,10 @@ interface ItAppProps {
   theme: "dark" | "light";
   onToggleTheme: () => void;
   isMobile: boolean;
+}
+
+function plural(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 /** Runs the layout and returns a positioned copy of the map. */
@@ -44,6 +51,7 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   const [error, setError] = useState<string | null>(null);
   const [pasteText, setPasteText] = useState("");
   const [showInferred, setShowInferred] = useState(true);
+  const [promoteOpen, setPromoteOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Colour the map by IT risk: internet-facing or high-severity services are high, other
@@ -139,6 +147,19 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
     return parsed.hosts.find((host) => host.ip === selectedNode.ip || host.hostname === selectedNode.name) ?? null;
   }, [selectedNode, parsed]);
 
+  // Hand the scanned network to the OT workbench as a new saved assessment. Additive: the
+  // existing assessments are untouched, and the conversion is explicit about what it guessed.
+  const promotion = useMemo(() => (map ? promoteToOtProject(map) : null), [map]);
+
+  const promote = useCallback(() => {
+    if (!promotion) {
+      return;
+    }
+    createProject(promotion.project);
+    setPromoteOpen(false);
+    onSwitchView("app");
+  }, [promotion, onSwitchView]);
+
   const exportJson = useCallback(() => {
     if (analysis) {
       downloadJson("it-network", JSON.stringify({ analysis, map, hosts: parsed?.hosts ?? [] }, null, 2));
@@ -181,6 +202,16 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
               <button type="button" className="text-button" onClick={exportReport} title="Download a Markdown report">Report</button>
               <button type="button" className="text-button" onClick={exportMap} title="Download the map as SVG">Map</button>
             </div>
+          ) : null}
+          {map ? (
+            <button
+              type="button"
+              className="text-button"
+              onClick={() => setPromoteOpen(true)}
+              title="Create an OT assessment from this scan and open it in the workbench"
+            >
+              <Share2 size={15} aria-hidden="true" /> Assess in OT
+            </button>
           ) : null}
           {map ? (
             <button type="button" className="text-button" onClick={clear}>
@@ -300,6 +331,28 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
           </aside>
         </div>
       )}
+
+      <ConfirmDialog
+        open={promoteOpen}
+        title="Assess this network in the OT workbench"
+        message={
+          promotion
+            ? `Creates a new assessment with ${promotion.project.assets.length} assets and ${promotion.project.conduits.length} conduits. ` +
+              `A scan cannot tell what a device does in a process or what controls it has, so every asset lands in an ` +
+              `enterprise or operations zone with its controls unset — review both before reading the score. ` +
+              (promotion.dropped.syntheticNodes > 0
+                ? `${plural(promotion.dropped.syntheticNodes, "inferred device")} and ${plural(
+                    promotion.dropped.links,
+                    "link"
+                  )} are not carried over. `
+                : "") +
+              "Your existing assessments are untouched."
+            : ""
+        }
+        confirmLabel="Create and open"
+        onConfirm={promote}
+        onCancel={() => setPromoteOpen(false)}
+      />
     </div>
   );
 }

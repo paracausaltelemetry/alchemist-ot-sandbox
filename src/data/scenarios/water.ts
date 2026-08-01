@@ -47,6 +47,7 @@ const project: OtProject = {
       subnetId: "sn-idmz",
       ipAddress: "10.55.0.1",
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("wtr-jump", "OT Jump Host", "jump-host", "level3", 384, laneY.level3, {
@@ -54,6 +55,7 @@ const project: OtProject = {
       ipAddress: "10.55.10.10",
       protocols: ["RDP", "SSH"],
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("wtr-hist", "Plant Historian", "historian", "level3", 672, laneY.level3, {
@@ -68,6 +70,7 @@ const project: OtProject = {
       ipAddress: "10.52.10.20",
       protocols: ["DNP3", "Modbus TCP"],
       criticality: "critical",
+      backupStatus: "configured",
       manufacturer: "Schneider Electric",
       model: "EcoStruxure Geo SCADA",
       controls: controls.moderate
@@ -92,6 +95,7 @@ const project: OtProject = {
       ipAddress: "10.52.20.11",
       protocols: ["Modbus TCP", "EtherNet/IP"],
       criticality: "critical",
+      backupStatus: "missing",
       manufacturer: "Rockwell Automation",
       model: "ControlLogix 1756-L8",
       lifecycleStatus: "limited",
@@ -103,6 +107,7 @@ const project: OtProject = {
       ipAddress: "10.52.20.12",
       protocols: ["Modbus TCP"],
       criticality: "critical",
+      backupStatus: "missing",
       criticalProcessTag: "Raw water pumping",
       controls: controls.weak
     }),
@@ -111,6 +116,7 @@ const project: OtProject = {
       ipAddress: "10.52.20.13",
       protocols: ["Modbus TCP"],
       criticality: "critical",
+      backupStatus: "missing",
       criticalProcessTag: "Disinfection",
       controls: controls.weak
     }),

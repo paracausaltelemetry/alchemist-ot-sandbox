@@ -45,6 +45,7 @@ const project: OtProject = {
       subnetId: "sn-esp",
       ipAddress: "10.65.0.1",
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("sub-is", "Intermediate System", "jump-host", "level3", 384, laneY.level3, {
@@ -52,6 +53,7 @@ const project: OtProject = {
       ipAddress: "10.65.0.10",
       protocols: ["RDP", "SSH"],
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("sub-gw", "Station Gateway / RTU", "scada", "level3", 672, laneY.level3, {
@@ -59,6 +61,7 @@ const project: OtProject = {
       ipAddress: "10.62.10.5",
       protocols: ["DNP3", "IEC 61850 MMS", "ICCP / TASE.2"],
       criticality: "critical",
+      backupStatus: "configured",
       manufacturer: "SEL",
       model: "SEL-3530 RTAC",
       controls: controls.moderate
@@ -83,6 +86,7 @@ const project: OtProject = {
       ipAddress: "10.62.20.11",
       protocols: ["IEC 61850 MMS", "GOOSE", "DNP3"],
       criticality: "critical",
+      backupStatus: "missing",
       manufacturer: "SEL",
       model: "SEL-411L",
       criticalProcessTag: "Line protection",
@@ -93,6 +97,7 @@ const project: OtProject = {
       ipAddress: "10.62.20.12",
       protocols: ["IEC 61850 MMS", "GOOSE"],
       criticality: "critical",
+      backupStatus: "missing",
       manufacturer: "GE",
       model: "Multilin T60",
       criticalProcessTag: "Transformer protection",
@@ -103,6 +108,7 @@ const project: OtProject = {
       ipAddress: "10.62.20.13",
       protocols: ["IEC 61850 MMS", "GOOSE"],
       criticality: "critical",
+      backupStatus: "missing",
       manufacturer: "Siemens",
       model: "SIPROTEC 5",
       lifecycleStatus: "limited",

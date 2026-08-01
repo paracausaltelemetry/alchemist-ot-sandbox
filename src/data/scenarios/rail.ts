@@ -46,6 +46,7 @@ const project: OtProject = {
       subnetId: "sn-idmz",
       ipAddress: "10.45.0.1",
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("rail-jump", "OT Jump Host", "jump-host", "level3", 384, laneY.level3, {
@@ -53,6 +54,7 @@ const project: OtProject = {
       ipAddress: "10.45.0.10",
       protocols: ["RDP", "SSH"],
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("rail-hist", "Signalling Data Recorder", "historian", "level3", 672, laneY.level3, {
@@ -67,6 +69,7 @@ const project: OtProject = {
       ipAddress: "10.42.10.20",
       protocols: ["Modbus TCP", "ETCS"],
       criticality: "critical",
+      backupStatus: "configured",
       controls: controls.moderate
     }),
     asset("rail-hmi", "Signaller HMI", "hmi", "level2", 528, laneY.level2, {
@@ -89,6 +92,7 @@ const project: OtProject = {
       ipAddress: "10.42.20.11",
       protocols: ["Proprietary SSI", "Modbus TCP"],
       criticality: "critical",
+      backupStatus: "missing",
       manufacturer: "Alstom",
       lifecycleStatus: "obsolete",
       criticalProcessTag: "Interlocking",
@@ -99,6 +103,7 @@ const project: OtProject = {
       ipAddress: "10.42.20.12",
       protocols: ["ETCS", "Euroradio"],
       criticality: "critical",
+      backupStatus: "missing",
       criticalProcessTag: "Movement authority",
       controls: controls.weak
     }),
@@ -107,6 +112,7 @@ const project: OtProject = {
       ipAddress: "10.42.20.13",
       protocols: ["Modbus TCP"],
       criticality: "critical",
+      backupStatus: "missing",
       criticalProcessTag: "Level crossing",
       controls: controls.weak
     }),

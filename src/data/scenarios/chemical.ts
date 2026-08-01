@@ -46,6 +46,7 @@ const project: OtProject = {
       subnetId: "sn-idmz",
       ipAddress: "10.75.0.1",
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("chem-jump", "OT Jump Host", "jump-host", "level3", 384, laneY.level3, {
@@ -53,6 +54,7 @@ const project: OtProject = {
       ipAddress: "10.75.0.10",
       protocols: ["RDP", "SSH"],
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("chem-mes", "MES / Process Historian", "historian", "level3", 672, laneY.level3, {
@@ -67,6 +69,7 @@ const project: OtProject = {
       ipAddress: "10.72.10.20",
       protocols: ["OPC DA", "Modbus TCP"],
       criticality: "critical",
+      backupStatus: "configured",
       manufacturer: "Emerson",
       model: "DeltaV",
       controls: controls.moderate
@@ -91,6 +94,7 @@ const project: OtProject = {
       ipAddress: "10.72.20.11",
       protocols: ["Modbus TCP", "EtherNet/IP"],
       criticality: "critical",
+      backupStatus: "missing",
       manufacturer: "Emerson",
       model: "DeltaV MD Controller",
       criticalProcessTag: "Reactor control",
@@ -101,6 +105,7 @@ const project: OtProject = {
       ipAddress: "10.72.20.12",
       protocols: ["Modbus TCP"],
       criticality: "critical",
+      backupStatus: "missing",
       criticalProcessTag: "Batch sequencing",
       controls: controls.weak
     }),
@@ -109,6 +114,7 @@ const project: OtProject = {
       ipAddress: "10.72.25.10",
       protocols: ["Vendor Safety Protocol"],
       criticality: "critical",
+      backupStatus: "verified",
       manufacturer: "HIMA",
       model: "HIMax",
       criticalProcessTag: "Emergency shutdown",

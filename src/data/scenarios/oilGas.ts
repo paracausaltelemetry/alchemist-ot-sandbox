@@ -47,6 +47,7 @@ const project: OtProject = {
       subnetId: "sn-idmz",
       ipAddress: "10.95.0.1",
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("og-jump", "OT Jump Host", "jump-host", "level3", 384, laneY.level3, {
@@ -54,6 +55,7 @@ const project: OtProject = {
       ipAddress: "10.95.0.10",
       protocols: ["RDP", "SSH"],
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("og-hist", "Pipeline Historian", "historian", "level3", 672, laneY.level3, {
@@ -68,6 +70,7 @@ const project: OtProject = {
       ipAddress: "10.92.10.20",
       protocols: ["DNP3", "Modbus TCP"],
       criticality: "critical",
+      backupStatus: "configured",
       manufacturer: "Schneider Electric",
       model: "OASyS DNA",
       controls: controls.moderate
@@ -107,6 +110,7 @@ const project: OtProject = {
       ipAddress: "10.92.30.21",
       protocols: ["DNP3", "Modbus TCP"],
       criticality: "critical",
+      backupStatus: "missing",
       manufacturer: "Emerson",
       model: "ROC800",
       lifecycleStatus: "obsolete",
@@ -118,6 +122,7 @@ const project: OtProject = {
       ipAddress: "10.92.30.22",
       protocols: ["Modbus TCP"],
       criticality: "critical",
+      backupStatus: "missing",
       manufacturer: "Emerson",
       model: "FloBoss S600+",
       criticalProcessTag: "Custody transfer",
@@ -128,6 +133,7 @@ const project: OtProject = {
       ipAddress: "10.92.40.11",
       protocols: ["Modbus TCP", "EtherNet/IP"],
       criticality: "critical",
+      backupStatus: "missing",
       criticalProcessTag: "Compression",
       controls: controls.weak
     }),

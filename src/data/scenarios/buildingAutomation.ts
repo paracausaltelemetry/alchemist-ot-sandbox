@@ -105,7 +105,11 @@ const project: OtProject = {
       subnetId: "sn-hvac",
       ipAddress: "10.82.20.13",
       protocols: ["BACnet/IP", "Modbus TCP"],
-      criticality: "high",
+      // Loss of chilled water takes the served load with it, and egress control is life safety.
+      // Both were authored "high" alongside twelve others, which left this the only scenario with
+      // no critical asset at all — and therefore a free full score on resilience.
+      criticality: "critical",
+      backupStatus: "missing",
       criticalProcessTag: "Chilled water",
       controls: controls.weak
     }),
@@ -113,7 +117,9 @@ const project: OtProject = {
       subnetId: "sn-access",
       ipAddress: "10.82.25.11",
       protocols: ["OSDP", "BACnet/IP"],
-      criticality: "high",
+      criticality: "critical",
+      backupStatus: "missing",
+      criticalProcessTag: "Egress and access control",
       controls: controls.weak
     }),
     asset("bas-sensors", "Zone Sensors & Actuators", "field-device", "level0", 384, laneY.level0, {

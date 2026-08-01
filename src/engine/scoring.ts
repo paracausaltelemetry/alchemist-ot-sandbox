@@ -2,7 +2,7 @@ import { categoryLabels, getAssetType, getZone, standardReferences } from "../da
 import { techniquesForCategory } from "../data/attackIcs";
 import { findReachability } from "./reachability";
 import { assessSecurityLevels, foundationalRequirements } from "./securityLevels";
-import type { Asset, AssessmentCoverage, Conduit, Finding, OtProject, ScoreCategory, SecurityAssessment, Severity } from "../models/types";
+import type { Asset, AssessmentCoverage, Conduit, Finding, OtProject, ScoreCategory, SecurityAssessment, Severity, Subnet } from "../models/types";
 
 export const categoryWeights: Record<ScoreCategory, number> = {
   segmentation: 0.22,
@@ -88,6 +88,29 @@ function conduitName(conduit?: Conduit) {
   return conduit?.name ?? "Unknown conduit";
 }
 
+/**
+ * Whether an asset's network placement is documented.
+ *
+ * VLAN lives on the `Subnet` — that is what `Subnet.vlan` is for, and assets carry `subnetId` —
+ * so reading `asset.vlan` alone asked the wrong object. No bundled scenario sets an asset-level
+ * VLAN, so every asset in every scenario raised "documentation incomplete" regardless of how
+ * carefully its segment was described. `asset.vlan` is kept as a per-asset override.
+ */
+function networkDocumented(asset: Asset, subnets: Map<string, Subnet>): boolean {
+  if (asset.vlan.trim()) {
+    return true;
+  }
+  const subnet = asset.subnetId ? subnets.get(asset.subnetId) : undefined;
+  return Boolean(subnet && (subnet.vlan.trim() || subnet.cidr.trim()));
+}
+
+function listAnd(items: string[]): string {
+  if (items.length <= 1) {
+    return items[0] ?? "";
+  }
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
 function isPastDate(value: string) {
   if (!value.trim()) {
     return false;
@@ -99,6 +122,7 @@ function isPastDate(value: string) {
 export function assessProject(project: OtProject): SecurityAssessment {
   const findings: Finding[] = [];
   const assets = new Map(project.assets.map((asset) => [asset.id, asset]));
+  const subnetsById = new Map((project.subnets ?? []).map((subnet) => [subnet.id, subnet]));
 
   for (const conduit of project.conduits) {
     const source = assets.get(conduit.source);
@@ -330,25 +354,43 @@ export function assessProject(project: OtProject): SecurityAssessment {
       }
     }
 
-    if (
-      asset.criticality === "critical" &&
-      (!asset.controls.backups || asset.backupStatus === "missing" || asset.backupStatus === "unknown") &&
-      asset.type !== "field-device"
-    ) {
-      addFinding(
-        findings,
-        {
-          category: "resilience",
-          severity: "high",
-          title: "Critical asset lacks backup evidence",
-          detail: `${asset.name} is critical but backups are not marked as present.`,
-          remediation: "Document recoverable configuration backups, offline copies, restore testing, and owner accountability.",
-          affectedAssetIds: [asset.id],
-          affectedConduitIds: [],
-          references: [standardReferences.nist80082]
-        },
-        asset.id
-      );
+    // `controls.backups` asks whether there is a backup programme; `backupStatus` asks what
+    // evidence exists for it. They were OR'd into one high finding, which treated "unknown" — the
+    // default nobody had overridden — as equivalent to "missing", so assets explicitly given a
+    // backup programme still raised a high finding. Distinguishing asserted from evidenced is the
+    // posture this tool sells, so the false positive becomes a lesser, truer finding.
+    if (asset.criticality === "critical" && asset.type !== "field-device") {
+      if (!asset.controls.backups || asset.backupStatus === "missing") {
+        addFinding(
+          findings,
+          {
+            category: "resilience",
+            severity: "high",
+            title: "Critical asset has no backup",
+            detail: `${asset.name} is critical and has no recorded backup programme.`,
+            remediation: "Establish recoverable configuration backups with offline copies, restore testing, and owner accountability.",
+            affectedAssetIds: [asset.id],
+            affectedConduitIds: [],
+            references: [standardReferences.nist80082]
+          },
+          asset.id
+        );
+      } else if (asset.backupStatus === "unknown") {
+        addFinding(
+          findings,
+          {
+            category: "resilience",
+            severity: "low",
+            title: "Backup evidence not recorded",
+            detail: `${asset.name} has a backup programme, but whether a restore has been verified is not recorded.`,
+            remediation: "Record the backup status — configured, or verified by a tested restore — so resilience rests on evidence rather than assertion.",
+            affectedAssetIds: [asset.id],
+            affectedConduitIds: [],
+            references: [standardReferences.nist80082]
+          },
+          `${asset.id}-backup-evidence`
+        );
+      }
     }
 
     if (asset.lifecycleStatus === "obsolete" && isControlZone(asset)) {
@@ -407,15 +449,29 @@ export function assessProject(project: OtProject): SecurityAssessment {
       );
     }
 
-    const missingDocumentation = [asset.ipAddress, asset.vlan, asset.owner].filter((value) => value.trim().length === 0).length;
-    if (missingDocumentation > 0 || asset.protocols.length === 0) {
+    const missing: string[] = [];
+    if (!asset.ipAddress.trim()) {
+      missing.push("IP address");
+    }
+    if (!networkDocumented(asset, subnetsById)) {
+      missing.push("network segment");
+    }
+    if (!asset.owner.trim()) {
+      missing.push("owner");
+    }
+    if (asset.protocols.length === 0) {
+      missing.push("protocols");
+    }
+    if (missing.length > 0) {
       addFinding(
         findings,
         {
           category: "documentation",
           severity: "low",
+          // Naming what is actually absent, rather than the old catch-all "owner, IP/VLAN, or
+          // protocol metadata", so the finding is actionable without opening the inspector.
+          detail: `${asset.name} is missing ${listAnd(missing)}.`,
           title: "Asset documentation incomplete",
-          detail: `${asset.name} is missing owner, IP/VLAN, or protocol metadata.`,
           remediation: "Complete the asset record so ratings and remediation can be traced to responsible owners and allowed services.",
           affectedAssetIds: [asset.id],
           affectedConduitIds: [],

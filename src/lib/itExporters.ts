@@ -53,7 +53,7 @@ export function buildItMapSvg(map: ItMap): string {
     .map((node) => {
       const ghost = node.origin === "synthetic";
       const subtitle = node.ip || (ghost ? "inferred" : "");
-      return `<g transform="translate(${node.position.x}, ${node.position.y})">
+      return `<g class="it-map-node" transform="translate(${node.position.x}, ${node.position.y})">
         <rect width="${IT_NODE_WIDTH}" height="${IT_NODE_HEIGHT}" fill="#ffffff" stroke="${
           ghost ? "#94a3b8" : "#334155"
         }" stroke-width="1.5"${ghost ? ' stroke-dasharray="6 5"' : ""} />

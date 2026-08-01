@@ -9,7 +9,7 @@ const map = synthesiseItTopology(parseNmapNormal(SAMPLE_SCAN), "Scanned network"
 describe("buildItMapSvg", () => {
   it("draws one group per node and one line per link", () => {
     const svg = buildItMapSvg(map);
-    expect(svg.match(/<g transform="translate\(/g) ?? []).toHaveLength(map.nodes.length);
+    expect(svg.match(/<g class="it-map-node"/g) ?? []).toHaveLength(map.nodes.length);
     expect(svg.match(/<line /g) ?? []).toHaveLength(map.links.length);
   });
 

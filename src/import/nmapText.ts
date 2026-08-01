@@ -1,10 +1,12 @@
-import type { ImportedHost, ImportedPort, ParsedImport } from "./types";
+import type { ImportedHop, ImportedHost, ImportedPort, ImportedTrace, ParsedImport } from "./types";
 
 /**
  * Parsers for Nmap's text outputs, alongside the XML parser in `nmap.ts`:
  *  - normal output (`-oN`), the default human-readable report, and
  *  - greppable output (`-oG`), one line per host.
- * Both are host/port scans, so they yield assets but no host-to-host flows.
+ * Both are host/port scans, so they yield assets but no host-to-host flows. Normal output
+ * additionally carries TRACEROUTE blocks when the scan used `--traceroute`; greppable output
+ * never does.
  */
 
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
@@ -31,16 +33,77 @@ function pushHost(hosts: ImportedHost[], host: ImportedHost | null): void {
   }
 }
 
+/**
+ * Parses one TRACEROUTE row. Nmap prints either `1   0.35 ms 10.10.1.1`, an optionally
+ * named address `2   1.20 ms core (10.10.1.254)`, or `3   ...` for a hop that did not answer
+ * (sometimes as a `3   ... 5` range). Timed-out hops are kept so later ttls stay accurate.
+ */
+function parseTraceRow(line: string): ImportedHop[] {
+  const row = line.match(/^\s*(\d+)\s+(.*)$/);
+  if (!row) {
+    return [];
+  }
+  const ttl = Number(row[1]);
+  const rest = row[2].trim();
+
+  const gap = rest.match(/^\.\.\.(?:\s+(\d+))?$/);
+  if (gap) {
+    const last = gap[1] ? Number(gap[1]) : ttl;
+    const hops: ImportedHop[] = [];
+    for (let step = ttl; step <= Math.max(ttl, last); step += 1) {
+      hops.push({ ttl: step, timedOut: true });
+    }
+    return hops;
+  }
+
+  const timed = rest.match(/^([\d.]+)\s*ms\s+(.+)$/);
+  if (!timed) {
+    return [];
+  }
+  const hop: ImportedHop = { ttl };
+  const rtt = Number(timed[1]);
+  if (Number.isFinite(rtt)) {
+    hop.rttMs = rtt;
+  }
+  const { ip, hostname } = parseTarget(timed[2]);
+  if (ip) {
+    hop.ip = ip;
+  }
+  if (hostname) {
+    hop.hostname = hostname;
+  }
+  return [hop];
+}
+
 export function parseNmapNormal(text: string): ParsedImport {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   const hosts: ImportedHost[] = [];
+  const traces: ImportedTrace[] = [];
   const warnings: string[] = [];
   let current: ImportedHost | null = null;
   let inPortTable = false;
+  let trace: ImportedTrace | null = null;
+  let sharedHopsSkipped = false;
+
+  // A traceroute's last hop is the target itself; drop it so every kept hop is a router.
+  const flushTrace = () => {
+    if (!trace) {
+      return;
+    }
+    const last = trace.hops[trace.hops.length - 1];
+    if (last && trace.targetIp && last.ip === trace.targetIp) {
+      trace.hops.pop();
+    }
+    if (trace.hops.length > 0) {
+      traces.push(trace);
+    }
+    trace = null;
+  };
 
   for (const line of lines) {
     const report = line.match(/^Nmap scan report for (.+)$/);
     if (report) {
+      flushTrace();
       pushHost(hosts, current);
       const { ip, hostname } = parseTarget(report[1]);
       current = { ip, hostname, ports: [] };
@@ -48,6 +111,38 @@ export function parseNmapNormal(text: string): ParsedImport {
       continue;
     }
     if (!current) {
+      continue;
+    }
+
+    if (trace) {
+      if (line.trim() === "" || /^Nmap done|^Read data files:/i.test(line)) {
+        flushTrace();
+        continue;
+      }
+      if (/^HOP\s+RTT\s+ADDRESS/i.test(line)) {
+        continue;
+      }
+      // Nmap collapses a shared prefix into "Hops 1-3 are the same as for 10.0.0.5".
+      // Resolving that needs cross-host state; skip it and say so.
+      if (/^Hops\s+[\d-]+\s+are the same as for/i.test(line)) {
+        if (!sharedHopsSkipped) {
+          warnings.push("Some traceroutes reuse another host's hops ('Hops N-M are the same as for ...'); those hops were skipped.");
+          sharedHopsSkipped = true;
+        }
+        continue;
+      }
+      trace.hops.push(...parseTraceRow(line));
+      continue;
+    }
+
+    const traceHead = line.match(/^TRACEROUTE(?:\s+\(using (?:port (\d+)\/(tcp|udp)|proto (\d+))\))?/i);
+    if (traceHead) {
+      inPortTable = false;
+      trace = { targetIp: current.ip, targetHostname: current.hostname, hops: [] };
+      if (traceHead[1]) {
+        trace.port = Number(traceHead[1]);
+        trace.proto = traceHead[2].toLowerCase();
+      }
       continue;
     }
 
@@ -79,6 +174,12 @@ export function parseNmapNormal(text: string): ParsedImport {
       }
     }
 
+    const distance = line.match(/^Network Distance:\s*(\d+)\s*hops?/i);
+    if (distance) {
+      current.distance = Number(distance[1]);
+      continue;
+    }
+
     const mac = line.match(/^MAC Address:\s+([0-9A-Fa-f:]{17})(?:\s+\((.*)\))?/);
     if (mac) {
       current.mac = mac[1];
@@ -96,14 +197,16 @@ export function parseNmapNormal(text: string): ParsedImport {
       current.os = os[1].trim();
     }
   }
+  flushTrace();
   pushHost(hosts, current);
 
   if (hosts.length === 0) {
     warnings.push("No hosts found. Is this Nmap normal output (-oN)?");
   }
-  return { format: "nmap-normal", hosts, flows: [], warnings };
+  return { format: "nmap-normal", hosts, flows: [], warnings, traces };
 }
 
+/** Greppable output is one line per host and carries no traceroute, so `traces` is always empty. */
 export function parseNmapGreppable(text: string): ParsedImport {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   const byKey = new Map<string, ImportedHost>();
@@ -166,5 +269,5 @@ export function parseNmapGreppable(text: string): ParsedImport {
   if (hosts.length === 0) {
     warnings.push("No hosts found. Is this Nmap greppable output (-oG)?");
   }
-  return { format: "nmap-grep", hosts, flows: [], warnings };
+  return { format: "nmap-grep", hosts, flows: [], warnings, traces: [] };
 }

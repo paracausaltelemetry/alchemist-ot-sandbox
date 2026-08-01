@@ -49,6 +49,59 @@ describe("parseNmapNormal", () => {
   });
 });
 
+const NORMAL_TRACE = `Nmap scan report for db-1 (10.10.2.30)
+Host is up.
+PORT     STATE SERVICE
+3306/tcp open  mysql
+Network Distance: 3 hops
+
+TRACEROUTE (using port 443/tcp)
+HOP RTT      ADDRESS
+1   0.35 ms  10.10.1.1
+2   ...
+3   1.20 ms  core-rtr (10.10.2.1)
+4   1.40 ms  10.10.2.30
+
+Nmap scan report for 10.10.1.5
+Host is up.
+PORT     STATE SERVICE
+22/tcp   open  ssh
+`;
+
+describe("parseNmapNormal traceroute", () => {
+  const result = parseNmapNormal(NORMAL_TRACE);
+
+  it("keeps parsing hosts after a traceroute block", () => {
+    expect(result.hosts.map((host) => host.ip)).toEqual(["10.10.2.30", "10.10.1.5"]);
+    expect(result.hosts[1].ports.map((port) => port.port)).toEqual([22]);
+  });
+
+  it("captures the network distance", () => {
+    expect(result.hosts[0].distance).toBe(3);
+  });
+
+  it("records hops, keeps timed-out ttls and drops the target hop", () => {
+    expect(result.traces).toEqual([
+      {
+        targetIp: "10.10.2.30",
+        targetHostname: "db-1",
+        port: 443,
+        proto: "tcp",
+        hops: [
+          { ttl: 1, rttMs: 0.35, ip: "10.10.1.1" },
+          { ttl: 2, timedOut: true },
+          { ttl: 3, rttMs: 1.2, ip: "10.10.2.1", hostname: "core-rtr" }
+        ]
+      }
+    ]);
+  });
+
+  it("does not leave the port table open across a traceroute", () => {
+    // The hop rows must not be mistaken for port rows on the host that follows.
+    expect(result.hosts[0].ports.map((port) => port.port)).toEqual([3306]);
+  });
+});
+
 describe("parseNmapGreppable", () => {
   it("extracts open ports per host and ignores closed and down", () => {
     const result = parseNmapGreppable(GREPPABLE);
@@ -62,5 +115,9 @@ describe("parseNmapGreppable", () => {
 
   it("is auto-detected", () => {
     expect(detectFormat("scan.gnmap", GREPPABLE)).toBe("nmap-grep");
+  });
+
+  it("never yields traces — greppable output does not carry traceroute", () => {
+    expect(parseNmapGreppable(GREPPABLE).traces).toEqual([]);
   });
 });

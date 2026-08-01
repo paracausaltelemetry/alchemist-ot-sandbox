@@ -18,6 +18,27 @@ export interface ImportedPort {
   product?: string;
 }
 
+/** One hop of a traceroute, nearest hop first. A hop that timed out keeps its ttl so distance stays correct. */
+export interface ImportedHop {
+  ttl: number;
+  ip?: string;
+  hostname?: string;
+  rttMs?: number;
+  timedOut?: boolean;
+}
+
+/**
+ * A traceroute towards one scanned host. The target itself is excluded, so every hop is an
+ * intermediate device: real, named evidence of the routed path between the scanner and the host.
+ */
+export interface ImportedTrace {
+  targetIp?: string;
+  targetHostname?: string;
+  hops: ImportedHop[];
+  port?: number;
+  proto?: string;
+}
+
 /** A normalized host extracted from any source format, before mapping to a full Asset. */
 export interface ImportedHost {
   ip?: string;
@@ -27,6 +48,8 @@ export interface ImportedHost {
   os?: string;
   vlan?: string;
   ports: ImportedPort[];
+  /** Router hops between the scanner and this host, when the scan reported one. */
+  distance?: number;
   /** Explicit overrides carried from a CSV inventory (column values). */
   typeHint?: AssetTypeId;
   zoneHint?: string;
@@ -49,4 +72,10 @@ export interface ParsedImport {
   hosts: ImportedHost[];
   flows: ImportedFlow[];
   warnings: string[];
+  /**
+   * Traceroutes, when the source carried them. Deliberately separate from `flows`: the OT
+   * assembler turns every flow into a conduit, and a hop is a router on the path rather than
+   * an observed host-to-host connection. Optional so the other parsers need no changes.
+   */
+  traces?: ImportedTrace[];
 }

@@ -40,4 +40,47 @@ describe("parseNmapXml", () => {
     expect(result.flows).toEqual([]);
     expect(result.warnings.join(" ")).toMatch(/down/i);
   });
+
+  it("yields no traces when the scan had no traceroute", () => {
+    expect(parseNmapXml(SAMPLE).traces).toEqual([]);
+  });
+});
+
+const TRACED = `<nmaprun>
+  <host>
+    <status state="up"/>
+    <address addr="10.10.2.30" addrtype="ipv4"/>
+    <hostnames><hostname name="db-1"/></hostnames>
+    <ports><port protocol="tcp" portid="3306"><state state="open"/><service name="mysql"/></port></ports>
+    <distance value="2"/>
+    <trace port="443" proto="tcp">
+      <hop ttl="3" ipaddr="10.10.2.30" host="db-1" rtt="1.40"/>
+      <hop ttl="1" ipaddr="10.10.1.1" rtt="0.35"/>
+      <hop ttl="bogus" ipaddr="10.10.9.9"/>
+      <hop ttl="2" ipaddr="10.10.2.1" host="core-rtr" rtt="1.20"/>
+    </trace>
+  </host>
+</nmaprun>`;
+
+describe("parseNmapXml traceroute", () => {
+  const result = parseNmapXml(TRACED);
+
+  it("captures the network distance", () => {
+    expect(result.hosts[0].distance).toBe(2);
+  });
+
+  it("orders hops by ttl, drops the target hop and skips malformed ttls", () => {
+    expect(result.traces).toEqual([
+      {
+        targetIp: "10.10.2.30",
+        targetHostname: "db-1",
+        port: 443,
+        proto: "tcp",
+        hops: [
+          { ttl: 1, ip: "10.10.1.1", rttMs: 0.35 },
+          { ttl: 2, ip: "10.10.2.1", hostname: "core-rtr", rttMs: 1.2 }
+        ]
+      }
+    ]);
+  });
 });

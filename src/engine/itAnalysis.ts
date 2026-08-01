@@ -1,4 +1,5 @@
-import { inferAssetType } from "../import/inference";
+import { classifyItDevice } from "../import/itInference";
+import { itKindLabel } from "../models/itMap";
 import type { ImportedHost, ParsedImport } from "../import/types";
 
 /**
@@ -143,10 +144,6 @@ function subnetOf(host: ImportedHost): string | undefined {
   return undefined;
 }
 
-function prettifyType(id: string): string {
-  return id.replace(/-/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
 export function analyseItNetwork(parsed: ParsedImport): ItAnalysis {
   const hosts = parsed.hosts;
   const riskyServices: RiskyService[] = [];
@@ -204,7 +201,7 @@ export function analyseItNetwork(parsed: ParsedImport): ItAnalysis {
     riskyServices,
     byOs: tally(hosts.map((host) => host.os || "").filter(Boolean)),
     byVendor: tally(hosts.map((host) => host.vendor || "").filter(Boolean)),
-    byAssetType: tally(hosts.map((host) => prettifyType(inferAssetType(host))))
+    byAssetType: tally(hosts.map((host) => itKindLabel(classifyItDevice(host))))
   };
 }
 

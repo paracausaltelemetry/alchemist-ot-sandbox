@@ -237,6 +237,15 @@ export function synthesiseItTopology(parsed: ParsedImport, name = "Scanned netwo
       const hostPart = isIpv4(node.ip) ? node.ip.split(".")[3] : undefined;
       return hostPart !== undefined && GATEWAY_HOST_PARTS.has(hostPart) && isRouterLike({ ports: node.ports });
     });
+
+    // A firewall sitting in the subnet already is its way out. Point the hosts at it and leave
+    // it on the perimeter — synthesising a gateway beside it would be noise, not information.
+    const perimeterInside = members.find((node) => node.tier === "perimeter");
+    if (!hopInside && perimeterInside) {
+      gatewayBySubnet.set(subnet.id, perimeterInside.id);
+      continue;
+    }
+
     const chosen = hopInside ?? addressed;
 
     if (chosen) {

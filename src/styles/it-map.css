@@ -2,6 +2,18 @@
    monochrome like the rest of the brand; --signal (red) only ever means exposed or risky.
    Inferred structure is drawn as a ghost so it never reads as something the scan saw. */
 
+/* With a map on screen the page stops growing and the two columns share the viewport: the
+   canvas needs a bounded height to size the flow, and the analysis panel scrolls inside its
+   own column. Without this the panel's content sets the row height and the canvas, which has
+   no intrinsic height of its own, collapses. */
+.it-app:has(.it-workspace) {
+  height: 100vh;
+  min-height: 0;
+}
+.it-canvas-wrap > .canvas-shell {
+  height: 100%;
+}
+
 .it-map-frame .react-flow__node {
   cursor: pointer;
 }

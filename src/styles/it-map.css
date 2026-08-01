@@ -164,3 +164,118 @@
   border-style: dashed;
   border-color: var(--text);
 }
+
+/* The outline: the same map, read rather than panned. Shown on small screens, where a canvas
+   of 192px cards spanning thousands of pixels is a bad experience however it is scaled.
+   it.css hides .it-canvas-wrap below 960px; this is more specific, so the outline survives. */
+.it-canvas-wrap.is-outline {
+  display: block;
+  overflow-y: auto;
+  border-right: none;
+  padding: var(--space-4) var(--space-5);
+}
+
+.it-outline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.it-outline-group h3 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-2);
+  font: 650 var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.it-outline-group h3 small {
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.it-outline-group ul {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--line);
+  border: 1px solid var(--line);
+}
+
+.it-outline-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-3);
+  border: 0;
+  border-left: 3px solid transparent;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.it-outline-row:hover,
+.it-outline-row:focus-visible {
+  background: var(--bg-deep);
+}
+.it-outline-row svg {
+  flex: none;
+}
+
+/* Name on its own line with the detail under it, so nothing is clipped on a phone. */
+.it-outline-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  margin-right: auto;
+}
+.it-outline-name {
+  font-size: var(--text-base);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.it-outline-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-3);
+  color: var(--muted);
+  font: var(--text-xs) / 1.3 var(--font-mono);
+}
+.it-outline-kind {
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.it-outline-tag {
+  padding: 0 0.3rem;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+  font: var(--text-xs) / 1.5 var(--font-mono);
+}
+.it-outline-tag[data-risk="high"] {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+.it-outline-row.is-ghost {
+  color: var(--muted);
+}
+.it-outline-row.is-selected {
+  border-left-color: var(--accent);
+}
+.it-outline-row.it-outline-risk-high {
+  border-left-color: var(--signal);
+}
+.it-outline-row.it-outline-risk-medium {
+  border-left-color: var(--text);
+}

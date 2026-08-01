@@ -97,6 +97,17 @@ export function Root() {
     }
   }, []);
 
+  // Hash is the source of truth; setView covers the case where the hash already matches
+  // (a hashchange would not fire, so nothing would re-render).
+  const switchView = useCallback((next: AppView) => {
+    setIntent(undefined);
+    if (window.location.hash === `#${next}`) {
+      setView(next);
+    } else {
+      window.location.hash = next;
+    }
+  }, []);
+
   const goHome = useCallback(() => {
     setIntent(undefined);
     if (window.location.hash === "#home") {
@@ -106,23 +117,43 @@ export function Root() {
     }
   }, []);
 
-  const openIt = useCallback(() => {
-    if (window.location.hash === "#it") {
-      setView("it");
-    } else {
-      window.location.hash = "it";
-    }
-  }, []);
+  const openIt = useCallback(() => switchView("it"), [switchView]);
 
   if (view === "home") {
-    return <Dashboard onEnter={enter} onOpenIt={openIt} theme={theme} onToggleTheme={toggleTheme} isMobile={isMobile} />;
+    return (
+      <Dashboard
+        onEnter={enter}
+        onOpenIt={openIt}
+        onSwitchView={switchView}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        isMobile={isMobile}
+      />
+    );
   }
 
   if (view === "it") {
-    return <ItApp onGoHome={goHome} theme={theme} onToggleTheme={toggleTheme} isMobile={isMobile} />;
+    return (
+      <ItApp
+        onGoHome={goHome}
+        onSwitchView={switchView}
+        theme={theme}
+        onToggleTheme={toggleTheme}
+        isMobile={isMobile}
+      />
+    );
   }
 
   // On phone/tablet App renders read-only (the topology canvas is desktop-only);
   // the assessment, findings, standards mapping and report all work.
-  return <App onGoHome={goHome} initialIntent={intent} theme={theme} onToggleTheme={toggleTheme} isMobile={isMobile} />;
+  return (
+    <App
+      onGoHome={goHome}
+      onSwitchView={switchView}
+      initialIntent={intent}
+      theme={theme}
+      onToggleTheme={toggleTheme}
+      isMobile={isMobile}
+    />
+  );
 }

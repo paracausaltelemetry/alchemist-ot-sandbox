@@ -5,6 +5,8 @@ import type { SavedProjectMeta } from "../lib/projectStore";
 import { BrandMark } from "./BrandMark";
 import { Menu } from "./Menu";
 import { ScoreGauge } from "./ScoreGauge";
+import { ViewSwitch } from "./ViewSwitch";
+import type { AppView } from "../lib/appView";
 
 interface AppHeaderProps {
   project: OtProject;
@@ -30,6 +32,7 @@ interface AppHeaderProps {
   onUndo: () => void;
   onRedo: () => void;
   onToggleTheme: () => void;
+  onSwitchView: (view: AppView) => void;
 }
 
 function scoreBand(score: number) {
@@ -68,7 +71,8 @@ export function AppHeader({
   onNewBlank,
   onUndo,
   onRedo,
-  onToggleTheme
+  onToggleTheme,
+  onSwitchView
 }: AppHeaderProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -115,6 +119,7 @@ export function AppHeader({
       </div>
 
       <nav className="toolbar" aria-label="Project actions">
+        <ViewSwitch current="app" onSwitch={onSwitchView} />
         <button type="button" className="icon-button" title="Undo" onClick={onUndo} disabled={!canUndo}>
           <Undo2 size={18} />
         </button>

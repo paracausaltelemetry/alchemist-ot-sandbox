@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 import { BrandMark } from "./BrandMark";
+import { ViewSwitch } from "./ViewSwitch";
+import type { AppView } from "../lib/appView";
 
 const SITE = "https://welbournesecurity.com";
 
@@ -23,9 +25,12 @@ interface SiteMastheadProps {
   onToggleTheme: () => void;
   /** Mirrors body.mobile-lite (Root's 960px query) so the collapsed menu only arms on mobile. */
   isMobile: boolean;
+  /** Which top-level view is showing, when the OT/IT switch should be offered. */
+  view?: AppView;
+  onSwitchView?: (view: AppView) => void;
 }
 
-export function SiteMasthead({ theme, onToggleTheme, isMobile }: SiteMastheadProps) {
+export function SiteMasthead({ theme, onToggleTheme, isMobile, view, onSwitchView }: SiteMastheadProps) {
   // React port of the main site's js/site-header.js: a Menu button that
   // collapses the primary nav under the sticky top header on mobile.
   const [menuOpen, setMenuOpen] = useState(false);
@@ -104,6 +109,7 @@ export function SiteMasthead({ theme, onToggleTheme, isMobile }: SiteMastheadPro
             </a>
           ))}
         </nav>
+        {view && onSwitchView ? <ViewSwitch current={view} onSwitch={onSwitchView} /> : null}
         <button
           type="button"
           className="theme-toggle"

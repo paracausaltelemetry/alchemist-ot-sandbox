@@ -37,6 +37,7 @@ import {
 import { blankProject } from "../data/sampleProject";
 import { scenarios } from "../data/scenarios";
 import type { OtProject } from "../models/types";
+import type { AppView } from "../lib/appView";
 
 export type DashboardIntent = "reference" | "methodology" | "tour";
 
@@ -44,6 +45,8 @@ interface DashboardProps {
   onEnter: (intent?: DashboardIntent) => void;
   /** Opens the IT-side network mapper (a separate view). */
   onOpenIt?: () => void;
+  /** Drives the masthead's OT/IT switch. Neither side is current while on the dashboard. */
+  onSwitchView?: (view: AppView) => void;
   theme: "dark" | "light";
   onToggleTheme: () => void;
   /** On phone/tablet the workbench is unavailable; the dashboard renders a hero-only gate. */
@@ -55,7 +58,7 @@ interface DashboardProps {
  * the assessment engines and the VerdictBanner hero, with a scenario picker and entry CTAs into the
  * workbench. Loading a scenario writes it to storage; the workbench reads the same slot on entry.
  */
-export function Dashboard({ onEnter, onOpenIt, theme, onToggleTheme, isMobile = false }: DashboardProps) {
+export function Dashboard({ onEnter, onOpenIt, onSwitchView, theme, onToggleTheme, isMobile = false }: DashboardProps) {
   const [project, setProject] = useState<OtProject>(() => loadStoredProject());
   const [projects, setProjects] = useState(() => listProjects());
   const [currentId, setCurrentId] = useState(() => getCurrentProjectId());
@@ -121,17 +124,23 @@ export function Dashboard({ onEnter, onOpenIt, theme, onToggleTheme, isMobile = 
 
   return (
     <div className="dashboard site-frame">
-      <SiteMasthead theme={theme} onToggleTheme={onToggleTheme} isMobile={isMobile} />
+      <SiteMasthead
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+        isMobile={isMobile}
+        view="home"
+        onSwitchView={onSwitchView}
+      />
 
       <section className="page-hero hero-cta">
         <div className="hero-card">
           <canvas className="hero-dither" aria-hidden="true" />
           <div className="hero-copy">
-            <p className="eyebrow">OT security sandbox</p>
-            <h1>Model, assess and harden OT network architecture.</h1>
+            <p className="eyebrow">OT and IT network sandbox</p>
+            <h1>Model, assess and harden network architecture.</h1>
             <p className="page-hero-lede">
-              Build Purdue-zoned topologies, test reachability across trust boundaries, and map architecture signals to
-              IEC 62443 and the NCSC CAF, entirely in the browser.
+              Build Purdue-zoned OT topologies and map architecture signals to IEC 62443 and the NCSC CAF, or upload an
+              Nmap scan and see the IT network it describes. Entirely in the browser.
             </p>
             <div className="dashboard-cta">
               <button type="button" className="text-button primary" onClick={() => onEnter()}>

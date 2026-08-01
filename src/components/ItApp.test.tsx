@@ -10,14 +10,14 @@ import { SAMPLE_SCAN } from "../data/sampleScan";
 /** One integration test over the whole IT pipeline: scan text in, drawn map out. */
 async function loadSample() {
   const user = userEvent.setup();
-  render(<ItApp onGoHome={() => {}} theme="dark" onToggleTheme={() => {}} isMobile={false} />);
+  render(<ItApp onGoHome={() => {}} onSwitchView={() => {}} theme="dark" onToggleTheme={() => {}} isMobile={false} />);
   await user.click(screen.getByRole("button", { name: /load sample/i }));
   return user;
 }
 
 describe("ItApp", () => {
   it("starts on the empty state", () => {
-    render(<ItApp onGoHome={() => {}} theme="dark" onToggleTheme={() => {}} isMobile={false} />);
+    render(<ItApp onGoHome={() => {}} onSwitchView={() => {}} theme="dark" onToggleTheme={() => {}} isMobile={false} />);
     expect(screen.getByRole("heading", { name: /map a network from an nmap scan/i })).toBeInTheDocument();
   });
 

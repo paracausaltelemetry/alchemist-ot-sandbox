@@ -10,12 +10,14 @@ import { downloadJson, downloadMarkdown } from "../lib/exporters";
 import { downloadItMapSvg } from "../lib/itExporters";
 import { itKindLabel, type ItMap } from "../models/itMap";
 import type { Point } from "../models/types";
+import type { AppView } from "../lib/appView";
 import { SiteMasthead } from "./SiteMasthead";
 import { ItNetworkCanvas, type ItCanvasMode, type ItRisk } from "./ItNetworkCanvas";
 import { ItFindingsPanel } from "./ItFindingsPanel";
 
 interface ItAppProps {
   onGoHome: () => void;
+  onSwitchView: (view: AppView) => void;
   theme: "dark" | "light";
   onToggleTheme: () => void;
   isMobile: boolean;
@@ -32,7 +34,7 @@ function positioned(map: ItMap): ItMap {
  * network-map symbols, plus an IT analysis lens (exposed services, internet-facing hosts,
  * segmentation, inventory). Entirely client-side, like the rest of Alchemist.
  */
-export function ItApp({ onGoHome, theme, onToggleTheme, isMobile }: ItAppProps) {
+export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }: ItAppProps) {
   const [map, setMap] = useState<ItMap | null>(null);
   const [analysis, setAnalysis] = useState<ItAnalysis | null>(null);
   const [parsed, setParsed] = useState<ParsedImport | null>(null);
@@ -154,7 +156,13 @@ export function ItApp({ onGoHome, theme, onToggleTheme, isMobile }: ItAppProps) 
 
   return (
     <div className="it-app site-frame">
-      <SiteMasthead theme={theme} onToggleTheme={onToggleTheme} isMobile={isMobile} />
+      <SiteMasthead
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+        isMobile={isMobile}
+        view="it"
+        onSwitchView={onSwitchView}
+      />
 
       <div className="it-toolbar">
         <button type="button" className="text-button" onClick={onGoHome}>

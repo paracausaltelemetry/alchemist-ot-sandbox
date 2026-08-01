@@ -429,3 +429,20 @@ body.light-mode .hero-dither {
     font-size: 0.96rem;
   }
 }
+
+/* The top-level OT / IT switch, shown in the site masthead on every view. Alchemist has two
+   halves; before this the only route between them was one button on the dashboard. */
+.view-switch {
+  flex: none;
+}
+.view-switch button {
+  white-space: nowrap;
+}
+
+@media (max-width: 960px) {
+  /* On mobile the nav collapses under the Menu button, but the switch is the primary
+     affordance here, so it stays out on the bar. */
+  body.mobile-lite .view-switch {
+    order: -1;
+  }
+}

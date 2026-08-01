@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { blankProject } from "./data/sampleProject";
+import type { AppView } from "./lib/appView";
 import { scenarios } from "./data/scenarios";
 import { getAssetType } from "./data/catalog";
 import {
@@ -65,6 +66,7 @@ function cloneProject(project: OtProject): OtProject {
 
 interface AppProps {
   onGoHome: () => void;
+  onSwitchView: (view: AppView) => void;
   initialIntent?: "reference" | "methodology" | "tour";
   theme: "dark" | "light";
   onToggleTheme: () => void;
@@ -72,7 +74,7 @@ interface AppProps {
   isMobile?: boolean;
 }
 
-export function App({ onGoHome, initialIntent, theme, onToggleTheme, isMobile = false }: AppProps) {
+export function App({ onGoHome, onSwitchView, initialIntent, theme, onToggleTheme, isMobile = false }: AppProps) {
   const [project, setProject] = useState<OtProject>(() => loadStoredProject());
   const [history, setHistory] = useState<OtProject[]>([]);
   const [future, setFuture] = useState<OtProject[]>([]);
@@ -626,6 +628,7 @@ export function App({ onGoHome, initialIntent, theme, onToggleTheme, isMobile = 
       { id: "arrange", label: "Auto-arrange topology", run: autoArrangeLayout },
       { id: "theme", label: "Toggle light / dark theme", run: onToggleTheme },
       { id: "home", label: "Back to dashboard", hint: "Home", run: onGoHome },
+      { id: "open-it", label: "Switch to the IT network mapper", hint: "IT", run: () => onSwitchView("it") },
       { id: "palette", label: layout.paletteOpen ? "Collapse asset palette" : "Expand asset palette", run: togglePalette },
       { id: "dock", label: layout.dockOpen ? "Collapse analysis dock" : "Expand analysis dock", run: toggleDock },
       { id: "shortcuts", label: "Show keyboard shortcuts", hint: "?", run: () => setShortcutsOpen(true) },
@@ -676,7 +679,8 @@ export function App({ onGoHome, initialIntent, theme, onToggleTheme, isMobile = 
     duplicateSelected,
     selectedAsset,
     onToggleTheme,
-    onGoHome
+    onGoHome,
+    onSwitchView
   ]);
 
   return (
@@ -709,6 +713,7 @@ export function App({ onGoHome, initialIntent, theme, onToggleTheme, isMobile = 
           onRedo={redo}
           onToggleTheme={onToggleTheme}
           onGoHome={onGoHome}
+          onSwitchView={onSwitchView}
         />
 
         <section

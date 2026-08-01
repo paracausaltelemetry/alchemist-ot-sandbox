@@ -83,13 +83,19 @@ export function parseNmapNormal(text: string): ParsedImport {
   let current: ImportedHost | null = null;
   let inPortTable = false;
   let trace: ImportedTrace | null = null;
-  let sharedHopsSkipped = false;
+  // Hops exactly as printed, keyed by the host they were traced to. Nmap prints a path in full
+  // once and then refers back to it, so later hosts need the earlier one still on hand.
+  const rawHopsByTarget = new Map<string, ImportedHop[]>();
 
   // A traceroute's last hop is the target itself; drop it so every kept hop is a router.
   const flushTrace = () => {
     if (!trace) {
       return;
     }
+    if (trace.targetIp) {
+      rawHopsByTarget.set(trace.targetIp, trace.hops.map((hop) => ({ ...hop })));
+    }
+    trace.hops.sort((a, b) => a.ttl - b.ttl);
     const last = trace.hops[trace.hops.length - 1];
     if (last && trace.targetIp && last.ip === trace.targetIp) {
       trace.hops.pop();
@@ -122,12 +128,20 @@ export function parseNmapNormal(text: string): ParsedImport {
       if (/^HOP\s+RTT\s+ADDRESS/i.test(line)) {
         continue;
       }
-      // Nmap collapses a shared prefix into "Hops 1-3 are the same as for 10.0.0.5".
-      // Resolving that needs cross-host state; skip it and say so.
-      if (/^Hops\s+[\d-]+\s+are the same as for/i.test(line)) {
-        if (!sharedHopsSkipped) {
-          warnings.push("Some traceroutes reuse another host's hops ('Hops N-M are the same as for ...'); those hops were skipped.");
-          sharedHopsSkipped = true;
+      // Nmap prints a path once and then collapses the shared prefix for every later host that
+      // takes it: "-  Hops 1-3 are the same as for 10.0.0.5". Copy those hops back in, or the
+      // map loses the routers between the scanner and most of the network.
+      const shared = line.match(/^\s*-?\s*Hops\s+(\d+)(?:\s*-\s*(\d+))?\s+are the same as for\s+(\S+)/i);
+      if (shared) {
+        const from = Number(shared[1]);
+        const to = shared[2] ? Number(shared[2]) : from;
+        const source = rawHopsByTarget.get(shared[3]);
+        if (source) {
+          trace.hops.push(
+            ...source.filter((hop) => hop.ttl >= from && hop.ttl <= to).map((hop) => ({ ...hop }))
+          );
+        } else {
+          warnings.push(`A traceroute reuses the path to ${shared[3]}, which is not in this file; those hops are missing.`);
         }
         continue;
       }

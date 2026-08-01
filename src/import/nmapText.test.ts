@@ -102,6 +102,56 @@ describe("parseNmapNormal traceroute", () => {
   });
 });
 
+const COLLAPSED = `Nmap scan report for db-1 (10.10.2.30)
+Host is up.
+
+TRACEROUTE (using port 443/tcp)
+HOP RTT      ADDRESS
+1   0.42 ms  10.10.1.1
+2   1.18 ms  dist-rtr (10.10.2.1)
+3   1.31 ms  10.10.2.30
+
+Nmap scan report for hmi-1 (10.10.2.40)
+Host is up.
+
+TRACEROUTE (using port 5900/tcp)
+HOP RTT      ADDRESS
+-   Hops 1-2 are the same as for 10.10.2.30
+3   1.44 ms  10.10.2.40
+
+Nmap scan report for orphan (10.10.2.50)
+Host is up.
+
+TRACEROUTE (using port 80/tcp)
+HOP RTT      ADDRESS
+-   Hops 1-2 are the same as for 192.0.2.9
+3   1.60 ms  10.10.2.50
+`;
+
+describe("parseNmapNormal collapsed traceroute", () => {
+  const result = parseNmapNormal(COLLAPSED);
+
+  it("copies the shared prefix in from the path it refers to", () => {
+    const second = result.traces?.find((trace) => trace.targetIp === "10.10.2.40");
+    expect(second?.hops).toEqual([
+      { ttl: 1, rttMs: 0.42, ip: "10.10.1.1" },
+      { ttl: 2, rttMs: 1.18, ip: "10.10.2.1", hostname: "dist-rtr" }
+    ]);
+  });
+
+  it("keeps the routers, so a collapsed path is worth as much as a printed one", () => {
+    const printed = result.traces?.find((trace) => trace.targetIp === "10.10.2.30");
+    const collapsed = result.traces?.find((trace) => trace.targetIp === "10.10.2.40");
+    expect(collapsed?.hops.map((hop) => hop.ip)).toEqual(printed?.hops.map((hop) => hop.ip));
+  });
+
+  it("warns rather than inventing hops when the referenced path is not in the file", () => {
+    const orphan = result.traces?.find((trace) => trace.targetIp === "10.10.2.50");
+    expect(orphan).toBeUndefined();
+    expect(result.warnings.join(" ")).toMatch(/192\.0\.2\.9/);
+  });
+});
+
 describe("parseNmapGreppable", () => {
   it("extracts open ports per host and ignores closed and down", () => {
     const result = parseNmapGreppable(GREPPABLE);

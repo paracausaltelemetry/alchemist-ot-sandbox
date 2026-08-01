@@ -2,7 +2,8 @@
  * An illustrative Nmap scan so the mapper can be tried without running one. Written as `-oN`
  * with `--traceroute`, because the traceroute is what lets the map draw real paths rather than
  * inferring every link: the hops name `10.10.1.1` and `10.10.2.1` as routers, which is how the
- * two subnets end up connected to each other rather than floating side by side.
+ * two subnets end up connected to each other rather than floating side by side. The second
+ * traceroute uses nmap's collapsed form, which is what it really prints once a path repeats.
  *
  * Illustrative only — the addresses are documentation ranges (RFC 5737) and no real network is
  * described here.
@@ -70,7 +71,6 @@ Network Distance: 2 hops
 
 TRACEROUTE (using port 5900/tcp)
 HOP RTT      ADDRESS
-1   0.39 ms  10.10.1.1
-2   1.22 ms  dist-rtr (10.10.2.1)
+-   Hops 1-2 are the same as for 10.10.2.30
 3   1.44 ms  10.10.2.40
 `;

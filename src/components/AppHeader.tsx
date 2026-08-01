@@ -1,6 +1,6 @@
 import { BookOpen, Download, Files, FolderOpen, ImageDown, LayoutGrid, Moon, Printer, Radar, Redo2, RotateCcw, ScrollText, Share2, Sun, Upload, Undo2 } from "lucide-react";
 import { useRef } from "react";
-import type { OtProject } from "../models/types";
+import type { OtProject, SecurityAssessment } from "../models/types";
 import type { SavedProjectMeta } from "../lib/projectStore";
 import { BrandMark } from "./BrandMark";
 import { Menu } from "./Menu";
@@ -11,6 +11,7 @@ import type { AppView } from "../lib/appView";
 interface AppHeaderProps {
   project: OtProject;
   score: number;
+  band: SecurityAssessment["band"];
   theme: "dark" | "light";
   canUndo: boolean;
   canRedo: boolean;
@@ -35,22 +36,11 @@ interface AppHeaderProps {
   onSwitchView: (view: AppView) => void;
 }
 
-function scoreBand(score: number) {
-  if (score >= 82) {
-    return "strong";
-  }
-  if (score >= 64) {
-    return "fair";
-  }
-  if (score >= 45) {
-    return "weak";
-  }
-  return "critical";
-}
 
 export function AppHeader({
   project,
   score,
+  band,
   theme,
   canUndo,
   canRedo,
@@ -113,8 +103,15 @@ export function AppHeader({
           />
         ) : null}
 
-        <div className="header-score" title={`Advisory security rating ${score} / 100`}>
-          <ScoreGauge score={score} band={scoreBand(score)} size={40} thickness={9} />
+        <div
+          className="header-score"
+          title={
+            band === "insufficient"
+              ? "Not enough model to rate — add at least two assets and one conduit"
+              : `Advisory security rating ${score} / 100`
+          }
+        >
+          <ScoreGauge score={score} band={band} size={40} thickness={9} />
         </div>
       </div>
 

@@ -285,9 +285,23 @@ export interface CategoryScore {
   summary: string;
 }
 
+/**
+ * How much of an architecture the project actually declares. Below the threshold there is nothing
+ * to rate: with no conduits, segmentation — the heaviest category — is undefined, and every
+ * `Array.every` control check passes vacuously.
+ */
+export interface AssessmentCoverage {
+  assets: number;
+  conduits: number;
+  zonesModelled: number;
+  sufficient: boolean;
+}
+
 export interface SecurityAssessment {
   overallScore: number;
-  band: "strong" | "fair" | "weak" | "critical";
+  /** `insufficient` means the model is too sparse to rate, not that it scored badly. */
+  band: "strong" | "fair" | "weak" | "critical" | "insufficient";
   categoryScores: CategoryScore[];
   findings: Finding[];
+  coverage: AssessmentCoverage;
 }

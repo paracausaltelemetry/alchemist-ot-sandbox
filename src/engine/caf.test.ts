@@ -20,7 +20,8 @@ function assessment(scores: Partial<Record<ScoreCategory, number>>): SecurityAss
     overallScore: 50,
     band: "fair",
     categoryScores: CATEGORIES.map((category) => ({ category, label: category, score: scores[category] ?? 50, summary: "" })),
-    findings: []
+    findings: [],
+    coverage: { assets: 4, conduits: 3, zonesModelled: 2, sufficient: true }
   };
 }
 
@@ -32,7 +33,8 @@ function securityLevels(level: number): SecurityLevelAssessment {
         target: 3,
         achieved: level,
         frLevels: { FR1: level, FR2: level, FR3: level, FR4: level, FR5: level, FR6: level, FR7: level },
-        limiting: []
+        limiting: [],
+        modelled: true
       }
     ]
   };

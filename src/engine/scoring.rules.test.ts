@@ -330,3 +330,42 @@ describe("finding hygiene", () => {
     }
   });
 });
+
+describe("the empty-model guard", () => {
+  it("refuses to rate a blank project instead of calling it Strong", () => {
+    // The headline defect this guard exists for: no assets means no findings, which means every
+    // category sits at 100. "New blank" used to open on 100/100 Strong.
+    const assessment = assessProject(blankProject);
+
+    expect(assessment.band).toBe("insufficient");
+    expect(assessment.overallScore).toBe(0);
+    expect(assessment.coverage.sufficient).toBe(false);
+    expect(assessment.findings).toEqual([]);
+  });
+
+  it("refuses a single asset with no conduits — an inventory row is not an architecture", () => {
+    const project = { ...baseProject(), assets: [quietAsset("a1", "Only One")], conduits: [] };
+    const assessment = assessProject(project);
+
+    expect(assessment.band).toBe("insufficient");
+    expect(assessment.coverage).toMatchObject({ assets: 1, conduits: 0, sufficient: false });
+  });
+
+  it("rates the smallest genuine architecture", () => {
+    const assessment = assessProject(baseProject());
+
+    expect(assessment.band).not.toBe("insufficient");
+    expect(assessment.coverage).toMatchObject({ assets: 2, conduits: 1, sufficient: true });
+  });
+
+  it("counts only the zones that hold assets", () => {
+    const assessment = assessProject(baseProject());
+    // The quiet baseline puts both assets in one zone, so exactly one zone is modelled.
+    expect(assessment.coverage.zonesModelled).toBe(1);
+  });
+
+  it("raises no security-level finding for a zone nobody modelled", () => {
+    const titles = assessProject(baseProject()).findings.map((finding) => finding.title);
+    expect(titles.filter((title) => title.startsWith("Modeled 62443 FR signal"))).toEqual([]);
+  });
+});

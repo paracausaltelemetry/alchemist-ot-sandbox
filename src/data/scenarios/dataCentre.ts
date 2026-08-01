@@ -53,6 +53,7 @@ const project: OtProject = {
       subnetId: "sn-idmz",
       ipAddress: "10.125.0.1",
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("dc-jump", "OT Jump Host", "jump-host", "level3", 384, laneY.level3, {
@@ -60,6 +61,7 @@ const project: OtProject = {
       ipAddress: "10.125.0.10",
       protocols: ["RDP", "SSH"],
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("dc-hist", "BMS Historian", "historian", "level3", 672, laneY.level3, {
@@ -74,6 +76,7 @@ const project: OtProject = {
       ipAddress: "10.122.10.20",
       protocols: ["BACnet/IP", "Modbus TCP"],
       criticality: "critical",
+      backupStatus: "configured",
       manufacturer: "Schneider Electric",
       model: "EcoStruxure Building",
       controls: controls.moderate
@@ -97,6 +100,7 @@ const project: OtProject = {
       ipAddress: "10.122.20.11",
       protocols: ["Modbus TCP"],
       criticality: "critical",
+      backupStatus: "missing",
       criticalProcessTag: "Power distribution",
       controls: controls.weak
     }),
@@ -105,6 +109,7 @@ const project: OtProject = {
       ipAddress: "10.122.20.12",
       protocols: ["BACnet/IP", "Modbus TCP"],
       criticality: "critical",
+      backupStatus: "missing",
       criticalProcessTag: "Cooling",
       controls: controls.weak
     }),
@@ -113,6 +118,7 @@ const project: OtProject = {
       ipAddress: "10.122.20.13",
       protocols: ["Modbus TCP"],
       criticality: "critical",
+      backupStatus: "missing",
       criticalProcessTag: "Standby power",
       controls: controls.weak
     }),

@@ -51,6 +51,7 @@ const sampleProjectBase: OtProject = {
       ipAddress: "10.35.0.1",
       vlan: "IDMZ",
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("jump-host", "OT Jump Host", "jump-host", "level3", 432, laneY.level3, {
@@ -59,6 +60,7 @@ const sampleProjectBase: OtProject = {
       vlan: "IDMZ-350",
       protocols: ["RDP", "SSH"],
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("hist-replica", "Historian Replica", "historian", "level3", 720, laneY.level3, {
@@ -83,6 +85,7 @@ const sampleProjectBase: OtProject = {
       vlan: "CTRL-220",
       protocols: ["RDP", "Vendor Tooling", "Modbus TCP"],
       criticality: "critical",
+      backupStatus: "configured",
       controls: { ...controls.moderate, allowListing: false, centralLogging: false }
     }),
     asset("hmi-line1", "Line 1 HMI", "hmi", "level2", 528, laneY.level2, {
@@ -99,6 +102,7 @@ const sampleProjectBase: OtProject = {
       vlan: "CTRL-220",
       protocols: ["OPC UA", "Modbus TCP"],
       criticality: "critical",
+      backupStatus: "configured",
       controls: controls.moderate
     }),
     asset("plc-pack", "Packaging PLC", "plc-rtu", "level1", 432, laneY.level1, {
@@ -107,6 +111,7 @@ const sampleProjectBase: OtProject = {
       vlan: "PLC-110",
       protocols: ["Modbus TCP", "EtherNet/IP"],
       criticality: "critical",
+      backupStatus: "missing",
       controls: { ...controls.weak, defaultCredentialsDisabled: true }
     }),
     asset("wireless-gw", "Wireless Gateway", "wireless-gateway", "level1", 720, laneY.level1, {
@@ -123,6 +128,7 @@ const sampleProjectBase: OtProject = {
       vlan: "SIS-090",
       protocols: ["Vendor Safety Protocol"],
       criticality: "critical",
+      backupStatus: "verified",
       controls: { ...controls.strong, safetyValidated: true }
     }),
     asset("field-io", "Field I/O", "field-device", "level0", 528, laneY.level0, {

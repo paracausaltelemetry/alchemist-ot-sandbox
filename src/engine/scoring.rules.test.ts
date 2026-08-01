@@ -180,13 +180,26 @@ const RULES: RuleCase[] = [
     }
   },
   {
-    title: "Critical asset lacks backup evidence",
+    title: "Critical asset has no backup",
     category: "resilience",
     severity: "high",
     trigger: (project) => {
       project.assets[0].criticality = "critical";
       project.assets[0].controls.backups = false;
       project.assets[0].backupStatus = "missing";
+    }
+  },
+  {
+    // The lesser half of the split: a backup programme exists but nothing evidences it. This used
+    // to be the same high finding as having no backup at all, which fired on every critical asset
+    // in every scenario because "unknown" is the default nobody had overridden.
+    title: "Backup evidence not recorded",
+    category: "resilience",
+    severity: "low",
+    trigger: (project) => {
+      project.assets[0].criticality = "critical";
+      project.assets[0].controls.backups = true;
+      project.assets[0].backupStatus = "unknown";
     }
   },
   {

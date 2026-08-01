@@ -46,6 +46,7 @@ const project: OtProject = {
       subnetId: "sn-idmz",
       ipAddress: "10.135.0.1",
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("wnd-jump", "OT Jump Host", "jump-host", "level3", 384, laneY.level3, {
@@ -53,6 +54,7 @@ const project: OtProject = {
       ipAddress: "10.135.0.10",
       protocols: ["RDP", "SSH"],
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("wnd-hist", "Generation Historian", "historian", "level3", 672, laneY.level3, {
@@ -67,6 +69,7 @@ const project: OtProject = {
       ipAddress: "10.132.10.20",
       protocols: ["IEC 61400-25", "Modbus TCP"],
       criticality: "critical",
+      backupStatus: "configured",
       controls: controls.moderate
     }),
     asset("wnd-hmi", "Operator HMI", "hmi", "level2", 528, laneY.level2, {
@@ -89,6 +92,7 @@ const project: OtProject = {
       ipAddress: "10.132.20.0/24",
       protocols: ["IEC 61400-25", "Modbus TCP"],
       criticality: "critical",
+      backupStatus: "missing",
       manufacturer: "Vestas",
       criticalProcessTag: "Turbine control",
       controls: controls.weak
@@ -105,6 +109,7 @@ const project: OtProject = {
       ipAddress: "10.132.40.11",
       protocols: ["IEC 61850 MMS", "DNP3"],
       criticality: "critical",
+      backupStatus: "missing",
       manufacturer: "SEL",
       lifecycleStatus: "limited",
       criticalProcessTag: "Grid export",

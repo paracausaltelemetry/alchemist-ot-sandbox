@@ -50,6 +50,7 @@ const project: OtProject = {
       subnetId: "sn-idmz",
       ipAddress: "10.145.0.1",
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("nuc-jump", "OT Jump Host", "jump-host", "level3", 384, laneY.level3, {
@@ -57,6 +58,7 @@ const project: OtProject = {
       ipAddress: "10.145.0.10",
       protocols: ["RDP", "SSH"],
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("nuc-hist", "Plant Historian", "historian", "level3", 672, laneY.level3, {
@@ -71,6 +73,7 @@ const project: OtProject = {
       ipAddress: "10.142.10.20",
       protocols: ["OPC UA", "Modbus TCP"],
       criticality: "critical",
+      backupStatus: "configured",
       controls: controls.moderate
     }),
     asset("nuc-mcr", "Main Control Room HMI", "hmi", "level2", 528, laneY.level2, {
@@ -78,6 +81,7 @@ const project: OtProject = {
       ipAddress: "10.142.10.40",
       protocols: ["OPC UA", "HTTPS"],
       criticality: "critical",
+      backupStatus: "configured",
       controls: controls.moderate
     }),
     asset("nuc-radmon", "Radiation Monitoring", "scada", "level2", 816, laneY.level2, {
@@ -85,6 +89,7 @@ const project: OtProject = {
       ipAddress: "10.142.10.60",
       protocols: ["Modbus TCP", "OPC UA"],
       criticality: "critical",
+      backupStatus: "configured",
       criticalProcessTag: "Radiological monitoring",
       controls: controls.moderate
     }),
@@ -101,6 +106,7 @@ const project: OtProject = {
       ipAddress: "10.142.25.10",
       protocols: ["Vendor Safety Protocol"],
       criticality: "critical",
+      backupStatus: "verified",
       manufacturer: "Safety I&C vendor",
       criticalProcessTag: "Reactor protection",
       controls: { ...controls.strong, safetyValidated: true }
@@ -110,6 +116,7 @@ const project: OtProject = {
       ipAddress: "10.142.20.11",
       protocols: ["Modbus TCP", "PROFINET"],
       criticality: "critical",
+      backupStatus: "missing",
       lifecycleStatus: "limited",
       criticalProcessTag: "Balance of plant",
       controls: controls.weak

@@ -46,6 +46,7 @@ const project: OtProject = {
       subnetId: "sn-idmz",
       ipAddress: "10.115.0.1",
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("ph-jump", "OT Jump Host", "jump-host", "level3", 384, laneY.level3, {
@@ -53,6 +54,7 @@ const project: OtProject = {
       ipAddress: "10.115.0.10",
       protocols: ["RDP", "SSH"],
       criticality: "critical",
+      backupStatus: "verified",
       controls: controls.strong
     }),
     asset("ph-mes", "MES / Batch Historian", "historian", "level3", 672, laneY.level3, {
@@ -67,6 +69,7 @@ const project: OtProject = {
       ipAddress: "10.112.10.20",
       protocols: ["OPC DA", "Modbus TCP"],
       criticality: "critical",
+      backupStatus: "configured",
       manufacturer: "Siemens",
       model: "SIMATIC PCS 7",
       controls: controls.moderate
@@ -91,6 +94,7 @@ const project: OtProject = {
       ipAddress: "10.112.20.11",
       protocols: ["Modbus TCP", "PROFINET"],
       criticality: "critical",
+      backupStatus: "missing",
       manufacturer: "Siemens",
       model: "S7-400",
       criticalProcessTag: "Process control",
@@ -101,6 +105,7 @@ const project: OtProject = {
       ipAddress: "10.112.20.12",
       protocols: ["Modbus TCP"],
       criticality: "critical",
+      backupStatus: "missing",
       criticalProcessTag: "Bioreactor",
       controls: controls.weak
     }),

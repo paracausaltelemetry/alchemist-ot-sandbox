@@ -1,0 +1,166 @@
+/* The IT network map: standard network symbols on the shared canvas. Flat, sharp and
+   monochrome like the rest of the brand; --signal (red) only ever means exposed or risky.
+   Inferred structure is drawn as a ghost so it never reads as something the scan saw. */
+
+/* With a map on screen the page stops growing and the two columns share the viewport: the
+   canvas needs a bounded height to size the flow, and the analysis panel scrolls inside its
+   own column. Without this the panel's content sets the row height and the canvas, which has
+   no intrinsic height of its own, collapses. */
+.it-app:has(.it-workspace) {
+  height: 100vh;
+  min-height: 0;
+}
+.it-canvas-wrap > .canvas-shell {
+  height: 100%;
+}
+
+.it-map-frame .react-flow__node {
+  cursor: pointer;
+}
+
+.it-node {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: 6rem;
+  padding: var(--space-3);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--text);
+  position: relative;
+}
+
+.it-node-symbol {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border: 1px solid var(--line);
+  color: var(--text);
+}
+
+.it-node-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.it-node-name {
+  font-size: var(--text-base);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.it-node-kind {
+  color: var(--muted);
+  font: var(--text-xs) / 1.2 var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.it-node-addr {
+  color: var(--muted);
+  font: var(--text-xs) / 1.3 var(--font-mono);
+}
+
+.it-node-services {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+}
+.it-node-services span {
+  padding: 0 0.25rem;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font: var(--text-xs) / 1.4 var(--font-mono);
+}
+
+.it-node-chip {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 0.1rem 0.3rem;
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font: var(--text-xs) / 1.2 var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
+/* Inferred devices: nothing scanned them, so they are drawn as an outline. */
+.it-node.is-ghost {
+  border-style: dashed;
+  background: transparent;
+  color: var(--muted);
+}
+.it-node.is-ghost .it-node-symbol {
+  border-style: dashed;
+}
+
+.it-node.is-selected {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.it-node.is-dimmed {
+  opacity: 0.4;
+}
+
+.it-node.it-node-risk-high {
+  border-color: var(--signal);
+  box-shadow: inset 0 0 0 1px var(--signal);
+}
+.it-node.it-node-risk-medium {
+  border-color: var(--text);
+  border-style: dashed;
+}
+
+/* Legend */
+.it-map-legend {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font: var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.it-map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--muted);
+}
+.it-map-legend i {
+  width: 1.1rem;
+  height: 0;
+  border-top: 2px solid var(--text);
+}
+.it-map-legend i[data-evidence="same-subnet"] {
+  border-top-style: dotted;
+  border-top-color: var(--muted);
+}
+.it-map-legend i[data-evidence="inferred"] {
+  border-top-style: dashed;
+  border-top-color: var(--muted);
+}
+.it-map-legend i[data-risk] {
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 2px solid var(--signal);
+}
+.it-map-legend i[data-risk="medium"] {
+  border-style: dashed;
+  border-color: var(--text);
+}

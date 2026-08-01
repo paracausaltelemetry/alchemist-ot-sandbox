@@ -88,8 +88,6 @@ interface TopologyCanvasProps {
   onSelectionChange: (ids: string[]) => void;
   onUndo: () => void;
   onRedo: () => void;
-  /** Optional per-asset IT risk tint (IT mapper): highlights exposed/risky hosts on the map. */
-  riskByAssetId?: Map<string, "high" | "medium">;
 }
 
 type AssetNodeData = {
@@ -98,7 +96,6 @@ type AssetNodeData = {
   highlighted: boolean;
   connectMode: boolean;
   connectSource: boolean;
-  riskTint?: "high" | "medium" | null;
   onRename: (id: string, name: string) => void;
 };
 
@@ -121,7 +118,7 @@ function AssetNode({ data }: NodeProps<AssetFlowNode>) {
 
   return (
     <div
-      className={`asset-node criticality-${data.asset.criticality} ${data.riskTint ? `it-risk-${data.riskTint}` : ""} ${data.selected ? "is-selected" : ""} ${
+      className={`asset-node criticality-${data.asset.criticality} ${data.selected ? "is-selected" : ""} ${
         data.highlighted ? "is-highlighted" : ""
       } ${data.connectMode ? "is-connectable" : ""} ${data.connectSource ? "is-connect-source" : ""}`}
       style={{ "--zone-color": zone.color } as CSSProperties}
@@ -282,8 +279,7 @@ function TopologyCanvasInner({
   onUndo,
   onRenameAsset,
   onSelectionChange,
-  onRedo,
-  riskByAssetId
+  onRedo
 }: TopologyCanvasProps) {
   const isPurdue = layoutMode === "purdue";
   const reactFlow = useReactFlow();
@@ -339,12 +335,11 @@ function TopologyCanvasInner({
           highlighted: highlightedAssets.has(asset.id),
           connectMode,
           connectSource: connectSourceId === asset.id,
-          riskTint: riskByAssetId?.get(asset.id) ?? null,
           onRename: onRenameAsset
         },
         zIndex: highlightedAssets.has(asset.id) ? 10 : 5
       })),
-    [connectMode, connectSourceId, highlightedAssets, onRenameAsset, project.assets, purduePositions, riskByAssetId, selectedId]
+    [connectMode, connectSourceId, highlightedAssets, onRenameAsset, project.assets, purduePositions, selectedId]
   );
 
   // A dragged node is snapped to the grid (or into a Purdue lane), and the snapped position is

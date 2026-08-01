@@ -43,6 +43,7 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   const [fitSignal, setFitSignal] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [pasteText, setPasteText] = useState("");
+  const [showInferred, setShowInferred] = useState(true);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Colour the map by IT risk: internet-facing or high-severity services are high, other
@@ -256,6 +257,8 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
                 onCanvasModeChange={setCanvasMode}
                 onMoveNode={moveNode}
                 onRearrange={rearrange}
+                showInferred={showInferred}
+                onToggleInferred={() => setShowInferred((value) => !value)}
               />
             </div>
           )}

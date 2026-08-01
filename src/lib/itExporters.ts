@@ -1,4 +1,5 @@
 import { IT_NODE_HEIGHT, IT_NODE_WIDTH } from "../data/itLayout";
+import { download, escapeXml } from "./exporters";
 import { itKindLabel, type ItMap } from "../models/itMap";
 
 /**
@@ -9,15 +10,6 @@ import { itKindLabel, type ItMap } from "../models/itMap";
  * `buildItMapSvg` is pure so it can be tested without a DOM; only the download wrapper touches
  * the document.
  */
-
-function escapeXml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
 
 const MARGIN = 48;
 const TITLE_HEIGHT = 72;
@@ -86,13 +78,6 @@ export function buildItMapSvg(map: ItMap): string {
 }
 
 export function downloadItMapSvg(map: ItMap): void {
-  const blob = new Blob([buildItMapSvg(map)], { type: "image/svg+xml" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `${map.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "it-network-map"}.svg`;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
+  const name = `${map.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "it-network-map"}.svg`;
+  download(name, buildItMapSvg(map), "image/svg+xml");
 }

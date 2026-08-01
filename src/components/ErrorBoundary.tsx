@@ -49,7 +49,12 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                 try {
                   window.localStorage.clear();
                 } catch {
-                  // ignore storage errors during recovery
+                  // Storage being unreachable is *why* recovery is needed in some cases, so
+                  // reloading into the same state without saying so is a dead end. Say it.
+                  window.alert(
+                    "This browser is blocking site data, so there is nothing stored to reset. Allow site data for this page, or try a different browser."
+                  );
+                  return;
                 }
                 window.location.reload();
               }}

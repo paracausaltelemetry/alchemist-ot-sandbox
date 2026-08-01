@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { LayoutMode } from "../models/types";
-import { safeSetItem } from "../lib/safeStorage";
+import { safeGetItem, safeSetItem } from "../lib/safeStorage";
 
 export interface PanelLayout {
   paletteOpen: boolean;
@@ -29,7 +29,7 @@ function clampDock(value: number) {
 }
 
 function loadLayout(): PanelLayout {
-  const raw = window.localStorage.getItem(STORAGE_KEY);
+  const raw = safeGetItem(STORAGE_KEY);
   if (!raw) {
     return DEFAULT_LAYOUT;
   }

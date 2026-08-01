@@ -53,6 +53,8 @@ import { ScenarioGallery } from "./components/ScenarioGallery";
 import { PrintableReport } from "./components/PrintableReport";
 import { ShortcutsOverlay } from "./components/ShortcutsOverlay";
 import { ToastViewport } from "./components/ToastViewport";
+import { onStorageFailure, safeGetItem } from "./lib/safeStorage";
+import { oversizeFileError } from "./lib/modelLimits";
 import { TopologyCanvas } from "./components/TopologyCanvas";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { usePanelLayout } from "./hooks/usePanelLayout";
@@ -118,6 +120,10 @@ export function App({ onGoHome, onSwitchView, initialIntent, theme, onToggleThem
     writeStoredProject(project);
   }, [project]);
 
+  // Storage problems used to be a single console warning. Someone whose browser blocks site data,
+  // or whose quota is full, would keep working on an assessment that had quietly stopped saving.
+  useEffect(() => onStorageFailure((_, detail) => pushToast(`Alchemist ${detail}`, "danger")), [pushToast]);
+
   // Open the requested surface when the dashboard launches into a specific intent, and run the
   // guided tour on a first-time visit to the workbench.
   useEffect(() => {
@@ -127,7 +133,7 @@ export function App({ onGoHome, onSwitchView, initialIntent, theme, onToggleThem
       setMethodologyOpen(true);
     } else if (initialIntent === "tour") {
       setTourOpen(true);
-    } else if (!window.localStorage.getItem(TOUR_SEEN_KEY)) {
+    } else if (!safeGetItem(TOUR_SEEN_KEY)) {
       setTourOpen(true);
     }
     // Run once on mount for the entry intent.
@@ -441,6 +447,11 @@ export function App({ onGoHome, onSwitchView, initialIntent, theme, onToggleThem
         pushToast("Project imported", "success");
       };
       reader.onerror = () => pushToast("Could not read that file", "danger");
+      const tooLarge = oversizeFileError(file);
+      if (tooLarge) {
+        pushToast(tooLarge, "danger");
+        return;
+      }
       reader.readAsText(file);
     },
     [commitProject, pushToast]

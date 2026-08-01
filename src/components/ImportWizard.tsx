@@ -1,7 +1,7 @@
 import { FileUp, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { detectFormat, importFormatLabels, importTopology, type AssembledTopology, type ImportFormat } from "../import";
-import { oversizeWarning } from "../lib/modelLimits";
+import { oversizeFileError, oversizeWarning } from "../lib/modelLimits";
 
 interface ImportWizardProps {
   open: boolean;
@@ -58,6 +58,11 @@ export function ImportWizard({ open, onClose, onApply }: ImportWizardProps) {
         runParse(text, detected);
       };
       reader.onerror = () => setError("Could not read that file.");
+      const tooLarge = oversizeFileError(file);
+      if (tooLarge) {
+        setError(tooLarge);
+        return;
+      }
       reader.readAsText(file);
     },
     [format, runParse]

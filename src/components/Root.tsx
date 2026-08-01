@@ -3,7 +3,7 @@ import { App } from "../App";
 import { Dashboard, type DashboardIntent } from "./Dashboard";
 import { ItApp } from "./ItApp";
 import { initialView, LAST_VIEW_STORAGE_KEY, type AppView } from "../lib/appView";
-import { safeSetItem } from "../lib/safeStorage";
+import { safeGetItem, safeSetItem } from "../lib/safeStorage";
 
 const THEME_KEY = "ot-sandbox-theme";
 
@@ -29,7 +29,7 @@ function initialTheme(): "dark" | "light" {
   if (shared) {
     return shared;
   }
-  const stored = window.localStorage.getItem(THEME_KEY);
+  const stored = safeGetItem(THEME_KEY);
   if (stored === "dark" || stored === "light") {
     return stored;
   }
@@ -37,7 +37,7 @@ function initialTheme(): "dark" | "light" {
 }
 
 function readLastView(): AppView | null {
-  const stored = window.localStorage.getItem(LAST_VIEW_STORAGE_KEY);
+  const stored = safeGetItem(LAST_VIEW_STORAGE_KEY);
   return stored === "home" || stored === "app" || stored === "it" ? stored : null;
 }
 

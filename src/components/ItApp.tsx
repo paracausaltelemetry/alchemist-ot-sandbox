@@ -1,5 +1,5 @@
 import { ArrowLeft, Download, FileUp, PlayCircle, Share2, Trash2, X } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { detectFormat, parseByFormat } from "../import";
 import type { ImportedHost, ParsedImport } from "../import/types";
 import { analyseItNetwork, itReportMarkdown, type ItAnalysis } from "../engine/itAnalysis";
@@ -16,6 +16,7 @@ import { SiteMasthead } from "./SiteMasthead";
 import { ItNetworkCanvas, type ItCanvasMode, type ItRisk } from "./ItNetworkCanvas";
 import { ItFindingsPanel } from "./ItFindingsPanel";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { CommandPalette, type Command } from "./CommandPalette";
 import { createProject } from "../lib/projectStore";
 
 interface ItAppProps {
@@ -52,6 +53,7 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   const [pasteText, setPasteText] = useState("");
   const [showInferred, setShowInferred] = useState(true);
   const [promoteOpen, setPromoteOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Colour the map by IT risk: internet-facing or high-severity services are high, other
@@ -175,6 +177,62 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
       downloadItMapSvg(map);
     }
   }, [map]);
+
+  // The workbench has had Ctrl/Cmd+K since the beginning; the IT side had no keyboard route to
+  // anything. Same shortcut, same component, commands that make sense on this side.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setCommandOpen((open) => !open);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const commands = useMemo<Command[]>(() => {
+    const list: Command[] = [
+      { id: "import", label: "Import an Nmap scan…", hint: "File", run: () => inputRef.current?.click() },
+      { id: "sample", label: "Load the sample scan", hint: "File", run: () => ingest(SAMPLE_SCAN, "sample.txt") }
+    ];
+    if (map) {
+      list.push(
+        { id: "mode-topology", label: "Map: topology view", run: () => setCanvasMode("topology") },
+        { id: "mode-exposure", label: "Map: exposure view", run: () => setCanvasMode("exposure") },
+        { id: "mode-services", label: "Map: services view", run: () => setCanvasMode("services") },
+        {
+          id: "inferred",
+          label: showInferred ? "Hide inferred links" : "Show inferred links",
+          run: () => setShowInferred((value) => !value)
+        },
+        { id: "arrange", label: "Re-run the map layout", run: rearrange },
+        { id: "promote", label: "Assess this network in the OT workbench…", hint: "OT", run: () => setPromoteOpen(true) },
+        { id: "export-json", label: "Export the analysis as JSON", hint: "Export", run: exportJson },
+        { id: "export-report", label: "Export a Markdown report", hint: "Export", run: exportReport },
+        { id: "export-map", label: "Export the map as SVG", hint: "Export", run: exportMap },
+        { id: "clear", label: "Clear the map", run: clear }
+      );
+    }
+    list.push(
+      { id: "switch-ot", label: "Switch to the OT workbench", hint: "OT", run: () => onSwitchView("app") },
+      { id: "home", label: "Back to dashboard", hint: "Home", run: onGoHome },
+      { id: "theme", label: "Toggle light / dark theme", run: onToggleTheme }
+    );
+    return list;
+  }, [
+    clear,
+    exportJson,
+    exportMap,
+    exportReport,
+    ingest,
+    map,
+    onGoHome,
+    onSwitchView,
+    onToggleTheme,
+    rearrange,
+    showInferred
+  ]);
 
   return (
     <div className="it-app site-frame">
@@ -331,6 +389,8 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
           </aside>
         </div>
       )}
+
+      <CommandPalette open={commandOpen} commands={commands} onClose={() => setCommandOpen(false)} />
 
       <ConfirmDialog
         open={promoteOpen}

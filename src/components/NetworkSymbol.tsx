@@ -20,33 +20,29 @@ interface NetworkSymbolProps {
   size?: number;
 }
 
-/** Four arrows on the router: two out, two in, the conventional "it forwards packets" mark. */
-const ROUTER_ARROWS = (
-  <>
-    <path d="M8 10.5h8M13 8l3 2.5-3 2.5" />
-    <path d="M16 15.5H8m5-2.5-3 2.5 3 2.5" />
-  </>
-);
-
 function Symbol({ kind }: { kind: ItNodeKind }) {
   switch (kind) {
     case "router":
-      // A squared cylinder, not a circle: a circle reads as a hub, and it would be the only
-      // round object on a canvas with no rounded corners anywhere else.
+      // The conventional router solid, but drawn as a squat capsule with no interior disc line
+      // — that line is what makes a cylinder read as a database, and these two sit side by side
+      // on the same map. Traffic crosses it both ways.
       return (
         <>
-          <path d="M3 7h18v10H3z" />
-          <path d="M3 7c0-1.1 4-2 9-2s9 .9 9 2M3 17c0 1.1 4 2 9 2s9-.9 9-2" />
-          {ROUTER_ARROWS}
+          <path d="M3 9c0-2.2 4-3.5 9-3.5s9 1.3 9 3.5v6c0 2.2-4 3.5-9 3.5s-9-1.3-9-3.5z" />
+          <path d="M7 10.5h10m-3-2 3 2-3 2" />
+          <path d="M17 13.5H7m3 2-3-2 3-2" />
         </>
       );
 
     case "switch":
+      // A flat many-ported box: same two-way traffic as the router, but the silhouette and the
+      // port ticks along the bottom edge are what tell them apart at map size.
       return (
         <>
-          <path d="M2 6h20v12H2z" />
-          <path d="M6 14.5h12M15 12l3 2.5-3 2.5" />
-          <path d="M18 9.5H6m3-2.5-3 2.5 3 2.5" />
+          <path d="M2 6h20v9H2z" />
+          <path d="M6 9h11m-3-2 3 2-3 2" />
+          <path d="M18 12H7m3-2-3 2 3 2" />
+          <path d="M6 15v3M10 15v3M14 15v3M18 15v3" />
         </>
       );
 
@@ -60,12 +56,15 @@ function Symbol({ kind }: { kind: ItNodeKind }) {
       );
 
     case "load-balancer":
+      // One request in, spread across three ways out. Arrowheads collide at map size, so the
+      // three destinations are plain ticks — the fan itself carries the meaning.
       return (
         <>
-          <path d="M3 6h18v12H3z" />
-          <path d="M7 12h4" />
-          <path d="M11 12h2.5M13.5 12l3.5-3.5M13.5 12l3.5 3.5" />
-          <path d="M17 7.2h2M17 12h2M17 16.8h2" />
+          <path d="M1 12h3" />
+          <path d="M4 7.5h8v9H4z" />
+          <path d="M12 12h2" />
+          <path d="M14 12 19 6.5M14 12h5m-5 0 5 5.5" />
+          <path d="M20.5 4.5v4M20.5 10v4M20.5 15.5v4" />
         </>
       );
 

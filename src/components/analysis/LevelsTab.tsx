@@ -28,8 +28,10 @@ export function LevelsTab({ securityLevels, onZoneTargetChange }: LevelsTabProps
           {securityLevels.zones.map((zoneSL) => {
             const zoneDef = getZone(zoneSL.zone);
             const gap = zoneSL.target - zoneSL.achieved;
+            // An unmodelled zone is neither met nor below target — there is nothing in it.
+            const unmodelled = !zoneSL.modelled;
             return (
-              <tr key={zoneSL.zone} className={gap > 0 ? "sl-below" : ""}>
+              <tr key={zoneSL.zone} className={unmodelled ? "sl-unmodelled" : gap > 0 ? "sl-below" : ""}>
                 <th title={zoneDef.name}>{zoneDef.shortName}</th>
                 <td>
                   <select
@@ -45,15 +47,17 @@ export function LevelsTab({ securityLevels, onZoneTargetChange }: LevelsTabProps
                     ))}
                   </select>
                 </td>
-                <td className={gap > 0 ? "sl-a sl-a-below" : "sl-a"}>Level {zoneSL.achieved}</td>
-                <td className="sl-gap">{gap > 0 ? `-${gap}` : "met"}</td>
+                <td className={unmodelled ? "sl-a" : gap > 0 ? "sl-a sl-a-below" : "sl-a"}>
+                  {unmodelled ? "—" : `Level ${zoneSL.achieved}`}
+                </td>
+                <td className="sl-gap">{unmodelled ? "not modelled" : gap > 0 ? `-${gap}` : "met"}</td>
                 {foundationalRequirements.map((fr) => (
                   <td
                     key={fr.id}
-                    className={`fr-cell${zoneSL.limiting.includes(fr.id) && gap > 0 ? " fr-limiting" : ""}`}
-                    title={`${fr.label}: SL ${zoneSL.frLevels[fr.id]}`}
+                    className={`fr-cell${!unmodelled && zoneSL.limiting.includes(fr.id) && gap > 0 ? " fr-limiting" : ""}`}
+                    title={unmodelled ? `${fr.label}: no assets declared in this zone` : `${fr.label}: SL ${zoneSL.frLevels[fr.id]}`}
                   >
-                    {zoneSL.frLevels[fr.id]}
+                    {unmodelled ? "—" : zoneSL.frLevels[fr.id]}
                   </td>
                 ))}
               </tr>

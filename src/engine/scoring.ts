@@ -2,7 +2,7 @@ import { categoryLabels, getAssetType, getZone, standardReferences } from "../da
 import { techniquesForCategory } from "../data/attackIcs";
 import { findReachability } from "./reachability";
 import { assessSecurityLevels, foundationalRequirements } from "./securityLevels";
-import type { Asset, Conduit, Finding, OtProject, ScoreCategory, SecurityAssessment, Severity } from "../models/types";
+import type { Asset, AssessmentCoverage, Conduit, Finding, OtProject, ScoreCategory, SecurityAssessment, Severity } from "../models/types";
 
 export const categoryWeights: Record<ScoreCategory, number> = {
   segmentation: 0.22,
@@ -21,6 +21,14 @@ export const severityDeduction: Record<Severity, number> = {
   medium: 10,
   low: 5
 };
+
+/**
+ * The smallest model worth rating. Alchemist rates an *architecture*: one asset is an inventory
+ * row, and with no conduits there is no topology — segmentation, the heaviest category at 0.22,
+ * has nothing to measure.
+ */
+export const MIN_RATEABLE_ASSETS = 2;
+export const MIN_RATEABLE_CONDUITS = 1;
 
 /** Score bands (descending by minimum). The advisory rating maps to the first band it meets. */
 export const scoreBands: Array<{ band: SecurityAssessment["band"]; label: string; min: number }> = [
@@ -420,7 +428,8 @@ export function assessProject(project: OtProject): SecurityAssessment {
 
   const securityLevels = assessSecurityLevels(project, project.zoneTargets);
   for (const zoneSL of securityLevels.zones) {
-    if (zoneSL.achieved >= zoneSL.target) {
+    // A zone nobody declared assets in is not a weakness — it is simply not part of this model.
+    if (!zoneSL.modelled || zoneSL.achieved >= zoneSL.target) {
       continue;
     }
     const zoneDef = getZone(zoneSL.zone);
@@ -463,10 +472,21 @@ export function assessProject(project: OtProject): SecurityAssessment {
     categoryScores.reduce((total, category) => total + category.score * categoryWeights[category.category], 0)
   );
 
+  const coverage: AssessmentCoverage = {
+    assets: project.assets.length,
+    conduits: project.conduits.length,
+    zonesModelled: securityLevels.zones.filter((zone) => zone.modelled).length,
+    sufficient: project.assets.length >= MIN_RATEABLE_ASSETS && project.conduits.length >= MIN_RATEABLE_CONDUITS
+  };
+
   return {
-    overallScore,
-    band: scoreBand(overallScore),
+    // Below the threshold the score is meaningless rather than good: no assets means no findings,
+    // which means every category sits at 100. Reporting that as "Strong" congratulated anyone who
+    // opened a blank project, and the number was carried into exports and share links too.
+    overallScore: coverage.sufficient ? overallScore : 0,
+    band: coverage.sufficient ? scoreBand(overallScore) : "insufficient",
     categoryScores,
+    coverage,
     findings: findings
       .map((finding) => ({ ...finding, techniques: techniquesForCategory(finding.category) }))
       .sort((a, b) => severityDeduction[b.severity] - severityDeduction[a.severity]),

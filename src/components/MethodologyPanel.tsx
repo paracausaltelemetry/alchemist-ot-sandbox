@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import { useEffect } from "react";
-import { categoryWeights, scoreBands, severityDeduction } from "../engine/scoring";
+import { MIN_RATEABLE_ASSETS, categoryWeights, scoreBands, severityDeduction } from "../engine/scoring";
 import { MAX_SL, foundationalRequirements } from "../engine/securityLevels";
 import { categoryLabels } from "../data/catalog";
 import { cafObjectives } from "../data/caf";
@@ -151,6 +151,12 @@ export function MethodologyPanel({ open, onClose }: MethodologyPanelProps) {
                   </tbody>
                 </table>
               </div>
+              <p>
+                A model with fewer than {MIN_RATEABLE_ASSETS} assets or no conduits is reported as{" "}
+                <strong>not enough model to rate</strong> rather than being given a number. Alchemist rates an
+                architecture: with no conduits there is nothing to say about segmentation, and every control check
+                passes for want of anything to check. Absence of evidence is not evidence of control.
+              </p>
             </section>
 
             <section>
@@ -161,6 +167,11 @@ export function MethodologyPanel({ open, onClose }: MethodologyPanelProps) {
                   architecture signal up to level {MAX_SL} against the seven Foundational Requirements.
                 </li>
                 <li>The signal is capped by the weakest modeled FR and names the limiting requirement.</li>
+                <li>
+                  A zone you have declared no assets in is reported as <strong>not modelled</strong>, not as satisfied.
+                  Each requirement is checked across the assets in a zone, so an empty zone would otherwise pass every
+                  one of them for want of anything to fail.
+                </li>
                 <li>
                   It is not a formal SL-A. Confirm applicable 62443-3-3 requirements, enhancements, evidence and
                   compensating controls before claiming an achieved Security Level.

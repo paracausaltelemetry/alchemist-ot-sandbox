@@ -38,13 +38,16 @@ export function ScoreGauge({ score, band, size = 120, thickness = 7, label }: Sc
 
   const offset = CIRCUMFERENCE - (filled / 100) * CIRCUMFERENCE;
   const alert = band === "weak" || band === "critical";
+  // A model too sparse to rate has no number. Showing 0 would read as a bad score rather than
+  // as an absent one, and showing 100 is what this change exists to stop.
+  const unrated = band === "insufficient";
 
   return (
     <div
       className={`score-gauge${alert ? " is-alert" : ""}`}
       style={{ width: size, height: size, "--gauge-num": `${Math.round(size * 0.32)}px` } as CSSProperties}
       role="img"
-      aria-label={`Advisory security rating ${target} out of 100, ${band}`}
+      aria-label={unrated ? "Not enough model to produce an advisory rating" : `Advisory security rating ${target} out of 100, ${band}`}
     >
       <svg viewBox="0 0 100 100" className="score-gauge-svg" aria-hidden="true">
         <circle className="score-gauge-track" cx={CENTER} cy={CENTER} r={RADIUS} strokeWidth={thickness} fill="none" />
@@ -56,13 +59,13 @@ export function ScoreGauge({ score, band, size = 120, thickness = 7, label }: Sc
           strokeWidth={thickness}
           fill="none"
           strokeDasharray={CIRCUMFERENCE}
-          strokeDashoffset={offset}
+          strokeDashoffset={unrated ? CIRCUMFERENCE : offset}
           transform={`rotate(-90 ${CENTER} ${CENTER})`}
         />
       </svg>
       <div className="score-gauge-readout">
-        <strong>{target}</strong>
-        {label ? <span>{label}</span> : null}
+        <strong>{unrated ? "—" : target}</strong>
+        {label ? <span>{unrated ? "unrated" : label}</span> : null}
       </div>
     </div>
   );

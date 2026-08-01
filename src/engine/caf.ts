@@ -102,8 +102,12 @@ export function assessCaf(
   const overrides = project.cafOverrides ?? {};
   const treatments = project.riskTreatments ?? {};
   const categoryScore = new Map(assessment.categoryScores.map((category) => [category.category, category.score]));
-  const frMin = (fr: FoundationalRequirement) =>
-    securityLevels.zones.length > 0 ? Math.min(...securityLevels.zones.map((zone) => zone.frLevels[fr])) : 0;
+  // Only zones the project actually declares assets in. An unmodelled zone has a vacuously
+  // satisfied ladder, so including it would let an absent zone set the floor for every principle.
+  const frMin = (fr: FoundationalRequirement) => {
+    const modelled = securityLevels.zones.filter((zone) => zone.modelled);
+    return modelled.length > 0 ? Math.min(...modelled.map((zone) => zone.frLevels[fr])) : 0;
+  };
 
   const principles: CafPrincipleResult[] = cafPrinciples.map((principle) => {
     const categories = PRINCIPLE_CATEGORIES[principle.id];

@@ -703,6 +703,7 @@ export function App({ onGoHome, onSwitchView, initialIntent, theme, onToggleThem
         <AppHeader
           project={project}
           score={assessment.overallScore}
+          band={assessment.band}
           theme={theme}
           canUndo={history.length > 0}
           canRedo={future.length > 0}

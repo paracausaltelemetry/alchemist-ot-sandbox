@@ -31,6 +31,12 @@ export interface ZoneSecurityLevel {
   achieved: number;
   frLevels: Record<FoundationalRequirement, number>;
   limiting: FoundationalRequirement[];
+  /**
+   * False when the project declares no assets in this zone. Every FR ladder is built from
+   * `Array.every`, which is vacuously true on an empty population — so an unmodelled zone used to
+   * report a perfect SL 3 and read as a strength. Absence of evidence is not evidence of control.
+   */
+  modelled: boolean;
 }
 
 export interface SecurityLevelAssessment {
@@ -162,10 +168,18 @@ export function assessSecurityLevels(project: OtProject, zoneTargets?: Partial<R
   return {
     zones: zones.map((zone) => {
       const frLevels = frLevelsForZone(zone.id, project);
+      const target = zoneTargets?.[zone.id] ?? defaultTargetSL(zone.id);
+      const modelled = project.assets.some((asset) => asset.zone === zone.id);
+
+      // A zone with no declared assets has an empty population for every ladder rung, so the
+      // ladder is vacuously satisfied. Report it as unmodelled rather than as a perfect score.
+      if (!modelled) {
+        return { zone: zone.id, target, achieved: 0, frLevels, limiting: [], modelled: false };
+      }
+
       const achieved = Math.min(...foundationalRequirements.map((fr) => frLevels[fr.id]));
       const limiting = foundationalRequirements.filter((fr) => frLevels[fr.id] === achieved).map((fr) => fr.id);
-      const target = zoneTargets?.[zone.id] ?? defaultTargetSL(zone.id);
-      return { zone: zone.id, target, achieved, frLevels, limiting };
+      return { zone: zone.id, target, achieved, frLevels, limiting, modelled: true };
     })
   };
 }

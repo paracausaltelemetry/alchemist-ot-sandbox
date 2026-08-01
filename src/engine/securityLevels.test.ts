@@ -35,10 +35,32 @@ describe("assessSecurityLevels", () => {
     expect(result.zones.find((zone) => zone.zone === "level1")?.target).toBe(2);
   });
 
-  it("treats an empty zone as vacuously satisfied (max SL)", () => {
+  it("reports a zone with no declared assets as unmodelled, not as satisfied", () => {
+    // Every FR ladder rung is an `Array.every`, which is vacuously true on an empty population.
+    // This test previously asserted the opposite and pinned the bug: an unmodelled zone scored a
+    // perfect SL and read as a strength, which is what made a blank project rate 100/100 "Strong".
     const result = assessSecurityLevels({ ...sampleProject, assets: [], conduits: [] });
     for (const zone of result.zones) {
-      expect(zone.achieved).toBe(MAX_SL);
+      expect(zone.modelled).toBe(false);
+      expect(zone.achieved).toBe(0);
+      expect(zone.achieved).not.toBe(MAX_SL);
+    }
+  });
+
+  it("still rates the zones that do hold assets", () => {
+    const result = assessSecurityLevels(sampleProject);
+    const modelled = result.zones.filter((zone) => zone.modelled);
+    expect(modelled.length).toBeGreaterThan(0);
+    for (const zone of modelled) {
+      expect(sampleProject.assets.some((asset) => asset.zone === zone.zone)).toBe(true);
+    }
+  });
+
+  it("does not let an unmodelled zone masquerade as a modelled one", () => {
+    const result = assessSecurityLevels(sampleProject);
+    for (const zone of result.zones) {
+      const hasAssets = sampleProject.assets.some((asset) => asset.zone === zone.zone);
+      expect(zone.modelled).toBe(hasAssets);
     }
   });
 });

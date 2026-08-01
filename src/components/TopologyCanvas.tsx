@@ -1,18 +1,8 @@
 import {
-  Background,
-  BackgroundVariant,
-  Controls,
   Handle,
-  MiniMap,
   Position,
-  ReactFlow,
   ReactFlowProvider,
-  ViewportPortal,
-  applyNodeChanges,
-  useNodesState,
-  type Connection,
   type Node,
-  type NodeChange,
   type NodeProps,
   type OnNodeDrag,
   useReactFlow
@@ -30,12 +20,11 @@ import {
   Split,
   type LucideIcon
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useMemo, useState, type CSSProperties } from "react";
 import {
   ASSET_NODE_HEIGHT,
   ASSET_NODE_WIDTH,
   CANVAS_GRID_X,
-  DEFAULT_VIEWPORT,
   ZONE_BAND_HEIGHT,
   ZONE_BAND_Y_OFFSET,
   ZONE_ROW_HEIGHT,
@@ -55,7 +44,6 @@ import type {
   Asset,
   AssetTypeId,
   CanvasMode,
-  ConduitDirection,
   Finding,
   LayoutMode,
   OtProject,
@@ -68,6 +56,10 @@ import { assetBadges } from "../lib/assetBadges";
 import { AssetGlyph } from "./AssetGlyph";
 import { CanvasLegend, type LegendFamily } from "./CanvasLegend";
 import { ScoreGauge } from "./ScoreGauge";
+import { FlowFrame } from "./canvas/FlowFrame";
+import { LinkOverlay, type LinkOverlayItem } from "./canvas/LinkOverlay";
+import { overlayExtent } from "./canvas/geometry";
+import { useFlowNodes } from "./canvas/useFlowNodes";
 
 interface TopologyCanvasProps {
   project: OtProject;
@@ -217,25 +209,6 @@ const viewModeOptions: Array<{ mode: CanvasMode; label: string; Icon: LucideIcon
   { mode: "reachability", label: "Path", Icon: Route, title: "Focus the analysed attacker path" }
 ];
 
-interface ConduitOverlayItem {
-  id: string;
-  path: string;
-  labelX: number;
-  labelY: number;
-  boundaryX: number;
-  boundaryY: number;
-  label: string;
-  color: string;
-  opacity: number;
-  trustBoundary: boolean;
-  direction: ConduitDirection;
-  selected: boolean;
-  highlighted: boolean;
-  labelVisible: boolean;
-  boundaryMarkers: Point[];
-  dash?: string;
-}
-
 /** Vertical padding around a network-layout tier so its ghost band clears the node cards. */
 const NETWORK_BAND_PAD = 20;
 
@@ -374,33 +347,21 @@ function TopologyCanvasInner({
     [connectMode, connectSourceId, highlightedAssets, onRenameAsset, project.assets, purduePositions, riskByAssetId, selectedId]
   );
 
-  const [flowNodes, setFlowNodes] = useNodesState<AssetFlowNode>(projectNodes);
+  // A dragged node is snapped to the grid (or into a Purdue lane), and the snapped position is
+  // mirrored into node data so the conduit overlay tracks the drag.
+  const normaliseNode = useCallback(
+    (node: AssetFlowNode): AssetFlowNode => {
+      const snapped = isPurdue ? snapAssetPosition(node.position) : snapToGrid(node.position);
+      return {
+        ...node,
+        position: snapped,
+        data: { ...node.data, asset: assetWithLivePosition(node.data.asset, snapped, layoutMode) }
+      };
+    },
+    [isPurdue, layoutMode]
+  );
 
-  useEffect(() => {
-    setFlowNodes(projectNodes);
-  }, [projectNodes, setFlowNodes]);
-
-  // Switching layout reflows every node (free positions <-> packed Purdue lanes), so refit the
-  // view to the new arrangement. Skip the first run to preserve the default viewport on load.
-  const didMountRef = useRef(false);
-  useEffect(() => {
-    if (!didMountRef.current) {
-      didMountRef.current = true;
-      return;
-    }
-    const frame = window.requestAnimationFrame(() => void reactFlow.fitView({ padding: 0.16, duration: 320 }));
-    return () => window.cancelAnimationFrame(frame);
-  }, [layoutMode, reactFlow]);
-
-  // Explicit refit requests from the app (load a scenario, import, or auto-arrange) frame the
-  // freshly positioned topology. Skips 0 so the initial render keeps the default viewport.
-  useEffect(() => {
-    if (fitSignal === 0) {
-      return;
-    }
-    const frame = window.requestAnimationFrame(() => void reactFlow.fitView({ padding: 0.16, duration: 320 }));
-    return () => window.cancelAnimationFrame(frame);
-  }, [fitSignal, reactFlow]);
+  const [flowNodes, handleNodesChange] = useFlowNodes<AssetFlowNode>(projectNodes, normaliseNode);
 
   const liveAssets = useMemo(() => {
     const livePositions = new Map(flowNodes.map((node) => [node.id, node.position]));
@@ -427,7 +388,7 @@ function TopologyCanvasInner({
     return [...seen.values()];
   }, [project.conduits]);
 
-  const conduitOverlayItems = useMemo<ConduitOverlayItem[]>(() => {
+  const conduitOverlayItems = useMemo<LinkOverlayItem[]>(() => {
     const assets = new Map(liveAssets.map((asset) => [asset.id, asset]));
     const offsets = conduitParallelOffsets(project.conduits);
 
@@ -460,60 +421,42 @@ function TopologyCanvasInner({
         offsets.get(conduit.id) ?? 0
       );
 
+      const crossings = conduit.trustBoundary ? routeBoundaryMarkers(route.points, source.zone, target.zone) : [];
+
       return [
         {
           id: conduit.id,
           path: route.path,
           labelX: route.labelX,
           labelY: route.labelY,
-          boundaryX: route.boundaryX,
-          boundaryY: route.boundaryY,
           label: showLabel ? family.shortLabel : "",
           color,
           opacity: conduitOpacity(conduit, canvasMode, highlighted),
-          trustBoundary: conduit.trustBoundary,
-          direction: conduit.direction,
+          markerStart: conduit.direction !== "source-to-target",
+          markerEnd: conduit.direction !== "target-to-source",
           selected,
           highlighted: highlighted || (canvasMode === "risk" && Boolean(severity)),
           labelVisible: showLabel,
-          boundaryMarkers: conduit.trustBoundary ? routeBoundaryMarkers(route.points, source.zone, target.zone) : [],
+          // Mark where the route crosses a zone line, or at the route's own boundary point
+          // when both ends sit in the same lane.
+          markers: conduit.trustBoundary
+            ? crossings.length > 0
+              ? crossings
+              : [{ x: route.boundaryX, y: route.boundaryY }]
+            : [],
           dash: conduit.firewallRule === "unknown" ? "10 8" : conduit.firewallRule === "any-any" ? "2 7" : undefined
         }
       ];
     });
   }, [assessment.findings, canvasMode, focusedConduitIds, liveAssets, project.conduits, selectedId]);
 
-  const contentExtent = useMemo(() => {
-    let maxX = 0;
-    let maxY = 0;
-    for (const asset of liveAssets) {
-      maxX = Math.max(maxX, asset.position.x);
-      maxY = Math.max(maxY, asset.position.y);
-    }
-    return {
-      bandWidth: Math.max(1900, maxX + ASSET_NODE_WIDTH + 600),
-      overlayWidth: Math.max(2600, maxX + ASSET_NODE_WIDTH + 400),
-      overlayHeight: Math.max(1450, maxY + ASSET_NODE_HEIGHT + 400)
-    };
-  }, [liveAssets]);
-
-  const handleNodesChange = useCallback(
-    (changes: NodeChange<AssetFlowNode>[]) => {
-      setFlowNodes((currentNodes) =>
-        applyNodeChanges(changes, currentNodes).map((node) => {
-          const snapped = isPurdue ? snapAssetPosition(node.position) : snapToGrid(node.position);
-          return {
-            ...node,
-            position: snapped,
-            data: {
-              ...node.data,
-              asset: assetWithLivePosition(node.data.asset, snapped, layoutMode)
-            }
-          };
-        })
-      );
-    },
-    [isPurdue, layoutMode, setFlowNodes]
+  const contentExtent = useMemo(
+    () =>
+      overlayExtent(
+        liveAssets.map((asset) => asset.position),
+        { nodeWidth: ASSET_NODE_WIDTH, nodeHeight: ASSET_NODE_HEIGHT }
+      ),
+    [liveAssets]
   );
 
   const commitNodePosition = useCallback<OnNodeDrag<AssetFlowNode>>(
@@ -538,37 +481,37 @@ function TopologyCanvasInner({
     [isPurdue, onProjectChange]
   );
 
+  const handlePaneClick = useCallback(() => {
+    if (!connectMode) {
+      onSelect(null);
+    }
+  }, [connectMode, onSelect]);
+
   const fitPurdueView = useCallback(() => {
     void reactFlow.fitView({ padding: 0.16 });
   }, [reactFlow]);
 
-  const handleConnect = useCallback(
-    (connection: Connection) => {
-      if (connection.source && connection.target) {
-        onCreateConduit(connection.source, connection.target);
+  const handleDropAsset = useCallback(
+    (payload: string, position: Point) => {
+      const typeId = payload as AssetTypeId;
+      if (assetTypes.some((type) => type.id === typeId)) {
+        onCreateAsset(typeId, position);
       }
     },
-    [onCreateConduit]
-  );
-
-  const handleDrop = useCallback(
-    (event: React.DragEvent) => {
-      event.preventDefault();
-      const typeId = event.dataTransfer.getData("application/alchemist-asset-type") as AssetTypeId;
-      if (!assetTypes.some((type) => type.id === typeId)) {
-        return;
-      }
-      onCreateAsset(typeId, reactFlow.screenToFlowPosition({ x: event.clientX, y: event.clientY }));
-    },
-    [onCreateAsset, reactFlow]
+    [onCreateAsset]
   );
 
   // Stable identity is required: React Flow re-invokes onSelectionChange whenever the
   // handler reference changes, so an inline arrow here causes an infinite render loop.
   const handleSelectionChange = useCallback(
-    ({ nodes }: { nodes: Node[] }) => onSelectionChange(nodes.map((node) => node.id)),
+    (nodes: Node[]) => onSelectionChange(nodes.map((node) => node.id)),
     [onSelectionChange]
   );
+
+  const minimapNodeColor = useCallback((node: Node) => {
+    const asset = (node.data as unknown as AssetNodeData).asset;
+    return asset ? getZone(asset.zone).color : "#8e979c";
+  }, []);
 
   // Keyboard operability for the canvas. React Flow makes each node's wrapper
   // focusable (tabIndex 0) but wires no activation; this reads the focused
@@ -607,358 +550,246 @@ function TopologyCanvasInner({
   );
 
   return (
-    // Drag-and-drop placement from the asset palette is pointer-only; adding
-    // assets also works via the palette's click buttons (desktop-only canvas).
-     
-    <section
-      className="canvas-shell"
-      aria-label="Topology canvas"
-      onDragOver={(event) => {
-        event.preventDefault();
-        event.dataTransfer.dropEffect = "copy";
-      }}
-      onDrop={handleDrop}
-    >
-      <div className="canvas-titlebar">
-        <div>
-          <h2>{isPurdue ? "Purdue Zones" : "Network Layout"}</h2>
-          <p>
-            {connectMode
-              ? connectSourceId
-                ? "Select the destination asset for the new conduit."
-                : "Select the source asset for the new conduit."
-              : isPurdue
-                ? "Assets projected into Purdue levels; drag between lanes to set a zone."
-                : "Lay the network out freely and group assets into subnets."}
-          </p>
-          <div className="canvas-stats" aria-label="Topology summary">
-            <span>
-              <strong>{project.assets.length}</strong> assets
-            </span>
-            <span>
-              <strong>{project.conduits.length}</strong> conduits
-            </span>
-            <span>
-              <strong>{(project.subnets ?? []).length}</strong> subnets
-            </span>
-            {verdict.criticalCount > 0 ? (
-              <span className="canvas-stat-danger">
-                <strong>{verdict.criticalCount}</strong> critical
-              </span>
-            ) : null}
-            {verdict.highCount > 0 ? (
+    <FlowFrame<AssetFlowNode>
+      nodes={flowNodes}
+      nodeTypes={nodeTypes}
+      onNodesChange={handleNodesChange}
+      onNodeDragStart={() => setIsDragging(true)}
+      onNodeDragStop={commitNodePosition}
+      onNodeClick={onAssetClick}
+      onPaneClick={handlePaneClick}
+      onSelectionChange={handleSelectionChange}
+      onConnect={onCreateConduit}
+      onKeyDown={handleCanvasKeyDown}
+      dropMimeType="application/alchemist-asset-type"
+      onDropAt={handleDropAsset}
+      snapGrid={isPurdue ? [CANVAS_GRID_X, ZONE_ROW_HEIGHT] : [CANVAS_GRID_X, CANVAS_GRID_X]}
+      fitSignal={fitSignal}
+      refitKey={layoutMode}
+      minimapNodeColor={minimapNodeColor}
+      sectionLabel="Topology canvas"
+      frameClassName={`mode-${canvasMode} ${isDragging ? "is-dragging" : ""}`}
+      toolbar={
+        <div className="canvas-titlebar">
+          <div>
+            <h2>{isPurdue ? "Purdue Zones" : "Network Layout"}</h2>
+            <p>
+              {connectMode
+                ? connectSourceId
+                  ? "Select the destination asset for the new conduit."
+                  : "Select the source asset for the new conduit."
+                : isPurdue
+                  ? "Assets projected into Purdue levels; drag between lanes to set a zone."
+                  : "Lay the network out freely and group assets into subnets."}
+            </p>
+            <div className="canvas-stats" aria-label="Topology summary">
               <span>
-                <strong>{verdict.highCount}</strong> high
+                <strong>{project.assets.length}</strong> assets
               </span>
-            ) : null}
-          </div>
-        </div>
-        <div className="canvas-actions" aria-label="Canvas controls">
-          <div className="segmented-control" aria-label="Canvas layout mode">
-            {layoutModeOptions.map(({ mode, label, Icon, title }) => (
-              <button
-                key={mode}
-                type="button"
-                className={layoutMode === mode ? "active" : ""}
-                onClick={() => onLayoutModeChange(mode)}
-                title={title}
-              >
-                <Icon size={13} aria-hidden="true" />
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="segmented-control" aria-label="Canvas view mode">
-            {viewModeOptions.map(({ mode, label, Icon, title }) => (
-              <button
-                key={mode}
-                type="button"
-                className={canvasMode === mode ? "active" : ""}
-                onClick={() => onCanvasModeChange(mode)}
-                title={title}
-              >
-                <Icon size={13} aria-hidden="true" />
-                {label}
-              </button>
-            ))}
-          </div>
-          {!isPurdue ? (
-            <button type="button" className="text-button compact" title="Create and edit subnets" onClick={onManageSubnets}>
-              Subnets
-            </button>
-          ) : null}
-          {!isPurdue ? (
-            <button
-              type="button"
-              className="text-button compact"
-              title="Tidy the layout into separated subnet columns"
-              onClick={onAutoArrange}
-            >
-              Arrange
-            </button>
-          ) : null}
-          <button type="button" className={`text-button ${connectMode ? "primary" : ""}`} onClick={onToggleConnectMode}>
-            {connectMode ? "Cancel connect" : "Connect"}
-          </button>
-          <button type="button" className="text-button compact" title="Fit topology in view" onClick={fitPurdueView}>
-            Fit
-          </button>
-          <button type="button" className="text-button compact" title="Undo last change" onClick={onUndo} disabled={!canUndo}>
-            Undo
-          </button>
-          <button type="button" className="text-button compact" title="Redo last undone change" onClick={onRedo} disabled={!canRedo}>
-            Redo
-          </button>
-        </div>
-      </div>
-
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-      <div className={`react-flow-frame mode-${canvasMode} ${isDragging ? "is-dragging" : ""}`} onKeyDown={handleCanvasKeyDown}>
-        {connectMode ? (
-          <div className="canvas-connect-banner" role="status">
-            {connectSourceId ? "Click a target asset to wire the conduit" : "Click a source asset to start a conduit"}
-            <span>· Esc to stop</span>
-          </div>
-        ) : null}
-        {project.assets.length > 0 ? <CanvasLegend canvasMode={canvasMode} families={legendFamilies} /> : null}
-        <aside className={`canvas-hud${hudOpen ? "" : " is-collapsed"}`} aria-label="Advisory rating summary">
-          <button
-            type="button"
-            className="canvas-hud-head"
-            onClick={() => setHudOpen((open) => !open)}
-            aria-expanded={hudOpen}
-            title={hudOpen ? "Collapse rating summary" : "Expand rating summary"}
-          >
-            <ScoreGauge score={assessment.overallScore} band={assessment.band} size={34} thickness={11} />
-            <span className="canvas-hud-headline">{verdict.headline}</span>
-            {hudOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
-          </button>
-          {hudOpen ? (
-            <div className="canvas-hud-body">
-              <span className="canvas-hud-detail">{verdict.detail}</span>
-              {topFinding ? (
-                <button
-                  type="button"
-                  className={`canvas-hud-finding severity-${topFinding.severity}`}
-                  onClick={() => onFindingSelect(topFinding)}
-                  title="Highlight affected conduits"
-                >
-                  <AlertTriangle size={13} aria-hidden="true" />
-                  <span>{topFinding.title}</span>
-                </button>
+              <span>
+                <strong>{project.conduits.length}</strong> conduits
+              </span>
+              <span>
+                <strong>{(project.subnets ?? []).length}</strong> subnets
+              </span>
+              {verdict.criticalCount > 0 ? (
+                <span className="canvas-stat-danger">
+                  <strong>{verdict.criticalCount}</strong> critical
+                </span>
+              ) : null}
+              {verdict.highCount > 0 ? (
+                <span>
+                  <strong>{verdict.highCount}</strong> high
+                </span>
               ) : null}
             </div>
-          ) : null}
-        </aside>
-        {project.assets.length === 0 ? (
-          <div className="canvas-empty">
-            <strong>Empty topology</strong>
-            <p>
-              Drag an asset from the palette onto the canvas to begin. Press <kbd>Ctrl / ⌘ K</kbd> for commands, or load
-              the Sample project from the header.
-            </p>
           </div>
-        ) : null}
-        <ReactFlow
-          nodes={flowNodes}
-          edges={[]}
-          nodeTypes={nodeTypes}
-          onNodesChange={handleNodesChange}
-          onNodeDragStart={() => setIsDragging(true)}
-          onNodeDragStop={commitNodePosition}
-          onConnect={handleConnect}
-          onNodeClick={(_, node) => onAssetClick(node.id)}
-          onPaneClick={() => {
-            if (!connectMode) {
-              onSelect(null);
-            }
-          }}
-          onSelectionChange={handleSelectionChange}
-          defaultViewport={DEFAULT_VIEWPORT}
-          minZoom={0.45}
-          maxZoom={1.5}
-          deleteKeyCode={null}
-          connectionRadius={38}
-          snapGrid={isPurdue ? [CANVAS_GRID_X, ZONE_ROW_HEIGHT] : [CANVAS_GRID_X, CANVAS_GRID_X]}
-          autoPanOnNodeDrag={false}
-          proOptions={{ hideAttribution: true }}
-        >
-          <ViewportPortal>
-            {isPurdue ? (
-              <div
-                className="zone-band-layer"
-                aria-hidden="true"
-                style={{ "--zone-band-width": `${contentExtent.bandWidth}px` } as CSSProperties}
-              >
-                {zones.map((zone, index) => (
-                  <div
-                    className="zone-band-node"
-                    key={zone.id}
-                    style={
-                      {
-                        "--zone-band-y": `${index * ZONE_ROW_HEIGHT + ZONE_BAND_Y_OFFSET}px`,
-                        "--zone-band-height": `${ZONE_BAND_HEIGHT}px`,
-                        "--zone-band-color": zone.color
-                      } as CSSProperties
-                    }
-                  >
-                    <strong>
-                      {zone.levelLabel} - {zone.shortName}
-                    </strong>
-                    <span>{zone.name}</span>
-                  </div>
-                ))}
-              </div>
+          <div className="canvas-actions" aria-label="Canvas controls">
+            <div className="segmented-control" aria-label="Canvas layout mode">
+              {layoutModeOptions.map(({ mode, label, Icon, title }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={layoutMode === mode ? "active" : ""}
+                  onClick={() => onLayoutModeChange(mode)}
+                  title={title}
+                >
+                  <Icon size={13} aria-hidden="true" />
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="segmented-control" aria-label="Canvas view mode">
+              {viewModeOptions.map(({ mode, label, Icon, title }) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={canvasMode === mode ? "active" : ""}
+                  onClick={() => onCanvasModeChange(mode)}
+                  title={title}
+                >
+                  <Icon size={13} aria-hidden="true" />
+                  {label}
+                </button>
+              ))}
+            </div>
+            {!isPurdue ? (
+              <button type="button" className="text-button compact" title="Create and edit subnets" onClick={onManageSubnets}>
+                Subnets
+              </button>
             ) : null}
             {!isPurdue ? (
-              <div
-                className="zone-band-layer"
-                aria-hidden="true"
-                style={{ "--zone-band-width": `${contentExtent.bandWidth}px` } as CSSProperties}
+              <button
+                type="button"
+                className="text-button compact"
+                title="Tidy the layout into separated subnet columns"
+                onClick={onAutoArrange}
               >
-                {zones.map((zone) => (
-                  <div
-                    className="zone-band-node is-ghost"
-                    key={zone.id}
-                    style={
-                      {
-                        "--zone-band-y": `${networkTierY(zone.id) - NETWORK_BAND_PAD}px`,
-                        "--zone-band-height": `${ASSET_NODE_HEIGHT + NETWORK_BAND_PAD * 2}px`,
-                        "--zone-band-color": zone.color
-                      } as CSSProperties
-                    }
-                  >
-                    <strong>
-                      {zone.levelLabel} - {zone.shortName}
-                    </strong>
-                    <span>{zone.name}</span>
-                  </div>
-                ))}
-              </div>
+                Arrange
+              </button>
             ) : null}
-            {!isPurdue && subnetBoxes.length > 0 ? (
-              <div className="subnet-layer" aria-hidden="true">
-                {subnetBoxes.map((box) => (
-                  <div
-                    className="subnet-box"
-                    key={box.id}
-                    style={{ left: box.x, top: box.y, width: box.width, height: box.height }}
-                  >
-                    <span className="subnet-box-label">
-                      <strong>{box.name}</strong>
-                      {box.cidr || box.vlan ? (
-                        <small>{[box.cidr, box.vlan ? `VLAN ${box.vlan}` : ""].filter(Boolean).join(" · ")}</small>
-                      ) : null}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            <svg
-              className="conduit-overlay"
-              aria-hidden="true"
-              style={{ width: contentExtent.overlayWidth, height: contentExtent.overlayHeight }}
+            <button type="button" className={`text-button ${connectMode ? "primary" : ""}`} onClick={onToggleConnectMode}>
+              {connectMode ? "Cancel connect" : "Connect"}
+            </button>
+            <button type="button" className="text-button compact" title="Fit topology in view" onClick={fitPurdueView}>
+              Fit
+            </button>
+            <button type="button" className="text-button compact" title="Undo last change" onClick={onUndo} disabled={!canUndo}>
+              Undo
+            </button>
+            <button type="button" className="text-button compact" title="Redo last undone change" onClick={onRedo} disabled={!canRedo}>
+              Redo
+            </button>
+          </div>
+        </div>
+      }
+      overlay={
+        <>
+          {connectMode ? (
+            <div className="canvas-connect-banner" role="status">
+              {connectSourceId ? "Click a target asset to wire the conduit" : "Click a source asset to start a conduit"}
+              <span>· Esc to stop</span>
+            </div>
+          ) : null}
+          {project.assets.length > 0 ? <CanvasLegend canvasMode={canvasMode} families={legendFamilies} /> : null}
+          <aside className={`canvas-hud${hudOpen ? "" : " is-collapsed"}`} aria-label="Advisory rating summary">
+            <button
+              type="button"
+              className="canvas-hud-head"
+              onClick={() => setHudOpen((open) => !open)}
+              aria-expanded={hudOpen}
+              title={hudOpen ? "Collapse rating summary" : "Expand rating summary"}
             >
-              <defs>
-                <marker
-                  id="conduit-arrow"
-                  viewBox="0 0 12 12"
-                  refX="10.5"
-                  refY="6"
-                  markerWidth="11"
-                  markerHeight="11"
-                  orient="auto-start-reverse"
-                  markerUnits="userSpaceOnUse"
-                >
-                  <path d="M1.5,1.5 L11,6 L1.5,10.5 z" fill="context-stroke" />
-                </marker>
-              </defs>
-              {conduitOverlayItems.map((item) => (
-                <g
-                  className={`conduit-overlay-edge ${item.labelVisible ? "label-visible" : ""} ${
-                    item.selected ? "is-selected" : ""
-                  } ${item.highlighted ? "is-highlighted" : ""}`}
-                  key={item.id}
-                >
-                  {item.highlighted || item.selected ? (
-                    <path
-                      className="conduit-overlay-underlay"
-                      d={item.path}
-                      style={{ stroke: item.highlighted ? "#e5484d" : "var(--accent)" }}
-                    />
-                  ) : null}
-                  <path
-                    className="conduit-overlay-path"
-                    d={item.path}
-                    markerStart={item.direction !== "source-to-target" ? "url(#conduit-arrow)" : undefined}
-                    markerEnd={item.direction !== "target-to-source" ? "url(#conduit-arrow)" : undefined}
-                    style={{
-                      stroke: item.color,
-                      opacity: item.opacity,
-                      strokeDasharray: item.dash
-                    }}
-                  />
-                  {item.highlighted || item.selected ? (
-                    <path className="conduit-overlay-flow" d={item.path} />
-                  ) : null}
-                  <path
-                    className="conduit-overlay-hitbox"
-                    d={item.path}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onSelect(item.id);
-                    }}
-                  />
-                  {item.trustBoundary && item.boundaryMarkers.length === 0 ? (
-                    <circle
-                      className="conduit-overlay-boundary"
-                      cx={item.boundaryX}
-                      cy={item.boundaryY}
-                      r="5"
-                      style={{ stroke: item.color }}
-                    />
-                  ) : null}
-                  {item.boundaryMarkers.map((marker, index) => (
-                    <circle
-                      className="conduit-overlay-boundary"
-                      cx={marker.x}
-                      cy={marker.y}
-                      key={`${item.id}-boundary-${index}`}
-                      r="5"
-                      style={{ stroke: item.color }}
-                    />
-                  ))}
-                  {item.label ? (
-                    <text className="conduit-overlay-label" x={item.labelX + 8} y={item.labelY - 8} style={{ fill: item.color }}>
-                      {item.label}
-                    </text>
-                  ) : null}
-                </g>
-              ))}
-            </svg>
-          </ViewportPortal>
-          <Background
-            className="snap-grid-background"
-            color="#64717d"
-            gap={CANVAS_GRID_X}
-            size={1.1}
-            variant={BackgroundVariant.Dots}
-          />
-          <MiniMap
-            className="canvas-minimap"
-            pannable
-            zoomable
-            nodeStrokeWidth={2}
-            nodeColor={(node) => {
-              const asset = (node.data as unknown as AssetNodeData).asset;
-              return asset ? getZone(asset.zone).color : "#8e979c";
-            }}
-            maskColor="rgba(10, 11, 12, 0.55)"
-          />
-          <Controls position="bottom-left" />
-        </ReactFlow>
-      </div>
-    </section>
+              <ScoreGauge score={assessment.overallScore} band={assessment.band} size={34} thickness={11} />
+              <span className="canvas-hud-headline">{verdict.headline}</span>
+              {hudOpen ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
+            </button>
+            {hudOpen ? (
+              <div className="canvas-hud-body">
+                <span className="canvas-hud-detail">{verdict.detail}</span>
+                {topFinding ? (
+                  <button
+                    type="button"
+                    className={`canvas-hud-finding severity-${topFinding.severity}`}
+                    onClick={() => onFindingSelect(topFinding)}
+                    title="Highlight affected conduits"
+                  >
+                    <AlertTriangle size={13} aria-hidden="true" />
+                    <span>{topFinding.title}</span>
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </aside>
+            {project.assets.length === 0 ? (
+              <div className="canvas-empty">
+                <strong>Empty topology</strong>
+                <p>
+                  Drag an asset from the palette onto the canvas to begin. Press <kbd>Ctrl / ⌘ K</kbd> for commands, or
+                  load the Sample project from the header.
+                </p>
+              </div>
+            ) : null}
+        </>
+      }
+    >
+      {isPurdue ? (
+        <div
+          className="zone-band-layer"
+          aria-hidden="true"
+          style={{ "--zone-band-width": `${contentExtent.bandWidth}px` } as CSSProperties}
+        >
+          {zones.map((zone, index) => (
+            <div
+              className="zone-band-node"
+              key={zone.id}
+              style={
+                {
+                  "--zone-band-y": `${index * ZONE_ROW_HEIGHT + ZONE_BAND_Y_OFFSET}px`,
+                  "--zone-band-height": `${ZONE_BAND_HEIGHT}px`,
+                  "--zone-band-color": zone.color
+                } as CSSProperties
+              }
+            >
+              <strong>
+                {zone.levelLabel} - {zone.shortName}
+              </strong>
+              <span>{zone.name}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {!isPurdue ? (
+        <div
+          className="zone-band-layer"
+          aria-hidden="true"
+          style={{ "--zone-band-width": `${contentExtent.bandWidth}px` } as CSSProperties}
+        >
+          {zones.map((zone) => (
+            <div
+              className="zone-band-node is-ghost"
+              key={zone.id}
+              style={
+                {
+                  "--zone-band-y": `${networkTierY(zone.id) - NETWORK_BAND_PAD}px`,
+                  "--zone-band-height": `${ASSET_NODE_HEIGHT + NETWORK_BAND_PAD * 2}px`,
+                  "--zone-band-color": zone.color
+                } as CSSProperties
+              }
+            >
+              <strong>
+                {zone.levelLabel} - {zone.shortName}
+              </strong>
+              <span>{zone.name}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {!isPurdue && subnetBoxes.length > 0 ? (
+        <div className="subnet-layer" aria-hidden="true">
+          {subnetBoxes.map((box) => (
+            <div
+              className="subnet-box"
+              key={box.id}
+              style={{ left: box.x, top: box.y, width: box.width, height: box.height }}
+            >
+              <span className="subnet-box-label">
+                <strong>{box.name}</strong>
+                {box.cidr || box.vlan ? (
+                  <small>{[box.cidr, box.vlan ? `VLAN ${box.vlan}` : ""].filter(Boolean).join(" · ")}</small>
+                ) : null}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      <LinkOverlay
+        items={conduitOverlayItems}
+        width={contentExtent.overlayWidth}
+        height={contentExtent.overlayHeight}
+        onSelect={onSelect}
+      />
+    </FlowFrame>
   );
 }
 

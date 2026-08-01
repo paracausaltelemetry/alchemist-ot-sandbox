@@ -52,40 +52,59 @@ export interface ItAnalysis {
 }
 
 interface RiskDefinition {
-  severity: ItSeverity;
+  /**
+   * Severity when the service is only reachable on a private address. Anything on a public
+   * address is high regardless — see `analyseItNetwork`.
+   */
+  internal: ItSeverity;
   reason: string;
 }
 
-/** Ports whose exposure is worth flagging on an IT network, with why. */
+/**
+ * Ports whose exposure is worth flagging on an IT network, with why.
+ *
+ * Severity is graded by *where* the service is exposed, not only by what it is. Internally,
+ * SMB on a file server and RDP on a Windows estate are the network working as designed; calling
+ * them high made every Windows host red and the exposure view useless, which is worse than not
+ * having one. High is reserved for services that are a finding wherever they are: cleartext
+ * administration, and data stores that historically ship unauthenticated.
+ */
 const RISKY_PORTS: Record<number, RiskDefinition> = {
-  23: { severity: "high", reason: "Telnet: cleartext remote administration" },
-  21: { severity: "medium", reason: "FTP: cleartext credentials and file transfer" },
-  69: { severity: "medium", reason: "TFTP: unauthenticated file transfer" },
-  512: { severity: "high", reason: "rexec: cleartext trust-based remote access" },
-  513: { severity: "high", reason: "rlogin: cleartext trust-based remote access" },
-  514: { severity: "high", reason: "rsh: cleartext trust-based remote access" },
-  135: { severity: "medium", reason: "MSRPC endpoint mapper: lateral-movement surface" },
-  139: { severity: "high", reason: "NetBIOS/SMB: legacy file sharing and lateral movement" },
-  445: { severity: "high", reason: "SMB: file sharing, lateral movement (EternalBlue class)" },
-  3389: { severity: "high", reason: "RDP: remote desktop, brute force and BlueKeep class" },
-  5900: { severity: "high", reason: "VNC: remote control, often weak or no auth" },
-  5901: { severity: "high", reason: "VNC: remote control, often weak or no auth" },
-  5985: { severity: "medium", reason: "WinRM (HTTP): remote management" },
-  5986: { severity: "low", reason: "WinRM (HTTPS): remote management" },
-  161: { severity: "medium", reason: "SNMP: default community strings leak device data" },
-  111: { severity: "medium", reason: "rpcbind/portmapper: exposes RPC services" },
-  2049: { severity: "medium", reason: "NFS: network file shares" },
-  389: { severity: "medium", reason: "LDAP: directory exposure (often cleartext)" },
-  1433: { severity: "high", reason: "MSSQL: database exposed on the network" },
-  3306: { severity: "high", reason: "MySQL/MariaDB: database exposed on the network" },
-  5432: { severity: "high", reason: "PostgreSQL: database exposed on the network" },
-  1521: { severity: "high", reason: "Oracle DB: database exposed on the network" },
-  27017: { severity: "high", reason: "MongoDB: database, historically default-open" },
-  6379: { severity: "high", reason: "Redis: frequently unauthenticated" },
-  9200: { severity: "high", reason: "Elasticsearch: often unauthenticated data store" },
-  11211: { severity: "high", reason: "Memcached: unauthenticated, amplification risk" },
-  5984: { severity: "high", reason: "CouchDB: database exposed on the network" },
-  6000: { severity: "medium", reason: "X11: remote display, weak access control" }
+  // Cleartext administration — a finding anywhere.
+  23: { internal: "high", reason: "Telnet: cleartext remote administration" },
+  512: { internal: "high", reason: "rexec: cleartext trust-based remote access" },
+  513: { internal: "high", reason: "rlogin: cleartext trust-based remote access" },
+  514: { internal: "high", reason: "rsh: cleartext trust-based remote access" },
+  5900: { internal: "high", reason: "VNC: remote control, often weak or no auth" },
+  5901: { internal: "high", reason: "VNC: remote control, often weak or no auth" },
+
+  // Data stores that have historically shipped open to anyone who can reach them.
+  27017: { internal: "high", reason: "MongoDB: database, historically default-open" },
+  6379: { internal: "high", reason: "Redis: frequently unauthenticated" },
+  9200: { internal: "high", reason: "Elasticsearch: often unauthenticated data store" },
+  11211: { internal: "high", reason: "Memcached: unauthenticated, amplification risk" },
+  5984: { internal: "high", reason: "CouchDB: database exposed on the network" },
+
+  // Ordinary internally, worth knowing, and high the moment they face the internet.
+  21: { internal: "medium", reason: "FTP: cleartext credentials and file transfer" },
+  69: { internal: "medium", reason: "TFTP: unauthenticated file transfer" },
+  139: { internal: "medium", reason: "NetBIOS/SMB: legacy file sharing and lateral movement" },
+  445: { internal: "medium", reason: "SMB: file sharing, lateral movement (EternalBlue class)" },
+  3389: { internal: "medium", reason: "RDP: remote desktop, brute force and BlueKeep class" },
+  5985: { internal: "medium", reason: "WinRM (HTTP): remote management" },
+  161: { internal: "medium", reason: "SNMP: default community strings leak device data" },
+  2049: { internal: "medium", reason: "NFS: network file shares" },
+  1433: { internal: "medium", reason: "MSSQL: database reachable on the network" },
+  3306: { internal: "medium", reason: "MySQL/MariaDB: database reachable on the network" },
+  5432: { internal: "medium", reason: "PostgreSQL: database reachable on the network" },
+  1521: { internal: "medium", reason: "Oracle DB: database reachable on the network" },
+  6000: { internal: "medium", reason: "X11: remote display, weak access control" },
+
+  // Expected infrastructure. Listed so the inventory is complete, not to raise an alarm.
+  135: { internal: "low", reason: "MSRPC endpoint mapper: lateral-movement surface" },
+  111: { internal: "low", reason: "rpcbind/portmapper: exposes RPC services" },
+  389: { internal: "low", reason: "LDAP: directory service, often cleartext" },
+  5986: { internal: "low", reason: "WinRM (HTTPS): remote management" }
 };
 
 const PRIVATE_V4 = [
@@ -166,8 +185,8 @@ export function analyseItNetwork(parsed: ParsedImport): ItAnalysis {
       if (!definition) {
         continue;
       }
-      // A risky service reachable from the internet is always high severity.
-      const severity: ItSeverity = publicIp ? "high" : definition.severity;
+      // Reachable from the internet outranks everything the port table says.
+      const severity: ItSeverity = publicIp ? "high" : definition.internal;
       riskyServices.push({
         ip: host.ip || host.hostname || "unknown",
         hostname: host.hostname,

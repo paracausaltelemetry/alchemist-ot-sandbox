@@ -15,6 +15,7 @@ import type { AppView } from "../lib/appView";
 import { SiteMasthead } from "./SiteMasthead";
 import { ItNetworkCanvas, type ItCanvasMode, type ItRisk } from "./ItNetworkCanvas";
 import { ItFindingsPanel } from "./ItFindingsPanel";
+import { ItMapOutline } from "./ItMapOutline";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { CommandPalette, type Command } from "./CommandPalette";
 import { createProject } from "../lib/projectStore";
@@ -55,6 +56,12 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   const [promoteOpen, setPromoteOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Dragged positions are deliberately kept out of React state. Feeding them back into `map`
+  // rebuilds the node array, which makes React Flow reset its whole store — measured at ~127ms
+  // per move on a 300-host map. React Flow already owns the live position while you drag, so
+  // the only thing that needs them is an export, and that can read them on demand.
+  const draggedPositions = useRef(new Map<string, Point>());
 
   // Colour the map by IT risk: internet-facing or high-severity services are high, other
   // flagged services medium. Matched on address, then keyed by node id for the canvas.
@@ -97,6 +104,7 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
       setError(result.warnings[0] ?? "No hosts were found in that scan.");
       return;
     }
+    draggedPositions.current.clear();
     setMap(positioned(synthesiseItTopology(result)));
     setAnalysis(analyseItNetwork(result));
     setParsed(result);
@@ -119,6 +127,7 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   );
 
   const clear = useCallback(() => {
+    draggedPositions.current.clear();
     setMap(null);
     setAnalysis(null);
     setParsed(null);
@@ -128,14 +137,20 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   }, []);
 
   const moveNode = useCallback((id: string, position: Point) => {
-    setMap((current) =>
-      current
-        ? { ...current, nodes: current.nodes.map((node) => (node.id === id ? { ...node, position } : node)) }
-        : current
-    );
+    draggedPositions.current.set(id, position);
+  }, []);
+
+  /** The map as it is currently arranged on screen, for anything that leaves the canvas. */
+  const withLivePositions = useCallback((source: ItMap): ItMap => {
+    const moved = draggedPositions.current;
+    if (moved.size === 0) {
+      return source;
+    }
+    return { ...source, nodes: source.nodes.map((node) => ({ ...node, position: moved.get(node.id) ?? node.position })) };
   }, []);
 
   const rearrange = useCallback(() => {
+    draggedPositions.current.clear();
     setMap((current) => (current ? positioned(current) : current));
     setFitSignal((value) => value + 1);
   }, []);
@@ -154,19 +169,22 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   const promotion = useMemo(() => (map ? promoteToOtProject(map) : null), [map]);
 
   const promote = useCallback(() => {
-    if (!promotion) {
+    if (!map) {
       return;
     }
-    createProject(promotion.project);
+    createProject(promoteToOtProject(withLivePositions(map)).project);
     setPromoteOpen(false);
     onSwitchView("app");
-  }, [promotion, onSwitchView]);
+  }, [map, withLivePositions, onSwitchView]);
 
   const exportJson = useCallback(() => {
     if (analysis) {
-      downloadJson("it-network", JSON.stringify({ analysis, map, hosts: parsed?.hosts ?? [] }, null, 2));
+      downloadJson(
+        "it-network",
+        JSON.stringify({ analysis, map: map ? withLivePositions(map) : null, hosts: parsed?.hosts ?? [] }, null, 2)
+      );
     }
-  }, [analysis, map, parsed]);
+  }, [analysis, map, parsed, withLivePositions]);
   const exportReport = useCallback(() => {
     if (analysis) {
       downloadMarkdown("it-network", itReportMarkdown(analysis));
@@ -174,9 +192,9 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   }, [analysis]);
   const exportMap = useCallback(() => {
     if (map) {
-      downloadItMapSvg(map);
+      downloadItMapSvg(withLivePositions(map));
     }
-  }, [map]);
+  }, [map, withLivePositions]);
 
   // The workbench has had Ctrl/Cmd+K since the beginning; the IT side had no keyboard route to
   // anything. Same shortcut, same component, commands that make sense on this side.
@@ -333,7 +351,13 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
       ) : (
         <div className="it-workspace">
           {isMobile ? (
-            <p className="it-mobile-note">The interactive map needs a larger screen. The analysis below still works.</p>
+            <div className="it-canvas-wrap is-outline">
+              <p className="it-mobile-note">
+                The map is shown as an outline here — a network map wants a pointer and a wide screen. Everything the
+                map knows is below, and the analysis is unchanged.
+              </p>
+              <ItMapOutline map={map} riskByNodeId={riskByNodeId} selectedId={selectedId} onSelect={setSelectedId} />
+            </div>
           ) : (
             <div className="it-canvas-wrap">
               <ItNetworkCanvas

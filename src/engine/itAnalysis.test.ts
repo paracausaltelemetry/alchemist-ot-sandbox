@@ -60,6 +60,45 @@ describe("analyseItNetwork", () => {
   });
 });
 
+describe("severity grading", () => {
+  const graded = analyseItNetwork({
+    format: "nmap-normal",
+    flows: [],
+    warnings: [],
+    hosts: [
+      { ip: "10.0.0.20", ports: [{ port: 445 }, { port: 3389 }, { port: 389 }] },
+      { ip: "10.0.0.21", ports: [{ port: 23 }, { port: 6379 }] },
+      { ip: "198.51.100.5", ports: [{ port: 445 }] }
+    ]
+  });
+
+  const severityOf = (ip: string, port: number) =>
+    graded.riskyServices.find((service) => service.ip === ip && service.port === port)?.severity;
+
+  it("treats ordinary internal services as worth knowing, not as findings", () => {
+    // SMB on a file server and RDP on a Windows estate are the network working as designed.
+    // Calling them high made every Windows host red and the exposure view worthless.
+    expect(severityOf("10.0.0.20", 445)).toBe("medium");
+    expect(severityOf("10.0.0.20", 3389)).toBe("medium");
+    expect(severityOf("10.0.0.20", 389)).toBe("low");
+  });
+
+  it("still calls out what is a finding wherever it is", () => {
+    expect(severityOf("10.0.0.21", 23)).toBe("high");
+    expect(severityOf("10.0.0.21", 6379)).toBe("high");
+  });
+
+  it("escalates anything on a public address", () => {
+    expect(severityOf("198.51.100.5", 445)).toBe("high");
+    expect(graded.riskyServices.find((service) => service.ip === "198.51.100.5")?.reason).toMatch(/internet/i);
+  });
+
+  it("leaves a normal internal estate with a readable number of high findings", () => {
+    // The point of the grading: high should mean something when you look at the map.
+    expect(graded.riskyServices.filter((service) => service.severity === "high")).toHaveLength(3);
+  });
+});
+
 describe("itReportMarkdown", () => {
   it("renders the key sections", () => {
     const md = itReportMarkdown(analyseItNetwork(parsed));

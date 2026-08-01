@@ -181,10 +181,16 @@ function ItNetworkCanvasInner({
     return next;
   }, [isExposure, map.nodes, riskByNodeId, selectedId, showServices]);
 
-  const normaliseNode = useCallback(
-    (node: ItFlowNode): ItFlowNode => ({ ...node, position: snapToGrid(node.position) }),
-    []
-  );
+  // Return the node itself when snapping is a no-op. Every change runs this over the whole
+  // array, so spreading unconditionally would hand React Flow 305 new objects for one move and
+  // undo the memo on the card.
+  const normaliseNode = useCallback((node: ItFlowNode): ItFlowNode => {
+    const snapped = snapToGrid(node.position);
+    if (snapped.x === node.position.x && snapped.y === node.position.y) {
+      return node;
+    }
+    return { ...node, position: snapped };
+  }, []);
 
   const [flowNodes, handleNodesChange] = useFlowNodes<ItFlowNode>(flowSource, normaliseNode);
 
@@ -278,11 +284,14 @@ function ItNetworkCanvasInner({
       if (!move) return;
       event.preventDefault();
       const current = livePositions.get(id);
-      if (current) {
-        onMoveNode(id, { x: current.x + move[0], y: current.y + move[1] });
-      }
+      if (!current) return;
+      const position = { x: current.x + move[0], y: current.y + move[1] };
+      // Move it the same way a drag does — through React Flow's own change pipeline — then
+      // record it. The owner keeps dragged positions out of React state on purpose.
+      handleNodesChange([{ id, type: "position", position, dragging: false }]);
+      onMoveNode(id, position);
     },
-    [livePositions, onMoveNode, onSelect]
+    [handleNodesChange, livePositions, onMoveNode, onSelect]
   );
 
   const minimapNodeColor = useCallback(

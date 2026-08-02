@@ -1,12 +1,20 @@
-import type { Asset, AssetTypeId, Finding, OtProject, Severity } from "../models/types";
+import { exposureFromUntrusted } from "./reachability";
+import { isHost } from "./securityLevels";
+import type { Asset, AssetTypeId, OtProject } from "../models/types";
 
 /**
  * OT risk model: Risk = Likelihood × Consequence.
  *
- * Consequence is the impact if the asset is compromised or fails — derived from asset class
- * and criticality (assessor override via asset.consequence). Likelihood is driven by the
- * worst finding affecting the asset. Both sit on a 1–5 scale, giving a 1–25 risk score placed
- * on a heat-map — the consequence-led view that distinguishes OT risk from IT risk.
+ * Consequence is the impact if the asset is compromised or fails — derived from asset class and
+ * criticality, with an assessor override via `asset.consequence`.
+ *
+ * Likelihood is exposure plus weakness. It used to be the worst finding severity affecting the
+ * asset, which made the heat-map a restatement of the findings list: the same rules fire on nearly
+ * every asset, so almost everything landed at likelihood 4 or 5 and the matrix collapsed into a
+ * consequence histogram. Reading a heat-map, a practitioner expects *exposure* on that axis.
+ *
+ * Both sit on a 1–5 scale, giving a 1–25 score placed on the consequence-led heat-map that
+ * distinguishes OT risk from IT risk.
  */
 
 export type RiskBand = "low" | "medium" | "high" | "critical";
@@ -17,6 +25,8 @@ export interface AssetRisk {
   likelihood: number;
   score: number;
   band: RiskBand;
+  /** Why the likelihood is what it is, for the heat-map row title. */
+  reason: string;
 }
 
 export interface RiskAssessment {
@@ -43,13 +53,6 @@ const typeConsequence: Record<AssetTypeId, number> = {
   "cloud-service": 2
 };
 
-const severityLikelihood: Record<Severity, number> = {
-  critical: 5,
-  high: 4,
-  medium: 3,
-  low: 2
-};
-
 function clamp(value: number): number {
   return Math.min(RISK_SCALE, Math.max(1, value));
 }
@@ -69,12 +72,44 @@ export function consequenceFor(asset: Asset): number {
   return asset.consequence !== undefined ? clamp(asset.consequence) : derivedConsequence(asset);
 }
 
-export function likelihoodForAsset(assetId: string, findings: Finding[]): number {
-  const relevant = findings.filter((finding) => finding.affectedAssetIds.includes(assetId));
-  if (relevant.length === 0) {
-    return 1;
+/**
+ * How weak an asset is in its own right, independent of where it sits: one point for an access
+ * gap, one for a platform gap. Capped at 2 so exposure and weakness carry comparable weight.
+ */
+export function weaknessFor(asset: Asset): 0 | 1 | 2 {
+  const access = !asset.controls.defaultCredentialsDisabled || (isHost(asset) && !asset.controls.mfa);
+  // Platform weakness is lifecycle only for now. The protocol half joins it when protocol families
+  // gain a `nativeSecurity` flag and the three separate legacy lists collapse into one predicate.
+  const platform = asset.lifecycleStatus === "obsolete";
+  return ((access ? 1 : 0) + (platform ? 1 : 0)) as 0 | 1 | 2;
+}
+
+/**
+ * `exposure` comes from `exposureFromUntrusted`. Callers that have not computed it get 0, which
+ * reads as "not reachable from anywhere untrusted" — the safe direction to be wrong in.
+ */
+export function likelihoodForAsset(asset: Asset, exposure: 0 | 1 | 2 = 0): number {
+  return clamp(1 + exposure + weaknessFor(asset));
+}
+
+/** Plain-English reason for an asset's likelihood, shown on the heat-map row. */
+export function likelihoodReason(asset: Asset, exposure: 0 | 1 | 2): string {
+  const parts: string[] = [
+    exposure === 2
+      ? "reachable from an untrusted zone without a broker"
+      : exposure === 1
+        ? "reachable from an untrusted zone, but only through a broker"
+        : "not reachable from an untrusted zone"
+  ];
+  if (!asset.controls.defaultCredentialsDisabled) {
+    parts.push("default credentials not confirmed disabled");
+  } else if (isHost(asset) && !asset.controls.mfa) {
+    parts.push("no MFA");
   }
-  return Math.max(...relevant.map((finding) => severityLikelihood[finding.severity]));
+  if (asset.lifecycleStatus === "obsolete") {
+    parts.push("obsolete platform");
+  }
+  return parts.join(" · ");
 }
 
 export function riskBand(score: number): RiskBand {
@@ -90,13 +125,24 @@ export function riskBand(score: number): RiskBand {
   return "low";
 }
 
-export function assessRisk(project: OtProject, findings: Finding[]): RiskAssessment {
+export function assessRisk(project: OtProject): RiskAssessment {
+  // One pass over the graph for the whole project, rather than a search per asset.
+  const exposure = exposureFromUntrusted(project);
+
   const assets = project.assets
     .map((asset) => {
+      const assetExposure = exposure.get(asset.id) ?? 0;
       const consequence = consequenceFor(asset);
-      const likelihood = likelihoodForAsset(asset.id, findings);
+      const likelihood = likelihoodForAsset(asset, assetExposure);
       const score = consequence * likelihood;
-      return { assetId: asset.id, consequence, likelihood, score, band: riskBand(score) };
+      return {
+        assetId: asset.id,
+        consequence,
+        likelihood,
+        score,
+        band: riskBand(score),
+        reason: likelihoodReason(asset, assetExposure)
+      };
     })
     .sort((a, b) => b.score - a.score);
 

@@ -27,7 +27,7 @@ export function PrintableReport({ project, assessment, reachability }: Printable
   // That is only affordable if it does no work: unmemoised, these four engines re-ran on every
   // render of the workbench, including every selection click, alongside the analysis panel's copy.
   const securityLevels = useMemo(() => assessSecurityLevels(project, project.zoneTargets), [project]);
-  const risk = useMemo(() => assessRisk(project, assessment.findings), [project, assessment.findings]);
+  const risk = useMemo(() => assessRisk(project), [project]);
   const caf = useMemo(() => assessCaf(project, assessment, securityLevels, risk), [project, assessment, securityLevels, risk]);
   const attackEntry = useMemo(() => suggestEntry(project), [project]);
   const attackTarget = useMemo(() => suggestTarget(project, attackEntry), [project, attackEntry]);

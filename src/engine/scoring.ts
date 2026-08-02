@@ -1,6 +1,6 @@
 import { categoryLabels, getAssetType, getZone, standardReferences } from "../data/catalog";
 import { techniquesForCategory } from "../data/attackIcs";
-import { findReachability } from "./reachability";
+import { reachableAssetIds } from "./reachability";
 import { assessSecurityLevels, foundationalRequirements } from "./securityLevels";
 import type { Asset, AssessmentCoverage, Conduit, Finding, OtProject, ScoreCategory, SecurityAssessment, Severity, Subnet } from "../models/types";
 
@@ -324,12 +324,13 @@ export function assessProject(project: OtProject): SecurityAssessment {
     }
 
     if (isRemoteAccessAsset(asset)) {
-      const reachableControlAssets = project.assets.filter((target) => {
-        if (!isControlZone(target)) {
-          return false;
-        }
-        return findReachability(project, asset.id, target.id).reachable;
-      });
+      // One walk from this asset, rather than a full path search per candidate target. The old
+      // form ran `findReachability` once per (remote-access asset x control asset) pair, and each
+      // call rebuilt the whole adjacency map from scratch.
+      const reachable = reachableAssetIds(project, asset.id);
+      const reachableControlAssets = project.assets.filter(
+        (target) => isControlZone(target) && reachable.has(target.id)
+      );
 
       if (reachableControlAssets.length > 0) {
         const hasJumpPath = project.conduits.some(

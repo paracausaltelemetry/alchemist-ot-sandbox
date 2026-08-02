@@ -58,7 +58,8 @@ const CONTROL_HOST_TYPES = new Set<Asset["type"]>(["historian", "engineering-wor
 
 const LEGACY_CLEARTEXT = new Set(["modbus", "modbus tcp", "dnp3", "ftp", "telnet", "http", "snmp v1", "snmp v2"]);
 
-const isHost = (asset: Asset) => HOST_TYPES.has(asset.type);
+/** Asset classes that run a general-purpose OS, so account controls like MFA apply to them. */
+export const isHost = (asset: Asset) => HOST_TYPES.has(asset.type);
 const isControlHost = (asset: Asset) => CONTROL_HOST_TYPES.has(asset.type);
 const isControlZone = (zone: ZoneId) => getZone(zone).riskRank <= 3;
 const isEnterpriseZone = (zone: ZoneId) => getZone(zone).riskRank >= 6;

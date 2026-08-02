@@ -69,7 +69,7 @@ export function Dashboard({ onEnter, onOpenIt, onSwitchView, theme, onToggleThem
   // including every rename keystroke in the saved-assessment list.
   const assessment = useMemo(() => assessProject(project), [project]);
   const securityLevels = useMemo(() => assessSecurityLevels(project, project.zoneTargets), [project]);
-  const risk = useMemo(() => assessRisk(project, assessment.findings), [project, assessment.findings]);
+  const risk = useMemo(() => assessRisk(project), [project]);
   const caf = useMemo(() => assessCaf(project, assessment, securityLevels, risk), [project, assessment, securityLevels, risk]);
   const entryId = useMemo(() => suggestEntry(project), [project]);
   const attackPath = useMemo(

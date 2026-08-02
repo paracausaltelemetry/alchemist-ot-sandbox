@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import { useEffect } from "react";
 import { MIN_RATEABLE_ASSETS, categoryWeights, scoreBands, severityDeduction } from "../engine/scoring";
 import { MAX_SL, foundationalRequirements } from "../engine/securityLevels";
+import { RISK_SCALE } from "../engine/risk";
 import { categoryLabels } from "../data/catalog";
 import { cafObjectives } from "../data/caf";
 import { ATTACK_ICS_REVIEWED, ATTACK_ICS_VERSION, icsTactics } from "../data/attackIcs";
@@ -250,8 +251,15 @@ export function MethodologyPanel({ open, onClose }: MethodologyPanelProps) {
               <ul>
                 <li>Consequence is derived from each asset's class, criticality and safety role.</li>
                 <li>
-                  Likelihood reflects exposure: reachability from less-trusted zones, remote access, weak
-                  controls and legacy protocols.
+                  Likelihood is <strong>1 + exposure + weakness</strong>, capped at {RISK_SCALE}. Exposure is 2 when an
+                  asset can be reached from an enterprise, business, vendor-remote or cloud starting point without
+                  crossing a firewall, jump host or data diode; 1 when every route crosses one; 0 when no route
+                  exists. Weakness adds a point for an access gap (default credentials not confirmed disabled, or a
+                  host without MFA) and a point for an obsolete platform.
+                </li>
+                <li>
+                  Each row on the heat-map names the reason for its own likelihood, so the axis can be checked
+                  rather than taken on trust.
                 </li>
                 <li>
                   The product places each asset on a heat-map and into a treatment register, the consequence-led

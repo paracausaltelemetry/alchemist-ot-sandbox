@@ -1,6 +1,6 @@
 import { getAssetType, getZone } from "../data/catalog";
 import { getTechnique, icsTactics, type IcsTechnique } from "../data/attackIcs";
-import { findReachability, reachableAssetIds } from "./reachability";
+import { exposureFromUntrusted, findReachability, reachableAssetIds } from "./reachability";
 import { consequenceFor, likelihoodForAsset, riskBand, type RiskBand } from "./risk";
 import type { Asset, Finding, OtProject } from "../models/types";
 
@@ -151,7 +151,8 @@ export function analyzeAttackPath(
     .sort((a, b) => consequenceFor(b) - consequenceFor(a))
     .map((asset) => asset.name);
 
-  const likelihood = target ? likelihoodForAsset(target.id, findings) : 1;
+  // The target's own likelihood, so the attack path's risk band matches the heat-map's.
+  const likelihood = target ? likelihoodForAsset(target, exposureFromUntrusted(project).get(target.id) ?? 0) : 1;
   const consequence = {
     value: targetConsequence,
     band: riskBand(targetConsequence * likelihood),

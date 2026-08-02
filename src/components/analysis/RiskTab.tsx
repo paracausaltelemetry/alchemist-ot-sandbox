@@ -62,7 +62,7 @@ export function RiskTab({ project, risk, onRiskTreatmentChange }: RiskTabProps) 
                 <tr key={item.assetId}>
                   <th>{assetName(item.assetId)}</th>
                   <td>{item.consequence}</td>
-                  <td>{item.likelihood}</td>
+                  <td title={item.reason}>{item.likelihood}</td>
                   <td>{item.score}</td>
                   <td>
                     <span className={`risk-band-chip risk-chip-${item.band}`}>{item.band}</span>

@@ -1,7 +1,8 @@
 import { analyseItNetwork, type ItAnalysis } from "./itAnalysis";
 import { synthesiseItTopology } from "./itTopology";
 import { layoutItMap } from "../data/itLayout";
-import type { ItEngagement } from "../models/itEngagement";
+import { accessByNode, attackLinks } from "./itAccess";
+import type { ItAccessState, ItEngagement } from "../models/itEngagement";
 import type { ItLink, ItMap } from "../models/itMap";
 import type { ParsedImport } from "../import/types";
 
@@ -19,6 +20,8 @@ export interface ItProjection {
   analysis: ItAnalysis | null;
   /** The scans folded into one parse, which is what the analysis lens consumes. */
   parsed: ParsedImport | null;
+  /** Folded from the journal, never stored. Empty until the operator records something. */
+  access: Map<string, ItAccessState>;
 }
 
 /**
@@ -52,7 +55,7 @@ export function mergedParse(engagement: ItEngagement): ParsedImport | null {
 export function projectEngagement(engagement: ItEngagement): ItProjection {
   const parsed = mergedParse(engagement);
   if (!parsed) {
-    return { map: null, analysis: null, parsed: null };
+    return { map: null, analysis: null, parsed: null, access: new Map() };
   }
 
   const synthesised = synthesiseItTopology(parsed);
@@ -86,7 +89,10 @@ export function projectEngagement(engagement: ItEngagement): ItProjection {
     );
   }
 
-  const links = [...synthesised.links, ...authored];
+  // Attack edges are derived here too, for the same reason as access: storing them would give one
+  // arrow two sources of truth, and deleting an event would leave its line behind asserting
+  // something the journal no longer says.
+  const links = [...synthesised.links, ...authored, ...attackLinks(engagement.events, nodeIds)];
   const computed = layoutItMap(synthesised.nodes, links, synthesised.subnets);
 
   // Authored positions win over the computed layout, but only for nodes that were actually moved.
@@ -102,5 +108,5 @@ export function projectEngagement(engagement: ItEngagement): ItProjection {
     }))
   };
 
-  return { map, analysis: analyseItNetwork(parsed), parsed };
+  return { map, analysis: analyseItNetwork(parsed), parsed, access: accessByNode(engagement.events) };
 }

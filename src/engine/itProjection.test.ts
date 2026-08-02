@@ -12,7 +12,7 @@ function sampleEngagement(): ItEngagement {
 
 describe("projectEngagement", () => {
   it("draws nothing from an engagement with no scans", () => {
-    expect(projectEngagement(newItEngagement())).toEqual({ map: null, analysis: null, parsed: null });
+    expect(projectEngagement(newItEngagement())).toEqual({ map: null, analysis: null, parsed: null, access: new Map() });
   });
 
   it("rebuilds the map and the analysis from the scans", () => {

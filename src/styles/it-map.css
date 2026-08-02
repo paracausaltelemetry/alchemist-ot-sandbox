@@ -284,3 +284,44 @@
 .it-outline-row.it-outline-risk-medium {
   border-left-color: var(--text);
 }
+
+/*
+ * Access is drawn as inverted ink, never as `--signal`.
+ *
+ * Risk and access are two different questions about the same host — "is this exposed" and "did we
+ * get in" — and an operator needs to read both at once. Red already means danger on this canvas, so
+ * reusing it for compromise would collapse the two into one unreadable channel.
+ */
+.it-node-access {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  padding: 0.05rem 0.3rem;
+  background: var(--text);
+  color: var(--bg);
+  font: 650 var(--text-xs) / 1.4 var(--font-mono);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+/*
+ * Access takes the outline; risk already owns the border and the inset shadow. Setting a border
+ * colour here instead made an exposed *and* compromised host read as merely compromised — the two
+ * channels collapsing into one, which is the whole thing this separation exists to prevent.
+ */
+.it-node.it-node-access-admin,
+.it-node.it-node-access-user {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+/* An action, not a route: long dash, short gap, so it does not read as uncertainty. */
+.it-map-legend i[data-evidence="attack"] {
+  border-top-style: dashed;
+  border-top-width: 3px;
+}
+.it-map-legend i[data-access] {
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 0;
+  background: var(--text);
+}

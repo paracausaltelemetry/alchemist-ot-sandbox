@@ -78,6 +78,93 @@ export function newItUserLink(source: string, target: string, label?: string, no
   return { id: `link:user:${source}->${target}`, source, target, label, note };
 }
 
+/**
+ * How far the operator got on a host, weakest first. The order is the whole type: access is folded
+ * from the journal by taking the highest rung any event granted, so this array is the comparison.
+ */
+export const IT_ACCESS_LADDER = ["none", "identified", "credentialed", "user", "admin"] as const;
+export type ItAccessState = (typeof IT_ACCESS_LADDER)[number];
+
+export const ACCESS_LABELS: Record<ItAccessState, string> = {
+  none: "No access",
+  identified: "Identified",
+  credentialed: "Credentials held",
+  user: "User access",
+  admin: "Admin access"
+};
+
+/**
+ * What the operator did. A fixed set, because an engagement report needs the stages to be
+ * comparable across engagements; the CVE and technique that qualify one are free text, because
+ * pinning them to a catalogue would make the common case — a finding with no CVE — awkward.
+ *
+ * `provided-access` is the one that is not an action: access the client handed over. It exists so
+ * there is exactly one write path for access. Without it, a credentialed host with no journal entry
+ * either has to be a special case or has to be faked as an exploit that never happened.
+ */
+export const IT_EVENT_KINDS = [
+  "recon",
+  "exploit",
+  "credential-access",
+  "lateral-movement",
+  "privilege-escalation",
+  "persistence",
+  "exfiltration",
+  "provided-access"
+] as const;
+export type ItEventKind = (typeof IT_EVENT_KINDS)[number];
+
+export const EVENT_KIND_LABELS: Record<ItEventKind, string> = {
+  recon: "Recon",
+  exploit: "Exploit",
+  "credential-access": "Credential access",
+  "lateral-movement": "Lateral movement",
+  "privilege-escalation": "Privilege escalation",
+  persistence: "Persistence",
+  exfiltration: "Exfiltration",
+  "provided-access": "Access provided by the client"
+};
+
+/** Where an action came from when it did not come from a host on the map. */
+export const EXTERNAL_ORIGIN = "external";
+
+/**
+ * One thing the operator did, at one point in the engagement.
+ *
+ * The journal is the source of truth for access, which is never stored on a node. Stored state
+ * would render "the map at the end" but not "the map at stage 3", and an ordered journal gives
+ * every intermediate map for free. It also makes impossible the one bug that would embarrass
+ * somebody in front of a client: the map saying a host was compromised with no entry explaining why.
+ */
+export interface ItEvent {
+  id: string;
+  /** Shares one monotonic space with the scans, so the timeline interleaves them correctly. */
+  sequence: number;
+  kind: ItEventKind;
+  at: ScanTime | null;
+  /** A node id, or `external` when the operator acted from outside the map. */
+  sourceNodeId?: string;
+  /** The node acted on. Absent for an action that had no single target. */
+  targetNodeId?: string;
+  /** The rung this event reached on the target, if it reached one. */
+  grants?: ItAccessState;
+  cve?: string;
+  attackTechnique?: string;
+  title: string;
+  note?: string;
+}
+
+export function newItEvent(kind: ItEventKind, title: string, sequence: number, rest: Partial<ItEvent> = {}): ItEvent {
+  return {
+    id: `event-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    sequence,
+    kind,
+    at: null,
+    title,
+    ...rest
+  };
+}
+
 export interface ItEngagement {
   schemaVersion: number;
   id: string;
@@ -87,6 +174,8 @@ export interface ItEngagement {
   scans: ItScan[];
   /** Links the operator drew. Kept apart from the scans because nothing derived them. */
   userLinks: ItUserLink[];
+  /** What the operator did, in order. Access and attack edges are folded from this and never stored. */
+  events: ItEvent[];
   /**
    * Only the nodes the operator actually dragged. A sparse override on top of the computed layout,
    * so a node that has never been moved follows the layout when the layout improves.
@@ -104,6 +193,7 @@ export function newItEngagement(name = "Untitled engagement"): ItEngagement {
     updatedAt: now,
     scans: [],
     userLinks: [],
+    events: [],
     positions: {}
   };
 }
@@ -123,9 +213,17 @@ export function newItScan(parsed: ParsedImport, name: string, sequence: number, 
   };
 }
 
-/** The next sequence number, so importing never reuses one even after a scan is removed. */
+/**
+ * The next sequence number. Scans and events share one monotonic space so the report can interleave
+ * them into a single ordered narrative, and it reads the highest in use rather than counting, so
+ * removing a stage never causes a number to be reused and silently reorder what is left.
+ */
 export function nextSequence(engagement: ItEngagement): number {
-  return engagement.scans.reduce((highest, scan) => Math.max(highest, scan.sequence), 0) + 1;
+  const highest = [...engagement.scans, ...engagement.events].reduce(
+    (top, entry) => Math.max(top, entry.sequence),
+    0
+  );
+  return highest + 1;
 }
 
 export function vantageLabel(vantage: ItVantage, nameOf: (nodeId: string) => string | undefined): string {

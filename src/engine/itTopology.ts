@@ -33,6 +33,9 @@ const GATEWAY_HOST_PARTS = new Set(["1", "254"]);
 const EVIDENCE_RANK: Record<ItLinkEvidence, number> = {
   traceroute: 0,
   "observed-flow": 1,
+  // An attack edge never competes with a connectivity edge for the same pair: it is a different
+  // claim about the same two hosts, and both belong on the map at once.
+  attack: 1.5,
   asserted: 2,
   "same-subnet": 3,
   inferred: 4

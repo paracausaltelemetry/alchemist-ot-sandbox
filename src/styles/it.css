@@ -469,7 +469,7 @@
   padding: 0.2rem 0.35rem;
   border: 1px solid var(--line);
   background: transparent;
-  color: var(--ink);
+  color: var(--text);
   font: var(--text-xs) / 1.4 var(--font-mono);
 }
 
@@ -491,7 +491,61 @@
   padding: 0.35rem 0.45rem;
   border: 1px solid var(--line);
   background: transparent;
-  color: var(--ink);
+  color: var(--text);
   font: var(--text-sm) / 1.4 var(--font-sans);
   resize: vertical;
+}
+
+/* The journal: what the operator did, in order, alongside what the scans saw. */
+.it-journal {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.it-journal-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.it-journal h4 {
+  margin: 0 0 var(--space-2);
+  color: var(--muted);
+  font: 650 var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.it-journal-list {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.it-journal-list li {
+  font-size: var(--text-sm);
+}
+.it-journal-list li span {
+  display: block;
+  color: var(--muted);
+  font: var(--text-xs) / 1.5 var(--font-mono);
+}
+.it-journal p {
+  margin: 0;
+  font-size: var(--text-xs);
+}
+
+/* Two fields to a row where they are short enough to read side by side. */
+.it-event-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+.it-event-dialog select,
+.it-event-dialog input,
+.it-event-dialog textarea {
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  font: var(--text-sm) / 1.4 var(--font-sans);
 }

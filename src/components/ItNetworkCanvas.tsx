@@ -5,6 +5,7 @@ import { CANVAS_GRID_X, snapToGrid } from "../data/canvasLayout";
 import { IT_NODE_HEIGHT, IT_NODE_WIDTH, itBandBoxes } from "../data/itLayout";
 import { routeOrthogonalConduit } from "../engine/conduitRouting";
 import { isScanEvidence, itKindLabel, type ItLink, type ItMap, type ItNode } from "../models/itMap";
+import { ACCESS_LABELS, type ItAccessState } from "../models/itEngagement";
 import type { Point } from "../models/types";
 import { FlowFrame } from "./canvas/FlowFrame";
 import { LinkOverlay, type LinkOverlayItem } from "./canvas/LinkOverlay";
@@ -27,6 +28,8 @@ interface ItNetworkCanvasProps {
   selectedId: string | null;
   canvasMode: ItCanvasMode;
   riskByNodeId: Map<string, ItRisk>;
+  /** Folded from the journal. Empty until the operator records something. */
+  accessByNodeId: Map<string, ItAccessState>;
   fitSignal: number;
   onSelect: (id: string | null) => void;
   onCanvasModeChange: (mode: ItCanvasMode) => void;
@@ -42,6 +45,7 @@ type ItNodeData = {
   node: ItNode;
   selected: boolean;
   risk: ItRisk | null;
+  access: ItAccessState | null;
   showServices: boolean;
   dimmed: boolean;
 };
@@ -64,7 +68,7 @@ const SERVICE_CHIP_LIMIT = 3;
  * store, which would need a larger change to avoid.
  */
 const ItNodeCard = memo(function ItNodeCard({ data }: NodeProps<ItFlowNode>) {
-  const { node, risk, showServices, dimmed, selected } = data;
+  const { node, risk, access, showServices, dimmed, selected } = data;
   const ghost = node.origin === "synthetic";
   const services = node.ports.slice(0, SERVICE_CHIP_LIMIT);
 
@@ -72,7 +76,7 @@ const ItNodeCard = memo(function ItNodeCard({ data }: NodeProps<ItFlowNode>) {
     <div
       className={`it-node${ghost ? " is-ghost" : ""}${selected ? " is-selected" : ""}${dimmed ? " is-dimmed" : ""}${
         risk ? ` it-node-risk-${risk}` : ""
-      }`}
+      }${access ? ` it-node-access-${access}` : ""}`}
     >
       <Handle id="in" type="target" position={Position.Left} className="flow-handle" />
       <Handle id="out" type="source" position={Position.Right} className="flow-handle" />
@@ -95,6 +99,7 @@ const ItNodeCard = memo(function ItNodeCard({ data }: NodeProps<ItFlowNode>) {
           <span className="it-node-addr">{node.ip || (ghost ? "inferred" : "no address")}</span>
         )}
       </div>
+      {access ? <span className="it-node-access">{ACCESS_LABELS[access]}</span> : null}
       {ghost ? <span className="it-node-chip">inferred</span> : null}
       {!ghost && node.ports.length > 0 && !showServices ? (
         <span className="it-node-chip">{node.ports.length}</span>
@@ -109,6 +114,9 @@ const nodeTypes = { itNode: ItNodeCard };
 const EVIDENCE_DASH: Record<ItLink["evidence"], string | undefined> = {
   traceroute: undefined,
   "observed-flow": undefined,
+  // Long dash, short gap: reads as deliberate movement rather than as uncertainty, which is what
+  // every other dashed line on this canvas means.
+  attack: "12 4",
   asserted: undefined,
   "same-subnet": "1 5",
   inferred: "8 6"
@@ -130,6 +138,7 @@ function ItNetworkCanvasInner({
   selectedId,
   canvasMode,
   riskByNodeId,
+  accessByNodeId,
   fitSignal,
   onSelect,
   onCanvasModeChange,
@@ -154,6 +163,7 @@ function ItNetworkCanvasInner({
     const cache = flowCache.current;
     const next = map.nodes.map((node) => {
       const risk = riskByNodeId.get(node.id) ?? null;
+      const access = accessByNodeId.get(node.id) ?? null;
       const selected = selectedId === node.id;
       // In exposure mode everything unflagged recedes so the flagged hosts carry the view.
       const dimmed = isExposure && !risk;
@@ -164,6 +174,9 @@ function ItNetworkCanvasInner({
         cached.source === node &&
         cached.flow.data.selected === selected &&
         cached.flow.data.risk === risk &&
+        // Explicit, like every other field here: one left out is one that never updates on a node
+        // once it has been drawn, so recording an action would leave the old decoration in place.
+        cached.flow.data.access === access &&
         cached.flow.data.showServices === showServices &&
         cached.flow.data.dimmed === dimmed
       ) {
@@ -179,7 +192,7 @@ function ItNetworkCanvasInner({
         width: IT_NODE_WIDTH,
         height: IT_NODE_HEIGHT,
         style: { width: IT_NODE_WIDTH, minHeight: IT_NODE_HEIGHT },
-        data: { node, selected, risk, showServices, dimmed },
+        data: { node, selected, risk, access, showServices, dimmed },
         zIndex: risk ? 10 : 5
       };
       cache.set(node.id, { source: node, flow });
@@ -196,7 +209,7 @@ function ItNetworkCanvasInner({
       }
     }
     return next;
-  }, [isExposure, map.nodes, riskByNodeId, selectedId, showServices]);
+  }, [accessByNodeId, isExposure, map.nodes, riskByNodeId, selectedId, showServices]);
 
   // Return the node itself when snapping is a no-op. Every change runs this over the whole
   // array, so spreading unconditionally would hand React Flow 305 new objects for one move and
@@ -423,6 +436,12 @@ function ItNetworkCanvasInner({
           </span>
           <span>
             <i data-evidence="inferred" /> inferred
+          </span>
+          <span>
+            <i data-evidence="attack" /> you did
+          </span>
+          <span>
+            <i data-access="admin" /> access held
           </span>
           <span>
             <i data-risk="high" /> exposed

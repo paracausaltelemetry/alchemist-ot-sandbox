@@ -5,8 +5,12 @@ interface ItLinkDialogProps {
   sourceName: string;
   targetName: string;
   onConfirm: (label: string, note: string) => void;
+  /** Chosen when the line records an action rather than a cable; hands off to the journal form. */
+  onRecordAction: () => void;
   onCancel: () => void;
 }
+
+type LinkPurpose = "connectivity" | "action";
 
 /**
  * Asked whenever the operator draws a link.
@@ -16,13 +20,15 @@ interface ItLinkDialogProps {
  * nobody can read back at reporting time. A label is required for exactly that reason — an unnamed
  * line is a line whose meaning is gone by the time the report is written.
  */
-export function ItLinkDialog({ open, sourceName, targetName, onConfirm, onCancel }: ItLinkDialogProps) {
+export function ItLinkDialog({ open, sourceName, targetName, onConfirm, onRecordAction, onCancel }: ItLinkDialogProps) {
+  const [purpose, setPurpose] = useState<LinkPurpose>("action");
   const [label, setLabel] = useState("");
   const [note, setNote] = useState("");
   const labelRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (open) {
+      setPurpose("action");
       setLabel("");
       setNote("");
       // Focused on open rather than via `autoFocus`, which jsx-a11y rejects: the dialog is modal
@@ -59,32 +65,61 @@ export function ItLinkDialog({ open, sourceName, targetName, onConfirm, onCancel
       }}
     >
       <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="it-link-dialog-title">
-        <strong id="it-link-dialog-title">Describe this link</strong>
+        <strong id="it-link-dialog-title">What is this line?</strong>
         <p>
-          {sourceName} &rarr; {targetName}. The map will draw it as something you observed, distinct from what the scan
-          traced and from what Alchemist inferred.
+          {sourceName} &rarr; {targetName}.
         </p>
 
-        <label className="it-link-field">
-          <span>What is it</span>
-          <input
-            ref={labelRef}
-            value={label}
-            maxLength={60}
-            placeholder="Management VLAN trunk"
-            onChange={(event) => setLabel(event.target.value)}
-          />
-        </label>
+        {/*
+          The question that keeps the map readable. Without it every drawn line means "these two are
+          related somehow", and by reporting time nobody can tell a cable from a compromise. Recording
+          an action is the default because it is why the operator is drawing between two hosts at all.
+        */}
+        <fieldset className="import-mode">
+          <label className="toggle-row">
+            <input
+              type="radio"
+              name="it-link-purpose"
+              checked={purpose === "action"}
+              onChange={() => setPurpose("action")}
+            />
+            <span>Something I did — records a stage of the engagement</span>
+          </label>
+          <label className="toggle-row">
+            <input
+              type="radio"
+              name="it-link-purpose"
+              checked={purpose === "connectivity"}
+              onChange={() => setPurpose("connectivity")}
+            />
+            <span>Connectivity — a path the scan could not see</span>
+          </label>
+        </fieldset>
 
-        <label className="it-link-field">
-          <span>How you know (optional)</span>
-          <textarea
-            value={note}
-            rows={2}
-            placeholder="Seen in the switch config on core-rtr."
-            onChange={(event) => setNote(event.target.value)}
-          />
-        </label>
+        {purpose === "connectivity" ? (
+          <>
+            <label className="it-link-field">
+              <span>What is it</span>
+              <input
+                ref={labelRef}
+                value={label}
+                maxLength={60}
+                placeholder="Management VLAN trunk"
+                onChange={(event) => setLabel(event.target.value)}
+              />
+            </label>
+
+            <label className="it-link-field">
+              <span>How you know (optional)</span>
+              <textarea
+                value={note}
+                rows={2}
+                placeholder="Seen in the switch config on core-rtr."
+                onChange={(event) => setNote(event.target.value)}
+              />
+            </label>
+          </>
+        ) : null}
 
         <div className="confirm-actions">
           <button type="button" className="text-button" onClick={onCancel}>
@@ -93,10 +128,10 @@ export function ItLinkDialog({ open, sourceName, targetName, onConfirm, onCancel
           <button
             type="button"
             className="text-button primary"
-            disabled={trimmed.length === 0}
-            onClick={() => onConfirm(trimmed, note.trim())}
+            disabled={purpose === "connectivity" && trimmed.length === 0}
+            onClick={() => (purpose === "action" ? onRecordAction() : onConfirm(trimmed, note.trim()))}
           >
-            Draw link
+            {purpose === "action" ? "Describe what you did" : "Draw link"}
           </button>
         </div>
       </div>

@@ -1,3 +1,4 @@
+import { scanTimeFromGreppable, scanTimeFromNormal } from "./scanTime";
 import type { ImportedHop, ImportedHost, ImportedPort, ImportedTrace, ParsedImport } from "./types";
 
 /**
@@ -217,7 +218,7 @@ export function parseNmapNormal(text: string): ParsedImport {
   if (hosts.length === 0) {
     warnings.push("No hosts found. Is this Nmap normal output (-oN)?");
   }
-  return { format: "nmap-normal", hosts, flows: [], warnings, traces };
+  return { format: "nmap-normal", hosts, flows: [], warnings, traces, startedAt: scanTimeFromNormal(text) ?? undefined };
 }
 
 /** Greppable output is one line per host and carries no traceroute, so `traces` is always empty. */
@@ -283,5 +284,5 @@ export function parseNmapGreppable(text: string): ParsedImport {
   if (hosts.length === 0) {
     warnings.push("No hosts found. Is this Nmap greppable output (-oG)?");
   }
-  return { format: "nmap-grep", hosts, flows: [], warnings, traces: [] };
+  return { format: "nmap-grep", hosts, flows: [], warnings, traces: [], startedAt: scanTimeFromGreppable(text) ?? undefined };
 }

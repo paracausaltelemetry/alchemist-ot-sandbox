@@ -1,5 +1,6 @@
 import { DEFAULT_VANTAGE, IT_ENGAGEMENT_SCHEMA_VERSION, type ItEngagement, type ItScan, type ItVantage } from "../models/itEngagement";
 import type { Point } from "../models/types";
+import type { ScanTime } from "../import/scanTime";
 
 export type ItEngagementParse = { ok: true; engagement: ItEngagement } | { ok: false; errors: string[] };
 
@@ -34,6 +35,28 @@ function validateScan(value: unknown, index: number): string[] {
     errors.push(`Scan ${index + 1} has no parsed hosts.`);
   }
   return errors;
+}
+
+/**
+ * A time is only kept if it is fully formed. A half-read one would print as a confident timestamp
+ * with its caveats missing, which is worse than the honest "time not recorded".
+ */
+function readScanTime(value: unknown): ScanTime | null {
+  if (!isObject(value) || !isString(value.iso) || !Number.isFinite(Date.parse(value.iso))) {
+    return null;
+  }
+  if (value.source !== "file" && value.source !== "operator") {
+    return null;
+  }
+  if (value.precision !== "second" && value.precision !== "minute" && value.precision !== "day") {
+    return null;
+  }
+  return {
+    iso: value.iso,
+    source: value.source,
+    precision: value.precision,
+    ...(value.tzAssumed === true ? { tzAssumed: true as const } : {})
+  };
 }
 
 /** A missing or malformed vantage falls back to external rather than failing the parse: it is a
@@ -112,7 +135,11 @@ export function parseItEngagementJson(raw: string): ItEngagementParse {
       name: value.name as string,
       createdAt: value.createdAt as string,
       updatedAt: value.updatedAt as string,
-      scans: (value.scans as ItScan[]).map((scan) => ({ ...scan, vantage: readVantage((scan as { vantage?: unknown }).vantage) })),
+      scans: (value.scans as ItScan[]).map((scan) => ({
+        ...scan,
+        vantage: readVantage((scan as { vantage?: unknown }).vantage),
+        time: readScanTime((scan as { time?: unknown }).time)
+      })),
       positions
     }
   };

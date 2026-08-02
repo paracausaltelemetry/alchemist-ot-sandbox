@@ -5,10 +5,14 @@
  * two subnets end up connected to each other rather than floating side by side. The second
  * traceroute uses nmap's collapsed form, which is what it really prints once a path repeats.
  *
+ * It opens with the real `-oN` banner, which is also the only place normal output records when the
+ * scan ran.
+ *
  * Illustrative only — the addresses are documentation ranges (RFC 5737) and no real network is
  * described here.
  */
-export const SAMPLE_SCAN = `Nmap scan report for edge-fw (198.51.100.4)
+export const SAMPLE_SCAN = `Starting Nmap 7.94 ( https://nmap.org ) at 2024-04-04 10:00 BST
+Nmap scan report for edge-fw (198.51.100.4)
 Host is up.
 PORT     STATE SERVICE
 443/tcp  open  https

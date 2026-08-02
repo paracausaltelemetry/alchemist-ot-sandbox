@@ -1,4 +1,5 @@
 import { childrenNamed, findAll, firstChild, parseXml, type XmlNode } from "./xml";
+import { scanTimeFromXmlAttrs } from "./scanTime";
 import type { ImportedHop, ImportedHost, ImportedPort, ImportedTrace, ParsedImport } from "./types";
 
 /**
@@ -130,5 +131,16 @@ export function parseNmapXml(text: string): ParsedImport {
     warnings.push(`Skipped ${down} host${down === 1 ? "" : "s"} reported as down.`);
   }
 
-  return { format: "nmap-xml", hosts, flows: [], warnings, traces };
+  // `<nmaprun start=… startstr=…>` is the outermost element, and the parser walked straight past
+  // it to `<host>`. When the document root is itself nmaprun, `findAll` would not return it.
+  const run = doc.name === "nmaprun" ? doc : findAll(doc, "nmaprun")[0];
+
+  return {
+    format: "nmap-xml",
+    hosts,
+    flows: [],
+    warnings,
+    traces,
+    startedAt: (run ? scanTimeFromXmlAttrs(run.attrs) : null) ?? undefined
+  };
 }

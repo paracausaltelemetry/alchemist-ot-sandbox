@@ -1,4 +1,5 @@
 import type { ImportFormat, ParsedImport } from "../import/types";
+import type { ScanTime } from "../import/scanTime";
 import type { Point } from "./types";
 
 /**
@@ -40,6 +41,12 @@ export interface ItScan {
   name: string;
   format: ImportFormat;
   vantage: ItVantage;
+  /**
+   * When the scan ran, if it can be known. `null` is a real answer and stays visible as one:
+   * a stage that prints "time not recorded" is honest, and a stage stamped with the moment the
+   * file happened to be imported is not.
+   */
+  time: ScanTime | null;
   parsed: ParsedImport;
   /** Cached so a scan list can be drawn without walking every parse. */
   hostCount: number;
@@ -81,6 +88,7 @@ export function newItScan(parsed: ParsedImport, name: string, sequence: number, 
     name,
     format: parsed.format,
     vantage,
+    time: parsed.startedAt ?? null,
     parsed,
     hostCount: parsed.hosts.length
   };

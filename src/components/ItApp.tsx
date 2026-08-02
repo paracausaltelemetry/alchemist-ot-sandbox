@@ -2,6 +2,7 @@ import { ArrowLeft, Download, FileUp, PlayCircle, Share2, Trash2, X } from "luci
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { detectFormat, parseByFormat } from "../import";
 import type { ImportedHost, ParsedImport } from "../import/types";
+import { formatScanTime, scanTimeCaveat } from "../import/scanTime";
 import { itReportMarkdown } from "../engine/itAnalysis";
 import { projectEngagement } from "../engine/itProjection";
 import { promoteToOtProject } from "../engine/itToOt";
@@ -169,6 +170,35 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
       setError(null);
     },
     [engagement, persist]
+  );
+
+  /**
+   * Records a scan time the operator supplied because the file carried none.
+   *
+   * Marked `source: "operator"` and surfaced as such in the report — a time somebody remembered is
+   * evidence of a different kind from a time the tool wrote down, and the reader gets to know which.
+   * Ordering is unaffected: that is always by `sequence`.
+   */
+  const setScanTime = useCallback(
+    (scanId: string, local: string) => {
+      const at = local ? new Date(local) : null;
+      setEngagement((current) => {
+        if (!current || !at || !Number.isFinite(at.getTime())) {
+          return current;
+        }
+        const next = {
+          ...current,
+          scans: current.scans.map((scan) =>
+            scan.id === scanId
+              ? { ...scan, time: { iso: at.toISOString(), source: "operator" as const, precision: "minute" as const } }
+              : scan
+          )
+        };
+        persist(next);
+        return next;
+      });
+    },
+    [persist]
   );
 
   const ingest = useCallback((text: string, filename: string) => {
@@ -586,6 +616,26 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
                           {plural(scan.hostCount, "host")} · from{" "}
                           {vantageLabel(scan.vantage, (id) => map?.nodes.find((node) => node.id === id)?.name)}
                         </span>
+                        <span>
+                          {scan.time ? (
+                            <>
+                              {formatScanTime(scan.time)}
+                              {scanTimeCaveat(scan.time) ? ` (${scanTimeCaveat(scan.time)})` : ""}
+                            </>
+                          ) : (
+                            "Time not recorded"
+                          )}
+                        </span>
+                        {scan.time === null ? (
+                          <label className="it-scan-time-entry">
+                            <span className="visually-hidden">Scan time for {scan.name}</span>
+                            <input
+                              type="datetime-local"
+                              onChange={(event) => setScanTime(scan.id, event.target.value)}
+                              title="The scan file did not record when it ran. Enter it if you know it."
+                            />
+                          </label>
+                        ) : null}
                       </li>
                     ))}
                 </ol>

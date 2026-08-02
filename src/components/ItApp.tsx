@@ -9,7 +9,7 @@ import { layoutItMap } from "../data/itLayout";
 import { SAMPLE_SCAN } from "../data/sampleScan";
 import { downloadJson, downloadMarkdown } from "../lib/exporters";
 import { downloadItMapSvg } from "../lib/itExporters";
-import { itKindLabel, type ItMap } from "../models/itMap";
+import { isItLinkId, itEvidenceLabel, itKindLabel, type ItMap } from "../models/itMap";
 import type { Point } from "../models/types";
 import type { AppView } from "../lib/appView";
 import { SiteMasthead } from "./SiteMasthead";
@@ -167,7 +167,25 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
     setFitSignal((value) => value + 1);
   }, []);
 
-  const selectedNode = useMemo(() => map?.nodes.find((node) => node.id === selectedId) ?? null, [map, selectedId]);
+  // One selection id addresses either a node or a link: the two id namespaces are disjoint by
+  // construction. Clicking a link already highlighted it on the canvas, but only `map.nodes` was
+  // searched here, so the panel silently showed nothing and the link looked unselectable.
+  const selectedNode = useMemo(
+    () => (selectedId && !isItLinkId(selectedId) ? (map?.nodes.find((node) => node.id === selectedId) ?? null) : null),
+    [map, selectedId]
+  );
+
+  const selectedLink = useMemo(() => {
+    if (!map || !selectedId || !isItLinkId(selectedId)) {
+      return null;
+    }
+    const link = map.links.find((entry) => entry.id === selectedId);
+    if (!link) {
+      return null;
+    }
+    const nameOf = (id: string) => map.nodes.find((node) => node.id === id)?.name ?? id;
+    return { link, sourceName: nameOf(link.source), targetName: nameOf(link.target) };
+  }, [map, selectedId]);
 
   const selectedHost = useMemo<ImportedHost | null>(() => {
     if (!selectedNode || !parsed) {
@@ -420,6 +438,32 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
                     </ul>
                   </>
                 ) : null}
+              </div>
+            ) : null}
+            {selectedLink ? (
+              <div className="it-host-detail">
+                <div className="it-host-detail-head">
+                  <h3>Link</h3>
+                  <button type="button" className="text-button" onClick={() => setSelectedId(null)} aria-label="Clear selection">
+                    <X size={14} aria-hidden="true" />
+                  </button>
+                </div>
+                <dl className="it-host-meta">
+                  <div><dt>From</dt><dd>{selectedLink.sourceName}</dd></div>
+                  <div><dt>To</dt><dd>{selectedLink.targetName}</dd></div>
+                  <div><dt>Evidence</dt><dd>{itEvidenceLabel(selectedLink.link.evidence)}</dd></div>
+                  {selectedLink.link.hopIndex !== undefined ? (
+                    <div><dt>Hop</dt><dd>{selectedLink.link.hopIndex}</dd></div>
+                  ) : null}
+                  {selectedLink.link.rttMs !== undefined ? (
+                    <div><dt>Round trip</dt><dd>{selectedLink.link.rttMs} ms</dd></div>
+                  ) : null}
+                </dl>
+                <p className="it-host-rationale">
+                  {selectedLink.link.evidence === "inferred" || selectedLink.link.evidence === "same-subnet"
+                    ? "This link is our reasoning about the addressing, not something the scan saw. Confirm it before relying on it."
+                    : "This link came from the scan output."}
+                </p>
               </div>
             ) : null}
             <ItFindingsPanel analysis={analysis} />

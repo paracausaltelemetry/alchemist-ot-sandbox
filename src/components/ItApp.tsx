@@ -1,12 +1,20 @@
 import { ArrowLeft, Download, FileUp, PlayCircle, Share2, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { detectFormat, parseByFormat } from "../import";
-import type { ImportedHost } from "../import/types";
+import type { ImportedHost, ParsedImport } from "../import/types";
 import { itReportMarkdown } from "../engine/itAnalysis";
 import { projectEngagement } from "../engine/itProjection";
 import { promoteToOtProject } from "../engine/itToOt";
 import { clearEngagement, loadEngagement, saveEngagement } from "../lib/itEngagementStore";
-import { newItEngagement, newItScan, type ItEngagement } from "../models/itEngagement";
+import {
+  DEFAULT_VANTAGE,
+  newItEngagement,
+  newItScan,
+  nextSequence,
+  vantageLabel,
+  type ItEngagement,
+  type ItVantage
+} from "../models/itEngagement";
 import { SAMPLE_SCAN } from "../data/sampleScan";
 import { downloadJson, downloadMarkdown } from "../lib/exporters";
 import { downloadItMapSvg } from "../lib/itExporters";
@@ -18,6 +26,7 @@ import { ItNetworkCanvas, type ItCanvasMode, type ItRisk } from "./ItNetworkCanv
 import { ItFindingsPanel } from "./ItFindingsPanel";
 import { ItMapOutline } from "./ItMapOutline";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { ItScanDialog, type ItImportMode } from "./ItScanDialog";
 import { CommandPalette, type Command } from "./CommandPalette";
 import { createProject } from "../lib/projectStore";
 import { oversizeFileError, oversizeWarning } from "../lib/modelLimits";
@@ -47,6 +56,8 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   // keeps the projection memo from rebuilding `map.nodes` while the operator is moving a node.
   const [engagement, setEngagement] = useState<ItEngagement | null>(() => loadEngagement());
   const [saveFailed, setSaveFailed] = useState(false);
+  /** A parsed scan waiting on the add-or-replace question. */
+  const [pending, setPending] = useState<{ parsed: ParsedImport; filename: string } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [canvasMode, setCanvasMode] = useState<ItCanvasMode>("topology");
   const [fitSignal, setFitSignal] = useState(0);
@@ -126,6 +137,40 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
     return risks;
   }, [map, analysis]);
 
+  /**
+   * Commits a parsed scan into the engagement.
+   *
+   * "add" keeps every earlier scan and appends this one, so the map is re-derived from all of them
+   * together — a host only the new scan could reach appears, and one both saw keeps what each
+   * knew. "replace" starts over. Authored positions survive "add" because they are keyed by node
+   * id, and are dropped by "replace" because the nodes they referred to are gone.
+   */
+  const applyScan = useCallback(
+    (result: ParsedImport, filename: string, mode: ItImportMode, vantage: ItVantage) => {
+      const base = mode === "add" && engagement ? engagement : newItEngagement(filename);
+      const next: ItEngagement = {
+        ...base,
+        scans: [...(mode === "add" ? base.scans : []), newItScan(result, filename, nextSequence(base), vantage)]
+      };
+      if (mode === "replace") {
+        draggedPositions.current.clear();
+      }
+      setEngagement(next);
+      persist(next);
+      setPending(null);
+      setSelectedId(null);
+      setFitSignal((value) => value + 1);
+      // A /24 is the size this view is built for, so say when a scan is past what the canvas
+      // handles comfortably rather than letting it just feel slow.
+      const preview = projectEngagement(next).map;
+      setNotice(
+        preview ? oversizeWarning(preview.nodes.length, preview.links.length, { node: "devices", link: "links" }) : null
+      );
+      setError(null);
+    },
+    [engagement, persist]
+  );
+
   const ingest = useCallback((text: string, filename: string) => {
     const format = detectFormat(filename, text);
     if (!format) {
@@ -137,22 +182,15 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
       setError(result.warnings[0] ?? "No hosts were found in that scan.");
       return;
     }
-    // A fresh engagement per import, for now: the second scan updating the map rather than
-    // replacing it is the next PR, and `scans` is already an array so only the merge has to change.
-    const next: ItEngagement = { ...newItEngagement(filename), scans: [newItScan(result, filename, 1)] };
-    draggedPositions.current.clear();
-    setEngagement(next);
-    persist(next);
-    setSelectedId(null);
-    setFitSignal((value) => value + 1);
-    // A /24 is the size this view is built for, so say when a scan is past what the canvas
-    // handles comfortably rather than letting it just feel slow.
-    const preview = projectEngagement(next).map;
-    setNotice(
-      preview ? oversizeWarning(preview.nodes.length, preview.links.length, { node: "devices", link: "links" }) : null
-    );
+    // The first scan starts an engagement outright; every later one asks, because silently
+    // replacing what came before is exactly what a record of an engagement must not do.
+    if (!engagement || engagement.scans.length === 0) {
+      applyScan(result, filename, "replace", DEFAULT_VANTAGE);
+      return;
+    }
+    setPending({ parsed: result, filename });
     setError(null);
-  }, [persist]);
+  }, [engagement, applyScan]);
 
   const onFile = useCallback(
     (file: File | undefined) => {
@@ -535,10 +573,48 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
                 </p>
               </div>
             ) : null}
+            {engagement && engagement.scans.length > 0 ? (
+              <div className="it-scan-list">
+                <h4>Scans ({engagement.scans.length})</h4>
+                <ol>
+                  {[...engagement.scans]
+                    .sort((a, b) => a.sequence - b.sequence)
+                    .map((scan) => (
+                      <li key={scan.id}>
+                        <b>{scan.name}</b>
+                        <span>
+                          {plural(scan.hostCount, "host")} · from{" "}
+                          {vantageLabel(scan.vantage, (id) => map?.nodes.find((node) => node.id === id)?.name)}
+                        </span>
+                      </li>
+                    ))}
+                </ol>
+                {engagement.scans.length > 1 ? (
+                  <p className="muted">
+                    The map is drawn from every scan together. A host seen by more than one keeps what each of them
+                    knew, so a port that closed partway through the engagement still shows.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <ItFindingsPanel analysis={analysis} />
           </aside>
         </div>
       )}
+
+      <ItScanDialog
+        open={pending !== null}
+        filename={pending?.filename ?? ""}
+        hostCount={pending?.parsed.hosts.length ?? 0}
+        scanCount={engagement?.scans.length ?? 0}
+        nodes={map?.nodes.filter((node) => node.origin === "scanned") ?? []}
+        onConfirm={(mode, vantage) => {
+          if (pending) {
+            applyScan(pending.parsed, pending.filename, mode, vantage);
+          }
+        }}
+        onCancel={() => setPending(null)}
+      />
 
       <CommandPalette open={commandOpen} commands={commands} onClose={() => setCommandOpen(false)} />
 

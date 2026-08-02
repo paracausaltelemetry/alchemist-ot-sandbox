@@ -23,12 +23,23 @@ export const IT_ENGAGEMENT_SCHEMA_VERSION = 1;
  * together correctly, and that is exactly the trap: it works, and it destroys which scan saw what.
  * An engagement record whose whole point is "what did I see, and when" cannot afford to lose that.
  */
+/**
+ * Where the scan was run from.
+ *
+ * A named external rather than a boolean, because real engagements run from a VPN, a dropbox on
+ * the client LAN and the tester's own laptop, and what a segmentation finding means depends on
+ * which. `node` is a host already on the map — the pivot case, where a compromised machine becomes
+ * the place the next scan is run from.
+ */
+export type ItVantage = { kind: "external"; label: string } | { kind: "node"; nodeId: string };
+
 export interface ItScan {
   id: string;
   /** Monotonic, assigned at import. Ordering is by this and never by a timestamp. */
   sequence: number;
   name: string;
   format: ImportFormat;
+  vantage: ItVantage;
   parsed: ParsedImport;
   /** Cached so a scan list can be drawn without walking every parse. */
   hostCount: number;
@@ -61,13 +72,25 @@ export function newItEngagement(name = "Untitled engagement"): ItEngagement {
   };
 }
 
-export function newItScan(parsed: ParsedImport, name: string, sequence: number): ItScan {
+export const DEFAULT_VANTAGE: ItVantage = { kind: "external", label: "External" };
+
+export function newItScan(parsed: ParsedImport, name: string, sequence: number, vantage: ItVantage = DEFAULT_VANTAGE): ItScan {
   return {
     id: `scan-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
     sequence,
     name,
     format: parsed.format,
+    vantage,
     parsed,
     hostCount: parsed.hosts.length
   };
+}
+
+/** The next sequence number, so importing never reuses one even after a scan is removed. */
+export function nextSequence(engagement: ItEngagement): number {
+  return engagement.scans.reduce((highest, scan) => Math.max(highest, scan.sequence), 0) + 1;
+}
+
+export function vantageLabel(vantage: ItVantage, nameOf: (nodeId: string) => string | undefined): string {
+  return vantage.kind === "external" ? vantage.label : (nameOf(vantage.nodeId) ?? vantage.nodeId);
 }

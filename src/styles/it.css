@@ -416,3 +416,49 @@
   color: var(--muted);
   font-size: var(--text-sm);
 }
+
+/* The engagement's scan list: which scans built the map that is on screen, in the order they ran. */
+.it-scan-list {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.it-scan-list h4 {
+  margin: 0 0 var(--space-2);
+  color: var(--muted);
+  font: 650 var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.it-scan-list ol {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.it-scan-list li {
+  font-size: var(--text-sm);
+}
+.it-scan-list li span {
+  display: block;
+  color: var(--muted);
+  font: var(--text-xs) / 1.4 var(--font-mono);
+}
+.it-scan-list p {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-xs);
+}
+
+/* Where a scan was run from. Asked at import; nothing in a scan file records it. */
+.it-vantage-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.it-vantage-field > span {
+  color: var(--muted);
+  font: 650 var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}

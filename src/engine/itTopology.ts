@@ -58,11 +58,47 @@ function compareCidr(a: string, b: string): number {
   return a.localeCompare(b);
 }
 
-/** Merges duplicate hosts (same IP, else same hostname), folding their ports together. */
+/**
+ * Hostname to address, learned from any host record that carried both.
+ *
+ * This is what stops one machine becoming two nodes. `hostKey` prefers the address and falls back
+ * to the hostname, so a scan from outside that resolves `web-1` by name with no address keys on
+ * `web-1` while a scan from inside keys on `198.51.100.10`. That is exactly the case a multi-scan
+ * engagement is built around — the same host seen from two vantages — so the split would appear at
+ * the moment the story depends on it not appearing.
+ */
+function hostAliases(hosts: ImportedHost[]): Map<string, string> {
+  const aliases = new Map<string, string>();
+  for (const host of hosts) {
+    if (host.ip && host.hostname) {
+      aliases.set(host.hostname.toLowerCase(), host.ip.toLowerCase());
+    }
+  }
+  return aliases;
+}
+
+/**
+ * Merges duplicate hosts, folding their ports together.
+ *
+ * Ports are a union, and the scalars are last-non-empty-wins rather than first-wins: across scans,
+ * a later credentialed or internal scan knows more about a host than the external one that found
+ * it. The consequence is worth stating — **a port that closed midway through an engagement never
+ * disappears from the map**. For a record of what was observed that is the honest default, but it
+ * is an assumption, not a fact about the network.
+ */
 function mergeHosts(hosts: ImportedHost[]): ImportedHost[] {
+  const aliases = hostAliases(hosts);
+  const keyOf = (host: ImportedHost) => {
+    if (host.ip) {
+      return host.ip.toLowerCase();
+    }
+    const name = host.hostname?.toLowerCase();
+    return name ? (aliases.get(name) ?? name) : "";
+  };
+
   const byKey = new Map<string, ImportedHost>();
   for (const host of hosts) {
-    const key = hostKey(host);
+    const key = keyOf(host);
     if (!key) {
       continue;
     }
@@ -76,14 +112,16 @@ function mergeHosts(hosts: ImportedHost[]): ImportedHost[] {
         existing.ports.push(port);
       }
     }
-    existing.hostname ??= host.hostname;
-    existing.vendor ??= host.vendor;
-    existing.os ??= host.os;
-    existing.mac ??= host.mac;
-    existing.vlan ??= host.vlan;
-    existing.distance ??= host.distance;
+    // The address is the identity: a hostname-only record folded in by alias must not blank it.
+    existing.ip ||= host.ip;
+    existing.hostname = host.hostname || existing.hostname;
+    existing.vendor = host.vendor || existing.vendor;
+    existing.os = host.os || existing.os;
+    existing.mac = host.mac || existing.mac;
+    existing.vlan = host.vlan || existing.vlan;
+    existing.distance = host.distance ?? existing.distance;
   }
-  return [...byKey.values()].sort((a, b) => hostKey(a).localeCompare(hostKey(b)));
+  return [...byKey.values()].sort((a, b) => keyOf(a).localeCompare(keyOf(b)));
 }
 
 interface TraceChain {

@@ -22,11 +22,15 @@ export interface ItProjection {
 }
 
 /**
- * Folds the engagement's scans into a single parse.
+ * Concatenates the engagement's scans, in sequence order, into one parse.
  *
- * With one scan this is that scan. The multi-scan semantics — how a later, better-informed scan
- * updates what an earlier one said about the same host — belong with the feature that can produce
- * more than one scan, so this stays a concatenation until then rather than guessing now.
+ * Deliberately only a concatenation. The real merge — folding two records of the same host into
+ * one, resolving a hostname-only sighting against an address seen elsewhere, deciding which scan's
+ * answer wins — happens in `mergeHosts` inside `synthesiseItTopology`, where it already had to
+ * exist for duplicates within a single scan. Doing it here as well would give two implementations
+ * of the same rule, and the one that ran second would quietly win.
+ *
+ * Order matters because the merge is last-non-empty-wins: the newest scan's answer is the one kept.
  */
 export function mergedParse(engagement: ItEngagement): ParsedImport | null {
   const ordered = [...engagement.scans].sort((a, b) => a.sequence - b.sequence);

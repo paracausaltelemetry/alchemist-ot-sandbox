@@ -1,4 +1,4 @@
-import { IT_ENGAGEMENT_SCHEMA_VERSION, type ItEngagement, type ItScan } from "../models/itEngagement";
+import { DEFAULT_VANTAGE, IT_ENGAGEMENT_SCHEMA_VERSION, type ItEngagement, type ItScan, type ItVantage } from "../models/itEngagement";
 import type { Point } from "../models/types";
 
 export type ItEngagementParse = { ok: true; engagement: ItEngagement } | { ok: false; errors: string[] };
@@ -34,6 +34,20 @@ function validateScan(value: unknown, index: number): string[] {
     errors.push(`Scan ${index + 1} has no parsed hosts.`);
   }
   return errors;
+}
+
+/** A missing or malformed vantage falls back to external rather than failing the parse: it is a
+ *  label on the evidence, not the evidence. Scans saved before vantage existed read this way. */
+function readVantage(value: unknown): ItVantage {
+  if (isObject(value)) {
+    if (value.kind === "node" && isString(value.nodeId)) {
+      return { kind: "node", nodeId: value.nodeId };
+    }
+    if (value.kind === "external" && isString(value.label)) {
+      return { kind: "external", label: value.label };
+    }
+  }
+  return DEFAULT_VANTAGE;
 }
 
 /**
@@ -98,7 +112,7 @@ export function parseItEngagementJson(raw: string): ItEngagementParse {
       name: value.name as string,
       createdAt: value.createdAt as string,
       updatedAt: value.updatedAt as string,
-      scans: value.scans as ItScan[],
+      scans: (value.scans as ItScan[]).map((scan) => ({ ...scan, vantage: readVantage((scan as { vantage?: unknown }).vantage) })),
       positions
     }
   };

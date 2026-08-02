@@ -74,7 +74,11 @@ export function MethodologyPanel({ open, onClose }: MethodologyPanelProps) {
               <h4>The advisory rating (0 to 100)</h4>
               <ul>
                 <li>The headline score is a weighted average of eight category scores.</li>
-                <li>Each category starts at 100 and loses points per finding by severity, flooring at 0.</li>
+                <li>
+                  Each category starts at 100, and every finding removes a share of the credit that remains —
+                  so more findings always cost more, but a category is never zeroed outright and fixing any one
+                  finding always moves the number.
+                </li>
                 <li>
                   Findings come from rules over the declared assets, conduits, zones and controls, plus the
                   Security Level gaps below.
@@ -105,20 +109,20 @@ export function MethodologyPanel({ open, onClose }: MethodologyPanelProps) {
             </section>
 
             <section>
-              <h4>Severity deductions</h4>
+              <h4>Severity weighting</h4>
               <div className="kb-table-wrap">
                 <table className="kb-table">
                   <thead>
                     <tr>
                       <th>Severity</th>
-                      <th>Points lost</th>
+                      <th>Credit removed</th>
                     </tr>
                   </thead>
                   <tbody>
                     {SEVERITY_ORDER.map((severity) => (
                       <tr key={severity}>
                         <td>{SEVERITY_LABEL[severity]}</td>
-                        <td>{severityDeduction[severity]}</td>
+                        <td>{severityDeduction[severity]}%</td>
                       </tr>
                     ))}
                   </tbody>

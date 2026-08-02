@@ -221,7 +221,14 @@ body.light-mode .asset-node {
   width: 0.9rem;
   height: 0.9rem;
   border: 1px solid var(--bg);
-  background: color-mix(in srgb, var(--accent) 82%, var(--zone-color));
+  /* The fallback belongs inside `var()`, not in a preceding declaration.
+     `--zone-color` is set inline on `.asset-node` only, so on an IT node the `color-mix()` resolved
+     against an undefined custom property, the whole declaration became invalid, and the handle
+     rendered fully transparent. The usual "plain colour first, fancy colour second" idiom does not
+     help here: the build's CSS minifier collapses the duplicate `background` declarations and keeps
+     only the second. Declaring the fallback here also leaves the inherited value winning when a
+     zone actually sets one, which a `--zone-color` declaration on this selector would not. */
+  background: color-mix(in srgb, var(--accent) 82%, var(--zone-color, var(--accent)));
   opacity: 0.6;
   transition: opacity 140ms ease, background-color 140ms ease, transform 140ms ease;
 }
@@ -252,9 +259,14 @@ body.light-mode .asset-node {
   color: var(--muted);
 }
 
+/* `.it-node` joins these: the handles were rendered on IT nodes but gated on `.asset-node`
+   selectors alone, so they existed, occupied space and were draggable while staying invisible. */
 .asset-node:hover .flow-handle,
 .asset-node.is-connectable .flow-handle,
-.asset-node.is-selected .flow-handle {
+.asset-node.is-selected .flow-handle,
+.it-node:hover .flow-handle,
+.it-node.is-connectable .flow-handle,
+.it-node.is-selected .flow-handle {
   opacity: 1;
 }
 

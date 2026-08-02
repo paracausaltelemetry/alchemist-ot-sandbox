@@ -26,7 +26,17 @@ import { isPublicIp } from "./itAnalysis";
 const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 /** Host parts conventionally used for a subnet's gateway. */
 const GATEWAY_HOST_PARTS = new Set(["1", "254"]);
-const EVIDENCE_RANK: Record<ItLinkEvidence, number> = { traceroute: 0, "observed-flow": 1, "same-subnet": 2, inferred: 3 };
+/**
+ * Which evidence wins when two sources describe the same pair. The operator sits below the scan
+ * and above our own reasoning: they may be wrong, but they were there and the inference was not.
+ */
+const EVIDENCE_RANK: Record<ItLinkEvidence, number> = {
+  traceroute: 0,
+  "observed-flow": 1,
+  asserted: 2,
+  "same-subnet": 3,
+  inferred: 4
+};
 
 function isIpv4(value: string | undefined): value is string {
   return !!value && IPV4.test(value);

@@ -1,6 +1,6 @@
 import { IT_NODE_HEIGHT, IT_NODE_WIDTH } from "../data/itLayout";
 import { download, escapeXml } from "./exporters";
-import { itKindLabel, type ItMap } from "../models/itMap";
+import { isScanEvidence, itKindLabel, type ItMap } from "../models/itMap";
 
 /**
  * SVG export for the IT map. Separate from `downloadTopologySvg`, which paints Purdue zone
@@ -33,11 +33,15 @@ export function buildItMapSvg(map: ItMap): string {
       if (!source || !target) {
         return "";
       }
-      const observed = link.evidence === "traceroute" || link.evidence === "observed-flow";
-      const dash = observed ? "" : link.evidence === "same-subnet" ? ' stroke-dasharray="2 6"' : ' stroke-dasharray="9 7"';
+      const observed = isScanEvidence(link.evidence);
+      const asserted = link.evidence === "asserted";
+      // Solid for anything asserted or observed; weight is what separates the operator's line
+      // from the scan's, because the export is monochrome too.
+      const dash =
+        observed || asserted ? "" : link.evidence === "same-subnet" ? ' stroke-dasharray="2 6"' : ' stroke-dasharray="9 7"';
       return `<line x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}" stroke="${
-        observed ? "#334155" : "#94a3b8"
-      }" stroke-width="${observed ? 2 : 1.4}"${dash} />`;
+        observed || asserted ? "#334155" : "#94a3b8"
+      }" stroke-width="${asserted ? 3.2 : observed ? 2 : 1.4}"${dash} />`;
     })
     .join("");
 

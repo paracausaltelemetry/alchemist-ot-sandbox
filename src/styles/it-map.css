@@ -147,6 +147,11 @@
   height: 0;
   border-top: 2px solid var(--text);
 }
+/* Solid like the scan's own links — the operator is asserting, not guessing — but heavier, which
+   is the distinguishing channel available on a monochrome canvas. */
+.it-map-legend i[data-evidence="asserted"] {
+  border-top-width: 4px;
+}
 .it-map-legend i[data-evidence="same-subnet"] {
   border-top-style: dotted;
   border-top-color: var(--muted);

@@ -5,8 +5,32 @@
     color: #000 !important;
   }
 
-  .app-shell {
+  /*
+   * Every live view, not just the OT one. `.app-shell` is the workbench's own wrapper, so the IT
+   * view — which renders `.it-app site-frame` — printed the entire running UI above its report:
+   * toolbar, canvas, panels and all.
+   */
+  .app-shell,
+  .it-app {
     display: none;
+  }
+
+  /* Stage maps sit inside the timeline; scale them to the page rather than clipping them. */
+  .it-print-map svg {
+    max-width: 100%;
+    height: auto;
+    margin: 8px 0 4px;
+  }
+
+  .it-print-stage {
+    page-break-inside: avoid;
+    margin-bottom: 18px;
+  }
+
+  .it-print-when {
+    margin: 0 0 6px;
+    font-size: 9pt;
+    font-style: italic;
   }
 
   .print-document {

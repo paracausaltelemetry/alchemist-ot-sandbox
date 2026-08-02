@@ -23,6 +23,10 @@ import {
 } from "../models/itEngagement";
 import { SAMPLE_SCAN } from "../data/sampleScan";
 import { downloadJson, downloadMarkdown } from "../lib/exporters";
+import { buildItEngagementReport } from "../engine/itEngagementReport";
+import { itEngagementMarkdown } from "../engine/itEngagementMarkdown";
+import { buildItStageMaps } from "../engine/itStageMaps";
+import { ItPrintableReport } from "./ItPrintableReport";
 import { downloadItMapSvg } from "../lib/itExporters";
 import { isItLinkId, isScanEvidence, itEvidenceLabel, itKindLabel, type ItMap } from "../models/itMap";
 import type { Point } from "../models/types";
@@ -427,11 +431,34 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
       );
     }
   }, [analysis, map, parsed, withLivePositions]);
+  /**
+   * The engagement report: the deliverable, not a dump of the analysis.
+   *
+   * `itReportMarkdown` still exists and still describes what a scan found; this describes what the
+   * operator did with it, which is the document that goes to a client.
+   */
   const exportReport = useCallback(() => {
+    if (engagement) {
+      downloadMarkdown("engagement-report", itEngagementMarkdown(buildItEngagementReport(engagement)));
+    }
+  }, [engagement]);
+
+  const exportScanFindings = useCallback(() => {
     if (analysis) {
       downloadMarkdown("it-network", itReportMarkdown(analysis));
     }
   }, [analysis]);
+
+  const exportStageMaps = useCallback(() => {
+    if (!engagement) {
+      return;
+    }
+    // One file per stage rather than a combined sheet: they are read one at a time, beside the
+    // stage they belong to, and a reader who wants stage 4 should not have to crop it out.
+    for (const stage of buildItStageMaps(engagement)) {
+      downloadItMapSvg(stage.map);
+    }
+  }, [engagement]);
   const exportMap = useCallback(() => {
     if (map) {
       downloadItMapSvg(withLivePositions(map));
@@ -469,7 +496,10 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
         { id: "arrange", label: "Re-run the map layout", run: rearrange },
         { id: "promote", label: "Assess this network in the OT workbench…", hint: "OT", run: () => setPromoteOpen(true) },
         { id: "export-json", label: "Export the analysis as JSON", hint: "Export", run: exportJson },
-        { id: "export-report", label: "Export a Markdown report", hint: "Export", run: exportReport },
+        { id: "export-report", label: "Export the engagement report", hint: "Export", run: exportReport },
+        { id: "export-findings", label: "Export the scan findings", hint: "Export", run: exportScanFindings },
+        { id: "export-stage-maps", label: "Download a map for every stage", hint: "Export", run: exportStageMaps },
+        { id: "print", label: "Print the engagement report", hint: "Export", run: () => window.print() },
         { id: "export-map", label: "Export the map as SVG", hint: "Export", run: exportMap },
         { id: "clear", label: "Clear the map", run: clear }
       );
@@ -485,6 +515,8 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
     exportJson,
     exportMap,
     exportReport,
+    exportScanFindings,
+    exportStageMaps,
     ingest,
     map,
     onGoHome,
@@ -495,6 +527,14 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   ]);
 
   return (
+    <>
+      {/*
+        A sibling of `.it-app`, not a child. The print stylesheet hides the whole live view, so a
+        report nested inside it would be hidden along with everything else and Ctrl+P would produce
+        a blank page. `PrintableReport` sits outside `.app-shell` for the same reason.
+      */}
+      <ItPrintableReport engagement={engagement} />
+
     <div className="it-app site-frame">
       <SiteMasthead
         theme={theme}
@@ -517,7 +557,8 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
             <div className="it-export" role="group" aria-label="Export">
               <Download size={14} aria-hidden="true" />
               <button type="button" className="text-button" onClick={exportJson} title="Download analysis as JSON">JSON</button>
-              <button type="button" className="text-button" onClick={exportReport} title="Download a Markdown report">Report</button>
+              <button type="button" className="text-button" onClick={exportReport} title="Download the engagement report as Markdown">Report</button>
+              <button type="button" className="text-button" onClick={() => window.print()} title="Print the engagement report">Print</button>
               <button type="button" className="text-button" onClick={exportMap} title="Download the map as SVG">Map</button>
             </div>
           ) : null}
@@ -872,5 +913,6 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
         onCancel={() => setPromoteOpen(false)}
       />
     </div>
+    </>
   );
 }

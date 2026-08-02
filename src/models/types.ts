@@ -35,19 +35,36 @@ export type FirewallRule = "explicit" | "any-any" | "unknown";
 
 export type ConduitControl = "routed" | "firewalled" | "jump-host" | "data-diode";
 
+/**
+ * Serialized on every conduit in saved projects and share links, so ids are append-only: never
+ * rename or remove one, even when its label changes.
+ */
 export type ProtocolFamilyId =
   | "auto"
   | "https-tls"
   | "http"
   | "modbus"
   | "opc"
+  | "opc-da"
   | "dnp3"
+  | "iec104"
+  | "iec61850-mms"
+  | "iec61850-l2"
+  | "iccp"
   | "ethernet-ip"
   | "profinet"
+  | "profibus"
+  | "hart"
   | "s7"
+  | "bacnet"
+  | "fox"
+  | "osdp"
   | "rdp"
   | "ssh"
+  | "telnet"
+  | "ftp"
   | "smb"
+  | "snmp"
   | "dns-ntp"
   | "mqtt"
   | "vpn"

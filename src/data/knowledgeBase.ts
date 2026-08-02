@@ -1,4 +1,20 @@
+import { nativeSecurityNote, protocolFamilies, transportLabel } from "./protocols";
+
 export type KbCategory = "Frameworks" | "Asset & risk" | "Architecture" | "Operations" | "Sector";
+
+/**
+ * Generated from `protocolFamilies` rather than hand-written, so the published cheat sheet cannot
+ * drift from the model the engine actually scores against. It was already wrong in three places
+ * when it was a literal.
+ */
+const protocolCheatSheetRows = protocolFamilies
+  .filter((family) => family.transport.length > 0)
+  .map((family) => [
+    family.label,
+    family.ports.length > 0 ? family.ports.join(" / ") : "—",
+    transportLabel(family.transport),
+    nativeSecurityNote[family.nativeSecurity]
+  ]);
 
 /** The kind of resource; drives how the library groups and renders a topic. */
 export type KbKind = "concept" | "guide" | "checklist" | "cheatsheet" | "resource";
@@ -580,20 +596,7 @@ export const knowledgeBase: KbTopic[] = [
     sections: [],
     table: {
       columns: ["Protocol", "Port", "Transport", "Security note"],
-      rows: [
-        ["Modbus TCP", "502", "TCP", "No auth/encryption; restrict peers"],
-        ["DNP3", "20000", "TCP/UDP", "Add Secure Authentication; often cleartext"],
-        ["EtherNet/IP", "44818 / 2222", "TCP/UDP", "CIP; no native security"],
-        ["PROFINET", "34962-34964", "TCP/UDP", "No native security; L2-sensitive"],
-        ["S7comm", "102", "TCP", "Siemens; no native authentication"],
-        ["OPC UA", "4840", "TCP", "Can be secured; verify policies/certs"],
-        ["OPC DA (DCOM)", "135 + dynamic", "TCP", "Legacy DCOM; hard to firewall"],
-        ["IEC 61850 MMS", "102", "TCP", "Substations; GOOSE/SV are L2 multicast"],
-        ["IEC 60870-5-104", "2404", "TCP", "Telecontrol; no native security"],
-        ["BACnet/IP", "47808", "UDP", "Building automation; no native security"],
-        ["HTTPS", "443", "TCP", "Encrypted; verify certificate ownership"],
-        ["RDP", "3389", "TCP", "Remote desktop; broker and require MFA"]
-      ]
+      rows: protocolCheatSheetRows
     },
     references: ["ISA/IEC 62443-3-3 FR3/FR4", "NIST SP 800-82 Rev. 3"]
   },

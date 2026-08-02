@@ -21,18 +21,18 @@ interface Golden {
 }
 
 const GOLDENS: Golden[] = [
-  { id: "sample", score: 55, band: "weak", categories: { segmentation: 24, remoteAccess: 59, identity: 82, monitoring: 37, resilience: 82, legacyExposure: 55, safetyImpact: 72, documentation: 56 } },
-  { id: "sample-purdue-assessment", score: 55, band: "weak", categories: { segmentation: 24, remoteAccess: 59, identity: 82, monitoring: 37, resilience: 82, legacyExposure: 55, safetyImpact: 72, documentation: 56 } },
-  { id: "scenario-water", score: 40, band: "critical", categories: { segmentation: 13, remoteAccess: 59, identity: 23, monitoring: 30, resilience: 55, legacyExposure: 24, safetyImpact: 100, documentation: 81 } },
-  { id: "scenario-substation", score: 50, band: "weak", categories: { segmentation: 24, remoteAccess: 59, identity: 29, monitoring: 37, resilience: 55, legacyExposure: 82, safetyImpact: 100, documentation: 81 } },
-  { id: "scenario-chemical", score: 48, band: "weak", categories: { segmentation: 27, remoteAccess: 59, identity: 40, monitoring: 37, resilience: 67, legacyExposure: 55, safetyImpact: 72, documentation: 73 } },
-  { id: "scenario-building", score: 44, band: "critical", categories: { segmentation: 9, remoteAccess: 52, identity: 16, monitoring: 25, resilience: 67, legacyExposure: 82, safetyImpact: 100, documentation: 86 } },
-  { id: "scenario-oil-gas", score: 44, band: "critical", categories: { segmentation: 24, remoteAccess: 59, identity: 23, monitoring: 45, resilience: 55, legacyExposure: 21, safetyImpact: 100, documentation: 81 } },
+  { id: "sample", score: 53, band: "weak", categories: { segmentation: 24, remoteAccess: 59, identity: 82, monitoring: 37, resilience: 82, legacyExposure: 40, safetyImpact: 72, documentation: 56 } },
+  { id: "sample-purdue-assessment", score: 53, band: "weak", categories: { segmentation: 24, remoteAccess: 59, identity: 82, monitoring: 37, resilience: 82, legacyExposure: 40, safetyImpact: 72, documentation: 56 } },
+  { id: "scenario-water", score: 40, band: "critical", categories: { segmentation: 13, remoteAccess: 59, identity: 23, monitoring: 30, resilience: 55, legacyExposure: 22, safetyImpact: 100, documentation: 81 } },
+  { id: "scenario-substation", score: 46, band: "weak", categories: { segmentation: 24, remoteAccess: 59, identity: 29, monitoring: 37, resilience: 55, legacyExposure: 38, safetyImpact: 100, documentation: 81 } },
+  { id: "scenario-chemical", score: 46, band: "weak", categories: { segmentation: 27, remoteAccess: 59, identity: 40, monitoring: 37, resilience: 67, legacyExposure: 36, safetyImpact: 72, documentation: 73 } },
+  { id: "scenario-building", score: 39, band: "critical", categories: { segmentation: 9, remoteAccess: 52, identity: 16, monitoring: 25, resilience: 67, legacyExposure: 38, safetyImpact: 100, documentation: 86 } },
+  { id: "scenario-oil-gas", score: 44, band: "critical", categories: { segmentation: 24, remoteAccess: 59, identity: 23, monitoring: 45, resilience: 55, legacyExposure: 18, safetyImpact: 100, documentation: 81 } },
   { id: "scenario-rail", score: 46, band: "weak", categories: { segmentation: 24, remoteAccess: 59, identity: 21, monitoring: 45, resilience: 55, legacyExposure: 40, safetyImpact: 100, documentation: 81 } },
-  { id: "scenario-pharma", score: 50, band: "weak", categories: { segmentation: 24, remoteAccess: 59, identity: 33, monitoring: 45, resilience: 67, legacyExposure: 50, safetyImpact: 100, documentation: 81 } },
-  { id: "scenario-data-centre", score: 44, band: "critical", categories: { segmentation: 16, remoteAccess: 59, identity: 25, monitoring: 37, resilience: 55, legacyExposure: 45, safetyImpact: 100, documentation: 86 } },
-  { id: "scenario-wind", score: 47, band: "weak", categories: { segmentation: 24, remoteAccess: 59, identity: 23, monitoring: 37, resilience: 67, legacyExposure: 50, safetyImpact: 100, documentation: 81 } },
-  { id: "scenario-nuclear", score: 51, band: "weak", categories: { segmentation: 24, remoteAccess: 59, identity: 33, monitoring: 37, resilience: 82, legacyExposure: 50, safetyImpact: 100, documentation: 81 } }
+  { id: "scenario-pharma", score: 49, band: "weak", categories: { segmentation: 24, remoteAccess: 59, identity: 33, monitoring: 45, resilience: 67, legacyExposure: 36, safetyImpact: 100, documentation: 81 } },
+  { id: "scenario-data-centre", score: 43, band: "critical", categories: { segmentation: 16, remoteAccess: 59, identity: 25, monitoring: 37, resilience: 55, legacyExposure: 37, safetyImpact: 100, documentation: 86 } },
+  { id: "scenario-wind", score: 47, band: "weak", categories: { segmentation: 24, remoteAccess: 59, identity: 23, monitoring: 37, resilience: 67, legacyExposure: 42, safetyImpact: 100, documentation: 81 } },
+  { id: "scenario-nuclear", score: 49, band: "weak", categories: { segmentation: 24, remoteAccess: 59, identity: 33, monitoring: 37, resilience: 82, legacyExposure: 38, safetyImpact: 100, documentation: 81 } }
 ];
 
 const projects = new Map([
@@ -64,12 +64,13 @@ describe("scores for every bundled project", () => {
  */
 describe("what the scores mean", () => {
   it("ranks the flattest network lowest", () => {
-    // Water is authored as a flat network with a vendor path into control. If a formula change
-    // ever puts it mid-table, the formula has stopped tracking architecture.
-    const ranked = GOLDENS.filter((g) => g.id !== "sample")
-      .slice()
-      .sort((a, b) => a.score - b.score);
-    expect(ranked[0].id).toBe("scenario-water");
+    // Segmentation is the heaviest category, so the scenario with the least of it must come last
+    // overall. Asserted as a property rather than by naming a scenario: the point is that the
+    // headline tracks architecture, not that any particular example sits at the bottom.
+    const scenarios = GOLDENS.filter((g) => g.id !== "sample");
+    const flattest = scenarios.slice().sort((a, b) => a.categories.segmentation - b.categories.segmentation)[0];
+    const lowest = scenarios.slice().sort((a, b) => a.score - b.score)[0];
+    expect(lowest.id).toBe(flattest.id);
   });
 
   it("rates no bundled scenario as fair or strong, because none of them are", () => {

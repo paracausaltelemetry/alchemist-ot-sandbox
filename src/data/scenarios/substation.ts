@@ -197,21 +197,24 @@ const project: OtProject = {
       trustBoundary: true,
       notes: "Routable engineering access to protection relays is unlogged."
     }),
+    // GOOSE and Sampled Values are layer 2 multicast: no IP, no ports. These three carried port 102,
+    // which is IEC 61850 MMS — a different protocol on the same standard's station bus.
     conduit("sc-relay-line-mu", "sub-relay-line", "sub-mu", "Sampled values / GOOSE", {
       protocol: "IEC 61850 Sampled Values",
-      port: "102",
+      port: "",
       direction: "bidirectional",
-      control: "routed"
+      control: "routed",
+      notes: "Layer 2 multicast on the process bus. It cannot be routed or filtered by port, so containment is the VLAN."
     }),
     conduit("sc-relay-xfmr-mu", "sub-relay-xfmr", "sub-mu", "Sampled values / GOOSE", {
       protocol: "IEC 61850 Sampled Values",
-      port: "102",
+      port: "",
       direction: "bidirectional",
       control: "routed"
     }),
     conduit("sc-bay-mu", "sub-bay", "sub-mu", "Process bus GOOSE", {
       protocol: "GOOSE",
-      port: "102",
+      port: "",
       direction: "bidirectional",
       control: "routed"
     })

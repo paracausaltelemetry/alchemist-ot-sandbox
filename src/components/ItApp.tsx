@@ -1,11 +1,12 @@
 import { ArrowLeft, Download, FileUp, PlayCircle, Share2, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { detectFormat, parseByFormat } from "../import";
-import type { ImportedHost, ParsedImport } from "../import/types";
-import { analyseItNetwork, itReportMarkdown, type ItAnalysis } from "../engine/itAnalysis";
-import { synthesiseItTopology } from "../engine/itTopology";
+import type { ImportedHost } from "../import/types";
+import { itReportMarkdown } from "../engine/itAnalysis";
+import { projectEngagement } from "../engine/itProjection";
 import { promoteToOtProject } from "../engine/itToOt";
-import { layoutItMap } from "../data/itLayout";
+import { clearEngagement, loadEngagement, saveEngagement } from "../lib/itEngagementStore";
+import { newItEngagement, newItScan, type ItEngagement } from "../models/itEngagement";
 import { SAMPLE_SCAN } from "../data/sampleScan";
 import { downloadJson, downloadMarkdown } from "../lib/exporters";
 import { downloadItMapSvg } from "../lib/itExporters";
@@ -33,11 +34,8 @@ function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
-/** Runs the layout and returns a positioned copy of the map. */
-function positioned(map: ItMap): ItMap {
-  const positions = layoutItMap(map.nodes, map.links, map.subnets);
-  return { ...map, nodes: map.nodes.map((node) => ({ ...node, position: positions.get(node.id) ?? node.position })) };
-}
+/** Long enough that dragging a run of nodes costs one write rather than one per node. */
+const POSITION_SAVE_DEBOUNCE_MS = 400;
 
 /**
  * The IT-side network mapper: upload an Nmap scan, get a network map drawn with the standard
@@ -45,9 +43,10 @@ function positioned(map: ItMap): ItMap {
  * segmentation, inventory). Entirely client-side, like the rest of Alchemist.
  */
 export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }: ItAppProps) {
-  const [map, setMap] = useState<ItMap | null>(null);
-  const [analysis, setAnalysis] = useState<ItAnalysis | null>(null);
-  const [parsed, setParsed] = useState<ParsedImport | null>(null);
+  // `engagement` changes only on load, import, clear and re-arrange — never on a drag. That is what
+  // keeps the projection memo from rebuilding `map.nodes` while the operator is moving a node.
+  const [engagement, setEngagement] = useState<ItEngagement | null>(() => loadEngagement());
+  const [saveFailed, setSaveFailed] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [canvasMode, setCanvasMode] = useState<ItCanvasMode>("topology");
   const [fitSignal, setFitSignal] = useState(0);
@@ -64,6 +63,38 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   // per move on a 300-host map. React Flow already owns the live position while you drag, so
   // the only thing that needs them is an export, and that can read them on demand.
   const draggedPositions = useRef(new Map<string, Point>());
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { map, analysis, parsed } = useMemo(
+    () => (engagement ? projectEngagement(engagement) : { map: null, analysis: null, parsed: null }),
+    [engagement]
+  );
+
+  /**
+   * The engagement as it stands right now, including positions that only exist in the ref.
+   *
+   * Every persist path goes through here. `moveNode` writes to a ref and triggers no render, so an
+   * effect-based autosave would either never fire on a drag or fire for some unrelated reason and
+   * save whatever the ref happened to hold.
+   */
+  const snapshot = useCallback((): ItEngagement | null => {
+    if (!engagement) {
+      return null;
+    }
+    if (draggedPositions.current.size === 0) {
+      return engagement;
+    }
+    return { ...engagement, positions: { ...engagement.positions, ...Object.fromEntries(draggedPositions.current) } };
+  }, [engagement]);
+
+  const persist = useCallback((next: ItEngagement | null) => {
+    if (!next) {
+      clearEngagement();
+      setSaveFailed(false);
+      return;
+    }
+    setSaveFailed(!saveEngagement(next));
+  }, []);
 
   // Colour the map by IT risk: internet-facing or high-severity services are high, other
   // flagged services medium. Matched on address, then keyed by node id for the canvas.
@@ -106,18 +137,22 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
       setError(result.warnings[0] ?? "No hosts were found in that scan.");
       return;
     }
-    const built = positioned(synthesiseItTopology(result));
+    // A fresh engagement per import, for now: the second scan updating the map rather than
+    // replacing it is the next PR, and `scans` is already an array so only the merge has to change.
+    const next: ItEngagement = { ...newItEngagement(filename), scans: [newItScan(result, filename, 1)] };
     draggedPositions.current.clear();
-    setMap(built);
-    setAnalysis(analyseItNetwork(result));
-    setParsed(result);
+    setEngagement(next);
+    persist(next);
     setSelectedId(null);
     setFitSignal((value) => value + 1);
     // A /24 is the size this view is built for, so say when a scan is past what the canvas
     // handles comfortably rather than letting it just feel slow.
-    setNotice(oversizeWarning(built.nodes.length, built.links.length, { node: "devices", link: "links" }));
+    const preview = projectEngagement(next).map;
+    setNotice(
+      preview ? oversizeWarning(preview.nodes.length, preview.links.length, { node: "devices", link: "links" }) : null
+    );
     setError(null);
-  }, []);
+  }, [persist]);
 
   const onFile = useCallback(
     (file: File | undefined) => {
@@ -140,17 +175,29 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   const clear = useCallback(() => {
     setNotice(null);
     draggedPositions.current.clear();
-    setMap(null);
-    setAnalysis(null);
-    setParsed(null);
+    setEngagement(null);
+    persist(null);
     setSelectedId(null);
     setPasteText("");
     setError(null);
-  }, []);
+  }, [persist]);
 
-  const moveNode = useCallback((id: string, position: Point) => {
-    draggedPositions.current.set(id, position);
-  }, []);
+  /**
+   * A drag ended. This is the only place that knows one did, so it schedules the positions-only
+   * save — debounced, because dragging a run of nodes should cost one write, not one per node.
+   */
+  const moveNode = useCallback(
+    (id: string, position: Point) => {
+      draggedPositions.current.set(id, position);
+      if (saveTimer.current) {
+        clearTimeout(saveTimer.current);
+      }
+      saveTimer.current = setTimeout(() => persist(snapshot()), POSITION_SAVE_DEBOUNCE_MS);
+    },
+    [persist, snapshot]
+  );
+
+  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
 
   /** The map as it is currently arranged on screen, for anything that leaves the canvas. */
   const withLivePositions = useCallback((source: ItMap): ItMap => {
@@ -161,11 +208,19 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
     return { ...source, nodes: source.nodes.map((node) => ({ ...node, position: moved.get(node.id) ?? node.position })) };
   }, []);
 
+  /** Drops every authored position, so the computed layout takes over again. */
   const rearrange = useCallback(() => {
     draggedPositions.current.clear();
-    setMap((current) => (current ? positioned(current) : current));
+    setEngagement((current) => {
+      if (!current) {
+        return current;
+      }
+      const next = { ...current, positions: {} };
+      persist(next);
+      return next;
+    });
     setFitSignal((value) => value + 1);
-  }, []);
+  }, [persist]);
 
   // One selection id addresses either a node or a link: the two id namespaces are disjoint by
   // construction. Clicking a link already highlighted it on the canvas, but only `map.nodes` was
@@ -341,6 +396,20 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
       </div>
 
       {error ? <p className="it-error" role="alert">{error}</p> : null}
+      {/*
+        Persistent, not a toast. An engagement too large for localStorage cannot be saved at all,
+        and the operator needs to know that for as long as it is true — a message that fades leaves
+        them believing their work is stored. The export is the way out, so it is offered here.
+      */}
+      {saveFailed ? (
+        <p className="it-error" role="alert">
+          This engagement is too large to save in the browser, so it will be lost when you close the tab.{" "}
+          <button type="button" className="text-button" onClick={exportJson}>
+            Export it as JSON
+          </button>{" "}
+          to keep it.
+        </p>
+      ) : null}
       {notice ? <p className="it-notice" role="status">{notice}</p> : null}
 
       {!map || !analysis ? (

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ItApp } from "./ItApp";
 import { synthesiseItTopology } from "../engine/itTopology";
@@ -16,6 +16,10 @@ async function loadSample() {
 }
 
 describe("ItApp", () => {
+  // The engagement now persists, so each test starts from an empty browser rather than
+  // inheriting whatever the previous one imported.
+  beforeEach(() => localStorage.clear());
+
   it("starts on the empty state", () => {
     render(<ItApp onGoHome={() => {}} onSwitchView={() => {}} theme="dark" onToggleTheme={() => {}} isMobile={false} />);
     expect(screen.getByRole("heading", { name: /map a network from an nmap scan/i })).toBeInTheDocument();
@@ -45,6 +49,28 @@ describe("ItApp", () => {
 
     expect(screen.getByRole("heading", { name: "Link" })).toBeInTheDocument();
     expect(screen.getByText("Evidence")).toBeInTheDocument();
+  });
+
+  it("restores the map after a reload", async () => {
+    // The whole point of the engagement document: before it, every import was lost on refresh.
+    await loadSample();
+    expect(screen.getByRole("region", { name: "Network map" })).toBeInTheDocument();
+
+    cleanup();
+    render(<ItApp onGoHome={() => {}} onSwitchView={() => {}} theme="dark" onToggleTheme={() => {}} isMobile={false} />);
+
+    expect(screen.getByRole("region", { name: "Network map" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /map a network from an nmap scan/i })).not.toBeInTheDocument();
+  });
+
+  it("keeps nothing after the map is cleared", async () => {
+    const { user } = await loadSample();
+    await user.click(screen.getByRole("button", { name: /^clear$/i }));
+
+    cleanup();
+    render(<ItApp onGoHome={() => {}} onSwitchView={() => {}} theme="dark" onToggleTheme={() => {}} isMobile={false} />);
+
+    expect(screen.getByRole("heading", { name: /map a network from an nmap scan/i })).toBeInTheDocument();
   });
 
   it("says when the links are traced rather than inferred", async () => {

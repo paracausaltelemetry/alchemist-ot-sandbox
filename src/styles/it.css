@@ -462,3 +462,13 @@
   letter-spacing: 0.05em;
   text-transform: uppercase;
 }
+
+/* Offered only when the scan file recorded no time of its own. */
+.it-scan-time-entry input {
+  margin-top: var(--space-2);
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font: var(--text-xs) / 1.4 var(--font-mono);
+}

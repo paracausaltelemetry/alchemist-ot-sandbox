@@ -1,4 +1,5 @@
 import type { AssetTypeId } from "../models/types";
+import type { ScanTime } from "./scanTime";
 
 export type ImportFormat = "nmap-xml" | "nmap-normal" | "nmap-grep" | "zeek-conn" | "graphml" | "csv-inventory";
 
@@ -72,6 +73,11 @@ export interface ParsedImport {
   hosts: ImportedHost[];
   flows: ImportedFlow[];
   warnings: string[];
+  /**
+   * When the scan started, if the file said so. Absent means the file did not record it — never
+   * the time of import, which would be indistinguishable from the real thing once written down.
+   */
+  startedAt?: ScanTime;
   /**
    * Traceroutes, when the source carried them. Deliberately separate from `flows`: the OT
    * assembler turns every flow into a conduit, and a hop is a router on the path rather than

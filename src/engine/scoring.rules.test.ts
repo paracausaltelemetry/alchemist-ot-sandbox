@@ -220,12 +220,21 @@ const RULES: RuleCase[] = [
     }
   },
   {
-    title: "Legacy or cleartext protocol exposure",
+    title: "Protocol without native security in a control zone",
     category: "legacyExposure",
     severity: "medium",
     trigger: (project) => {
       project.assets[0].zone = "level2";
       project.assets[0].protocols = ["Modbus TCP"];
+    }
+  },
+  {
+    title: "Protocol security not confirmed in a control zone",
+    category: "legacyExposure",
+    severity: "low",
+    trigger: (project) => {
+      project.assets[0].zone = "level2";
+      project.assets[0].protocols = ["OPC UA"];
     }
   },
   {

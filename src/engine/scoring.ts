@@ -1,4 +1,5 @@
 import { categoryLabels, getAssetType, getZone, standardReferences } from "../data/catalog";
+import { protocolSecurity } from "../data/protocols";
 import { techniquesForCategory } from "../data/attackIcs";
 import { reachableAssetIds } from "./reachability";
 import { assessSecurityLevels, foundationalRequirements } from "./securityLevels";
@@ -37,19 +38,6 @@ export const scoreBands: Array<{ band: SecurityAssessment["band"]; label: string
   { band: "weak", label: "Weak", min: 45 },
   { band: "critical", label: "Critical", min: 0 }
 ];
-
-const legacyProtocols = new Set([
-  "modbus",
-  "modbus tcp",
-  "dnp3",
-  "ftp",
-  "telnet",
-  "snmp v1",
-  "snmpv1",
-  "snmp v2",
-  "snmpv2",
-  "http"
-]);
 
 function scoreBand(score: number): SecurityAssessment["band"] {
   return (scoreBands.find((entry) => score >= entry.min) ?? scoreBands[scoreBands.length - 1]).band;
@@ -430,24 +418,49 @@ export function assessProject(project: OtProject): SecurityAssessment {
       );
     }
 
-    const legacy = asset.protocols.filter((protocol) => legacyProtocols.has(protocol.trim().toLowerCase()));
-    if (legacy.length > 0 && isControlZone(asset)) {
-      addFinding(
-        findings,
-        {
-          category: "legacyExposure",
-          severity: asset.criticality === "critical" ? "high" : "medium",
-          title: "Legacy or cleartext protocol exposure",
-          detail: `${asset.name} uses ${legacy.join(", ")} in a control or safety zone.`,
-          remediation: "Restrict legacy protocols to necessary peers, inspect at conduits, remove unused services, and prefer secure alternatives where supported.",
-          affectedAssetIds: [asset.id],
-          affectedConduitIds: project.conduits
-            .filter((conduit) => conduit.source === asset.id || conduit.target === asset.id)
-            .map((conduit) => conduit.id),
-          references: [standardReferences.nist80082, standardReferences.mitreIcs]
-        },
-        `${asset.id}-${legacy.join("-")}`
-      );
+    // Two buckets, not one list of "legacy" protocols. IEC 61850 and BACnet are current standards
+    // that happen to carry no security, and calling them legacy is the kind of error a practitioner
+    // notices immediately. What matters is what the protocol name tells you.
+    if (isControlZone(asset)) {
+      const unprotected = asset.protocols.filter((protocol) => protocolSecurity(protocol) === "none");
+      const unconfirmed = asset.protocols.filter((protocol) => protocolSecurity(protocol) === "optional");
+      const adjacentConduitIds = project.conduits
+        .filter((conduit) => conduit.source === asset.id || conduit.target === asset.id)
+        .map((conduit) => conduit.id);
+
+      if (unprotected.length > 0) {
+        addFinding(
+          findings,
+          {
+            category: "legacyExposure",
+            severity: asset.criticality === "critical" ? "high" : "medium",
+            title: "Protocol without native security in a control zone",
+            detail: `${asset.name} uses ${unprotected.join(", ")} in a control or safety zone. These protocols carry no authentication or encryption of their own.`,
+            remediation: "Restrict these protocols to necessary peers, inspect at conduits, remove unused services, and prefer secure alternatives where the equipment supports them.",
+            affectedAssetIds: [asset.id],
+            affectedConduitIds: adjacentConduitIds,
+            references: [standardReferences.nist80082, standardReferences.mitreIcs]
+          },
+          `${asset.id}-${unprotected.join("-")}`
+        );
+      }
+
+      if (unconfirmed.length > 0) {
+        addFinding(
+          findings,
+          {
+            category: "legacyExposure",
+            severity: "low",
+            title: "Protocol security not confirmed in a control zone",
+            detail: `${asset.name} uses ${unconfirmed.join(", ")} in a control or safety zone. Each has a secure mode that is optional, so naming the protocol does not say whether it is switched on.`,
+            remediation: "Record which security profile is in use — DNP3 Secure Authentication, an OPC UA security policy, SNMPv3, SMB signing and encryption — and treat an unconfirmed one as absent.",
+            affectedAssetIds: [asset.id],
+            affectedConduitIds: adjacentConduitIds,
+            references: [standardReferences.nist80082, standardReferences.isa62443]
+          },
+          `${asset.id}-optional-${unconfirmed.join("-")}`
+        );
+      }
     }
 
     const missing: string[] = [];

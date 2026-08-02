@@ -1,4 +1,5 @@
 import { getZone, zones } from "../data/catalog";
+import { protocolLacksNativeSecurity } from "../data/protocols";
 import type { Asset, Conduit, OtProject, ZoneId } from "../models/types";
 
 /**
@@ -56,7 +57,8 @@ const HOST_TYPES = new Set<Asset["type"]>([
 
 const CONTROL_HOST_TYPES = new Set<Asset["type"]>(["historian", "engineering-workstation", "hmi", "scada"]);
 
-const LEGACY_CLEARTEXT = new Set(["modbus", "modbus tcp", "dnp3", "ftp", "telnet", "http", "snmp v1", "snmp v2"]);
+// FR4 is data confidentiality, so the rung asks whether the protocol carries any of its own.
+// `protocolLacksNativeSecurity` is the one place that answers; this file used to keep its own list.
 
 /** Asset classes that run a general-purpose OS, so account controls like MFA apply to them. */
 export const isHost = (asset: Asset) => HOST_TYPES.has(asset.type);
@@ -93,7 +95,7 @@ function every<T>(items: T[], predicate: (item: T) => boolean): boolean {
 }
 
 function hasLegacyCleartext(asset: Asset): boolean {
-  return asset.protocols.some((protocol) => LEGACY_CLEARTEXT.has(protocol.trim().toLowerCase()));
+  return asset.protocols.some(protocolLacksNativeSecurity);
 }
 
 function frLevelsForZone(zone: ZoneId, project: OtProject): Record<FoundationalRequirement, number> {

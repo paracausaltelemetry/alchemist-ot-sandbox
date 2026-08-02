@@ -14,7 +14,22 @@ import { isScanEvidence, itKindLabel, type ItMap } from "../models/itMap";
 const MARGIN = 48;
 const TITLE_HEIGHT = 72;
 
-export function buildItMapSvg(map: ItMap): string {
+/**
+ * Restricts and emphasises a stage map.
+ *
+ * A per-stage map is the whole map *up to* that stage, not a redraw of a different graph: the
+ * reader is following one network changing, and N unrelated pictures would make them re-orient at
+ * every section. So everything discovered later is omitted and everything discovered *at* this
+ * stage is emphasised, which is the difference between a sequence and a slideshow.
+ */
+export interface ItMapSvgOptions {
+  /** Node ids to draw at full strength; everything else recedes. Omit to emphasise nothing. */
+  emphasise?: Set<string>;
+  /** Overrides the caption under the title. */
+  subtitle?: string;
+}
+
+export function buildItMapSvg(map: ItMap, options: ItMapSvgOptions = {}): string {
   const positions = map.nodes.map((node) => node.position);
   const maxX = Math.max(600, ...positions.map((position) => position.x + IT_NODE_WIDTH));
   const maxY = Math.max(300, ...positions.map((position) => position.y + IT_NODE_HEIGHT));
@@ -49,10 +64,15 @@ export function buildItMapSvg(map: ItMap): string {
     .map((node) => {
       const ghost = node.origin === "synthetic";
       const subtitle = node.ip || (ghost ? "inferred" : "");
-      return `<g class="it-map-node" transform="translate(${node.position.x}, ${node.position.y})">
+      // Emphasis is opacity plus weight, never colour: these documents are printed, and a reader
+      // with a monochrome printer must still be able to see which hosts a stage revealed.
+      const emphasised = !options.emphasise || options.emphasise.has(node.id);
+      return `<g class="it-map-node" transform="translate(${node.position.x}, ${node.position.y})"${
+        emphasised ? "" : ' opacity="0.35"'
+      }>
         <rect width="${IT_NODE_WIDTH}" height="${IT_NODE_HEIGHT}" fill="#ffffff" stroke="${
           ghost ? "#94a3b8" : "#334155"
-        }" stroke-width="1.5"${ghost ? ' stroke-dasharray="6 5"' : ""} />
+        }" stroke-width="${emphasised && options.emphasise ? 3 : 1.5}"${ghost ? ' stroke-dasharray="6 5"' : ""} />
         <text x="14" y="30" font-family="Inter, Arial" font-size="14" font-weight="700" fill="#0f172a">${escapeXml(
           node.name
         )}</text>
@@ -71,9 +91,12 @@ export function buildItMapSvg(map: ItMap): string {
     <text x="${MARGIN}" y="40" font-family="Inter, Arial" font-size="22" font-weight="800" fill="#0f172a">${escapeXml(
       map.name
     )}</text>
-    <text x="${MARGIN}" y="62" font-family="Inter, Arial" font-size="12" fill="#475569">Alchemist IT network map - ${
-      map.nodes.length
-    } devices, ${traced} traced link${traced === 1 ? "" : "s"}; dashed links are inferred</text>
+    <text x="${MARGIN}" y="62" font-family="Inter, Arial" font-size="12" fill="#475569">${escapeXml(
+      options.subtitle ??
+        `Alchemist IT network map - ${map.nodes.length} devices, ${traced} traced link${
+          traced === 1 ? "" : "s"
+        }; dashed links are inferred`
+    )}</text>
     <g transform="translate(0, ${TITLE_HEIGHT})">
       ${links}
       ${nodes}

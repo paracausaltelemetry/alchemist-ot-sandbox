@@ -10,10 +10,14 @@ import { clearEngagement, loadEngagement, saveEngagement } from "../lib/itEngage
 import {
   DEFAULT_VANTAGE,
   newItEngagement,
+  newItEvent,
   newItScan,
   newItUserLink,
   nextSequence,
   vantageLabel,
+  ACCESS_LABELS,
+  EVENT_KIND_LABELS,
+  EXTERNAL_ORIGIN,
   type ItEngagement,
   type ItVantage
 } from "../models/itEngagement";
@@ -30,6 +34,7 @@ import { ItMapOutline } from "./ItMapOutline";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ItScanDialog, type ItImportMode } from "./ItScanDialog";
 import { ItLinkDialog } from "./ItLinkDialog";
+import { ItEventDialog, type ItEventDraft } from "./ItEventDialog";
 import { CommandPalette, type Command } from "./CommandPalette";
 import { createProject } from "../lib/projectStore";
 import { oversizeFileError, oversizeWarning } from "../lib/modelLimits";
@@ -63,6 +68,8 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   const [pending, setPending] = useState<{ parsed: ParsedImport; filename: string } | null>(null);
   /** A drawn link waiting to be described. */
   const [pendingLink, setPendingLink] = useState<{ source: string; target: string } | null>(null);
+  /** An open journal entry, optionally pre-filled from a line the operator just drew. */
+  const [pendingEvent, setPendingEvent] = useState<{ sourceNodeId?: string; targetNodeId?: string } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [canvasMode, setCanvasMode] = useState<ItCanvasMode>("topology");
   const [fitSignal, setFitSignal] = useState(0);
@@ -81,8 +88,8 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   const draggedPositions = useRef(new Map<string, Point>());
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { map, analysis, parsed } = useMemo(
-    () => (engagement ? projectEngagement(engagement) : { map: null, analysis: null, parsed: null }),
+  const { map, analysis, parsed, access } = useMemo(
+    () => (engagement ? projectEngagement(engagement) : { map: null, analysis: null, parsed: null, access: new Map() }),
     [engagement]
   );
 
@@ -218,6 +225,35 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
         return next;
       });
       setSelectedId(null);
+    },
+    [persist]
+  );
+
+  const addEvent = useCallback(
+    (draft: ItEventDraft) => {
+      setEngagement((current) => {
+        if (!current) {
+          return current;
+        }
+        const next = { ...current, events: [...current.events, newItEvent(draft.kind, draft.title, nextSequence(current), draft)] };
+        persist(next);
+        return next;
+      });
+      setPendingEvent(null);
+    },
+    [persist]
+  );
+
+  const removeEvent = useCallback(
+    (eventId: string) => {
+      setEngagement((current) => {
+        if (!current) {
+          return current;
+        }
+        const next = { ...current, events: current.events.filter((entry) => entry.id !== eventId) };
+        persist(next);
+        return next;
+      });
     },
     [persist]
   );
@@ -602,6 +638,7 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
                 onRearrange={rearrange}
                 showInferred={showInferred}
                 onToggleInferred={() => setShowInferred((value) => !value)}
+                accessByNodeId={access}
                 onConnect={(source, target) => setPendingLink({ source, target })}
               />
             </div>
@@ -681,6 +718,50 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
               </div>
             ) : null}
             {engagement && engagement.scans.length > 0 ? (
+              <div className="it-journal">
+                <div className="it-journal-head">
+                  <h4>Journal ({engagement.events.length})</h4>
+                  <button type="button" className="text-button" onClick={() => setPendingEvent({})}>
+                    Record what you did
+                  </button>
+                </div>
+                {engagement.events.length === 0 ? (
+                  <p className="muted">
+                    Nothing recorded yet. A map of what is on the network is a scan result; a map of what you did to it
+                    is a report.
+                  </p>
+                ) : (
+                  <ol className="it-journal-list">
+                    {[...engagement.events]
+                      .sort((a, b) => a.sequence - b.sequence)
+                      .map((entry) => {
+                        const nameOf = (id?: string) =>
+                          id === EXTERNAL_ORIGIN
+                            ? "outside"
+                            : (map?.nodes.find((node) => node.id === id)?.name ?? id);
+                        return (
+                          <li key={entry.id}>
+                            <b>{entry.title}</b>
+                            <span>
+                              {EVENT_KIND_LABELS[entry.kind]}
+                              {entry.targetNodeId ? ` · ${nameOf(entry.sourceNodeId)} → ${nameOf(entry.targetNodeId)}` : ""}
+                              {entry.grants ? ` · ${ACCESS_LABELS[entry.grants]}` : ""}
+                            </span>
+                            {entry.cve || entry.attackTechnique ? (
+                              <span>{[entry.cve, entry.attackTechnique].filter(Boolean).join(" · ")}</span>
+                            ) : null}
+                            {entry.note ? <span>{entry.note}</span> : null}
+                            <button type="button" className="text-button compact" onClick={() => removeEvent(entry.id)}>
+                              Remove
+                            </button>
+                          </li>
+                        );
+                      })}
+                  </ol>
+                )}
+              </div>
+            ) : null}
+            {engagement && engagement.scans.length > 0 ? (
               <div className="it-scan-list">
                 <h4>Scans ({engagement.scans.length})</h4>
                 <ol>
@@ -752,7 +833,19 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
             addUserLink(pendingLink.source, pendingLink.target, label, note);
           }
         }}
+        onRecordAction={() => {
+          setPendingEvent({ sourceNodeId: pendingLink?.source, targetNodeId: pendingLink?.target });
+          setPendingLink(null);
+        }}
         onCancel={() => setPendingLink(null)}
+      />
+
+      <ItEventDialog
+        open={pendingEvent !== null}
+        nodes={map?.nodes.filter((node) => node.origin === "scanned") ?? []}
+        initial={pendingEvent ?? undefined}
+        onConfirm={addEvent}
+        onCancel={() => setPendingEvent(null)}
       />
 
       <CommandPalette open={commandOpen} commands={commands} onClose={() => setCommandOpen(false)} />

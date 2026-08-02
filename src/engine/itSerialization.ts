@@ -1,6 +1,11 @@
 import {
   DEFAULT_VANTAGE,
+  IT_ACCESS_LADDER,
   IT_ENGAGEMENT_SCHEMA_VERSION,
+  IT_EVENT_KINDS,
+  type ItAccessState,
+  type ItEvent,
+  type ItEventKind,
   type ItEngagement,
   type ItScan,
   type ItUserLink,
@@ -63,6 +68,47 @@ function readUserLinks(value: unknown): ItUserLink[] {
         source: entry.source,
         target: entry.target,
         ...(isString(entry.label) ? { label: entry.label } : {}),
+        ...(isString(entry.note) ? { note: entry.note } : {})
+      }
+    ];
+  });
+}
+
+/**
+ * Journal entries, read strictly enough that nothing half-formed reaches the report.
+ *
+ * An event missing its kind, title or sequence is dropped rather than repaired: the journal is what
+ * the report's timeline is built from, and a stage with no name or no place in the order would
+ * either print blank or land somewhere arbitrary. An unrecognised kind is dropped for the same
+ * reason — better a missing stage the operator can see is missing than one silently relabelled.
+ */
+function readEvents(value: unknown): ItEvent[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((entry) => {
+    if (!isObject(entry) || !isString(entry.id) || !isString(entry.title) || typeof entry.sequence !== "number") {
+      return [];
+    }
+    if (!isString(entry.kind) || !(IT_EVENT_KINDS as readonly string[]).includes(entry.kind)) {
+      return [];
+    }
+    const grants =
+      isString(entry.grants) && (IT_ACCESS_LADDER as readonly string[]).includes(entry.grants)
+        ? (entry.grants as ItAccessState)
+        : undefined;
+    return [
+      {
+        id: entry.id,
+        sequence: entry.sequence,
+        kind: entry.kind as ItEventKind,
+        at: readScanTime(entry.at),
+        title: entry.title,
+        ...(isString(entry.sourceNodeId) ? { sourceNodeId: entry.sourceNodeId } : {}),
+        ...(isString(entry.targetNodeId) ? { targetNodeId: entry.targetNodeId } : {}),
+        ...(grants ? { grants } : {}),
+        ...(isString(entry.cve) ? { cve: entry.cve } : {}),
+        ...(isString(entry.attackTechnique) ? { attackTechnique: entry.attackTechnique } : {}),
         ...(isString(entry.note) ? { note: entry.note } : {})
       }
     ];
@@ -173,6 +219,7 @@ export function parseItEngagementJson(raw: string): ItEngagementParse {
         time: readScanTime((scan as { time?: unknown }).time)
       })),
       userLinks: readUserLinks(value.userLinks),
+      events: readEvents(value.events),
       positions
     }
   };

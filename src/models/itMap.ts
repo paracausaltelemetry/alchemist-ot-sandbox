@@ -27,11 +27,12 @@ export type ItTier = "internet" | "perimeter" | "core" | "gateway" | "host";
 
 /**
  * How a link was established, strongest evidence first. `traceroute` is observed fact;
- * `asserted` is the operator saying so, which outranks our reasoning but is not scan output;
- * `same-subnet` is a safe structural assumption; `inferred` is our reasoning and is drawn
- * as such so nobody mistakes it for scan output.
+ * `attack` is not connectivity at all but something the operator did, drawn on the same canvas
+ * because that is the point of the map; `asserted` is the operator saying so, which outranks our
+ * reasoning but is not scan output; `same-subnet` is a safe structural assumption; `inferred` is
+ * our reasoning and is drawn as such so nobody mistakes it for scan output.
  */
-export type ItLinkEvidence = "traceroute" | "observed-flow" | "asserted" | "same-subnet" | "inferred";
+export type ItLinkEvidence = "traceroute" | "observed-flow" | "attack" | "asserted" | "same-subnet" | "inferred";
 
 export interface ItNode {
   id: string;
@@ -102,6 +103,7 @@ export function itKindLabel(kind: ItNodeKind): string {
 const EVIDENCE_LABELS: Record<ItLinkEvidence, string> = {
   traceroute: "Traced by the scan",
   "observed-flow": "Observed traffic",
+  attack: "Something you did",
   asserted: "Drawn by the operator",
   "same-subnet": "Same subnet",
   inferred: "Inferred from addressing"

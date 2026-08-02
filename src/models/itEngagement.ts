@@ -18,13 +18,6 @@ import type { Point } from "./types";
 export const IT_ENGAGEMENT_SCHEMA_VERSION = 1;
 
 /**
- * One imported scan, holding its own parse.
- *
- * Deliberately *not* concatenated into a single blob. `mergeHosts` would fold several parses
- * together correctly, and that is exactly the trap: it works, and it destroys which scan saw what.
- * An engagement record whose whole point is "what did I see, and when" cannot afford to lose that.
- */
-/**
  * Where the scan was run from.
  *
  * A named external rather than a boolean, because real engagements run from a VPN, a dropbox on
@@ -34,6 +27,13 @@ export const IT_ENGAGEMENT_SCHEMA_VERSION = 1;
  */
 export type ItVantage = { kind: "external"; label: string } | { kind: "node"; nodeId: string };
 
+/**
+ * One imported scan, holding its own parse.
+ *
+ * Deliberately *not* concatenated into a single blob. `mergeHosts` would fold several parses
+ * together correctly, and that is exactly the trap: it works, and it destroys which scan saw what.
+ * An engagement record whose whole point is "what did I see, and when" cannot afford to lose that.
+ */
 export interface ItScan {
   id: string;
   /** Monotonic, assigned at import. Ordering is by this and never by a timestamp. */
@@ -52,6 +52,32 @@ export interface ItScan {
   hostCount: number;
 }
 
+/**
+ * A link the operator drew.
+ *
+ * Part of the authored layer, so it survives re-synthesis and is keyed by the same stable node ids
+ * the scans mint. A link whose endpoints are gone — because the scan that found them was removed —
+ * is dropped with a warning rather than treated as corruption: it is the ordinary consequence of
+ * editing the evidence, and refusing to load would make removing a scan unrecoverable.
+ */
+export interface ItUserLink {
+  id: string;
+  source: string;
+  target: string;
+  label?: string;
+  note?: string;
+}
+
+/**
+ * The `link:` prefix is load-bearing, not decorative. Selection carries one id for both nodes and
+ * links, and `isItLinkId` is what tells them apart — an authored link keyed on anything else is
+ * selectable on the canvas but invisible in the inspector, which is exactly the bug that prefix
+ * convention exists to prevent. `user:` keeps it from colliding with a derived `link:a->b`.
+ */
+export function newItUserLink(source: string, target: string, label?: string, note?: string): ItUserLink {
+  return { id: `link:user:${source}->${target}`, source, target, label, note };
+}
+
 export interface ItEngagement {
   schemaVersion: number;
   id: string;
@@ -59,6 +85,8 @@ export interface ItEngagement {
   createdAt: string;
   updatedAt: string;
   scans: ItScan[];
+  /** Links the operator drew. Kept apart from the scans because nothing derived them. */
+  userLinks: ItUserLink[];
   /**
    * Only the nodes the operator actually dragged. A sparse override on top of the computed layout,
    * so a node that has never been moved follows the layout when the layout improves.
@@ -75,6 +103,7 @@ export function newItEngagement(name = "Untitled engagement"): ItEngagement {
     createdAt: now,
     updatedAt: now,
     scans: [],
+    userLinks: [],
     positions: {}
   };
 }

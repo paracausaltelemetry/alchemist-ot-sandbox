@@ -1,10 +1,10 @@
-import { ReactFlowProvider, type Node, type NodeProps, type OnNodeDrag, useReactFlow } from "@xyflow/react";
+import { Handle, Position, ReactFlowProvider, type Node, type NodeProps, type OnNodeDrag, useReactFlow } from "@xyflow/react";
 import { Eye, ShieldAlert, Waypoints, type LucideIcon } from "lucide-react";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { CANVAS_GRID_X, snapToGrid } from "../data/canvasLayout";
 import { IT_NODE_HEIGHT, IT_NODE_WIDTH, itBandBoxes } from "../data/itLayout";
 import { routeOrthogonalConduit } from "../engine/conduitRouting";
-import { itKindLabel, type ItLink, type ItMap, type ItNode } from "../models/itMap";
+import { isScanEvidence, itKindLabel, type ItLink, type ItMap, type ItNode } from "../models/itMap";
 import type { Point } from "../models/types";
 import { FlowFrame } from "./canvas/FlowFrame";
 import { LinkOverlay, type LinkOverlayItem } from "./canvas/LinkOverlay";
@@ -34,6 +34,8 @@ interface ItNetworkCanvasProps {
   onRearrange: () => void;
   showInferred: boolean;
   onToggleInferred: () => void;
+  /** Fired when the operator drags one node's handle onto another. */
+  onConnect: (source: string, target: string) => void;
 }
 
 type ItNodeData = {
@@ -72,6 +74,8 @@ const ItNodeCard = memo(function ItNodeCard({ data }: NodeProps<ItFlowNode>) {
         risk ? ` it-node-risk-${risk}` : ""
       }`}
     >
+      <Handle id="in" type="target" position={Position.Left} className="flow-handle" />
+      <Handle id="out" type="source" position={Position.Right} className="flow-handle" />
       <div className="it-node-symbol">
         <NetworkSymbol kind={node.kind} />
       </div>
@@ -105,9 +109,21 @@ const nodeTypes = { itNode: ItNodeCard };
 const EVIDENCE_DASH: Record<ItLink["evidence"], string | undefined> = {
   traceroute: undefined,
   "observed-flow": undefined,
+  asserted: undefined,
   "same-subnet": "1 5",
   inferred: "8 6"
 };
+
+/**
+ * An operator-drawn link is solid — they are asserting it, not guessing — but heavier, so it is
+ * distinguishable from scan output without reaching for colour. Weight rather than hue because
+ * `--signal` is the only colour on this canvas and it means danger.
+ *
+ * This has to clear `.conduit-overlay-path`'s own `stroke-width: 5.4`, not sit at some value that
+ * merely looks bold in isolation: an override below the stylesheet's base makes the operator's link
+ * the *thinnest* line on the canvas, which is the opposite of the intent and reads as a mistake.
+ */
+const ASSERTED_STROKE_WIDTH = 8;
 
 function ItNetworkCanvasInner({
   map,
@@ -120,7 +136,8 @@ function ItNetworkCanvasInner({
   onMoveNode,
   onRearrange,
   showInferred,
-  onToggleInferred
+  onToggleInferred,
+  onConnect
 }: ItNetworkCanvasProps) {
   const reactFlow = useReactFlow();
   const [isDragging, setIsDragging] = useState(false);
@@ -235,7 +252,10 @@ function ItNetworkCanvasInner({
         height: IT_NODE_HEIGHT
       });
       const route = routeOrthogonalConduit(box(source), box(target), 0);
-      const observed = link.evidence === "traceroute" || link.evidence === "observed-flow";
+      const observed = isScanEvidence(link.evidence);
+      // An operator-drawn link reads at full strength alongside scan output: they saw it happen.
+      // It is not swallowed by "Hide inferred" either, which hides our reasoning, not theirs.
+      const asserted = link.evidence === "asserted";
 
       return [
         {
@@ -244,11 +264,12 @@ function ItNetworkCanvasInner({
           labelX: route.labelX,
           labelY: route.labelY,
           label: link.evidence === "traceroute" && link.rttMs !== undefined ? `${link.rttMs.toFixed(1)} ms` : link.label,
-          labelVisible: observed,
-          color: observed ? "var(--text)" : "var(--muted)",
-          opacity: isExposure ? 0.4 : observed ? 0.9 : 0.55,
+          labelVisible: observed || asserted,
+          color: observed || asserted ? "var(--text)" : "var(--muted)",
+          opacity: isExposure ? 0.4 : observed || asserted ? 0.9 : 0.55,
           markerEnd: true,
           dash: EVIDENCE_DASH[link.evidence],
+          strokeWidth: asserted ? ASSERTED_STROKE_WIDTH : undefined,
           selected: selectedId === link.id,
           highlighted: false
         }
@@ -317,6 +338,7 @@ function ItNetworkCanvasInner({
       onNodeDragStart={() => setIsDragging(true)}
       onNodeDragStop={commitNodePosition}
       onNodeClick={onSelect}
+      onConnect={onConnect}
       onPaneClick={() => onSelect(null)}
       onKeyDown={handleKeyDown}
       snapGrid={[CANVAS_GRID_X, CANVAS_GRID_X]}
@@ -330,8 +352,8 @@ function ItNetworkCanvasInner({
             <h2>Network map</h2>
             <p>
               {counts.observed > 0
-                ? "Solid links were traced by the scan; dashed links are inferred from addressing."
-                : "Links are inferred from addressing. Re-run Nmap with --traceroute to map the real paths."}
+                ? "Solid links were traced by the scan; dashed links are inferred from addressing. Drag from a host's edge to draw your own."
+                : "Links are inferred from addressing. Re-run Nmap with --traceroute to map the real paths, or drag from a host's edge to draw your own."}
             </p>
             <div className="canvas-stats" aria-label="Map summary">
               <span>
@@ -392,6 +414,9 @@ function ItNetworkCanvasInner({
         <div className="it-map-legend" aria-label="Map legend">
           <span>
             <i data-evidence="traceroute" /> traced
+          </span>
+          <span>
+            <i data-evidence="asserted" /> you drew
           </span>
           <span>
             <i data-evidence="same-subnet" /> same subnet

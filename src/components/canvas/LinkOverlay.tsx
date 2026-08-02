@@ -14,6 +14,9 @@ export interface LinkOverlayItem {
   markerStart?: boolean;
   markerEnd?: boolean;
   dash?: string;
+  /** Overrides the stylesheet's stroke width. The IT canvas is monochrome, so weight is one of the
+   *  few channels left for distinguishing a link the operator drew from one the scan produced. */
+  strokeWidth?: number;
   selected: boolean;
   highlighted: boolean;
   label?: string;
@@ -68,7 +71,12 @@ export function LinkOverlay({ items, width, height, onSelect }: LinkOverlayProps
             d={item.path}
             markerStart={item.markerStart ? "url(#conduit-arrow)" : undefined}
             markerEnd={item.markerEnd ? "url(#conduit-arrow)" : undefined}
-            style={{ stroke: item.color, opacity: item.opacity, strokeDasharray: item.dash }}
+            style={{
+              stroke: item.color,
+              opacity: item.opacity,
+              strokeDasharray: item.dash,
+              strokeWidth: item.strokeWidth
+            }}
           />
           {item.highlighted || item.selected ? <path className="conduit-overlay-flow" d={item.path} /> : null}
           <path

@@ -1,4 +1,11 @@
-import { DEFAULT_VANTAGE, IT_ENGAGEMENT_SCHEMA_VERSION, type ItEngagement, type ItScan, type ItVantage } from "../models/itEngagement";
+import {
+  DEFAULT_VANTAGE,
+  IT_ENGAGEMENT_SCHEMA_VERSION,
+  type ItEngagement,
+  type ItScan,
+  type ItUserLink,
+  type ItVantage
+} from "../models/itEngagement";
 import type { Point } from "../models/types";
 import type { ScanTime } from "../import/scanTime";
 
@@ -35,6 +42,31 @@ function validateScan(value: unknown, index: number): string[] {
     errors.push(`Scan ${index + 1} has no parsed hosts.`);
   }
   return errors;
+}
+
+/**
+ * Authored links are read leniently: anything without two string endpoints is skipped, and the
+ * rest are kept even if they name nodes no current scan produced. `projectEngagement` decides what
+ * to do about a dangling one, because only it knows which nodes exist.
+ */
+function readUserLinks(value: unknown): ItUserLink[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((entry) => {
+    if (!isObject(entry) || !isString(entry.id) || !isString(entry.source) || !isString(entry.target)) {
+      return [];
+    }
+    return [
+      {
+        id: entry.id,
+        source: entry.source,
+        target: entry.target,
+        ...(isString(entry.label) ? { label: entry.label } : {}),
+        ...(isString(entry.note) ? { note: entry.note } : {})
+      }
+    ];
+  });
 }
 
 /**
@@ -140,6 +172,7 @@ export function parseItEngagementJson(raw: string): ItEngagementParse {
         vantage: readVantage((scan as { vantage?: unknown }).vantage),
         time: readScanTime((scan as { time?: unknown }).time)
       })),
+      userLinks: readUserLinks(value.userLinks),
       positions
     }
   };

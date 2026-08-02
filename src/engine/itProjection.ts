@@ -2,7 +2,7 @@ import { analyseItNetwork, type ItAnalysis } from "./itAnalysis";
 import { synthesiseItTopology } from "./itTopology";
 import { layoutItMap } from "../data/itLayout";
 import type { ItEngagement } from "../models/itEngagement";
-import type { ItMap } from "../models/itMap";
+import type { ItLink, ItMap } from "../models/itMap";
 import type { ParsedImport } from "../import/types";
 
 /**
@@ -56,13 +56,46 @@ export function projectEngagement(engagement: ItEngagement): ItProjection {
   }
 
   const synthesised = synthesiseItTopology(parsed);
-  const computed = layoutItMap(synthesised.nodes, synthesised.links, synthesised.subnets);
+
+  // Authored links join the derived ones before layout, so the layout can see them: a link the
+  // operator drew between two subnets is exactly the kind of edge that should pull the graph about.
+  const nodeIds = new Set(synthesised.nodes.map((node) => node.id));
+  const warnings = [...synthesised.warnings];
+  const authored: ItLink[] = [];
+  let dangling = 0;
+  for (const link of engagement.userLinks) {
+    if (!nodeIds.has(link.source) || !nodeIds.has(link.target)) {
+      dangling += 1;
+      continue;
+    }
+    authored.push({
+      id: link.id,
+      source: link.source,
+      target: link.target,
+      evidence: "asserted",
+      ...(link.label ? { label: link.label } : {})
+    });
+  }
+  if (dangling > 0) {
+    // Warned, not rejected. Removing a scan takes its nodes with it, and a link that outlived its
+    // endpoints is the ordinary consequence of that — the operator should know, not be blocked.
+    warnings.push(
+      `${dangling} link${dangling === 1 ? "" : "s"} you drew ${dangling === 1 ? "is" : "are"} not shown: the host${
+        dangling === 1 ? " it connects is" : "s they connect are"
+      } no longer in any scan.`
+    );
+  }
+
+  const links = [...synthesised.links, ...authored];
+  const computed = layoutItMap(synthesised.nodes, links, synthesised.subnets);
 
   // Authored positions win over the computed layout, but only for nodes that were actually moved.
   // A node the operator has never touched follows the layout, so improving the layout improves
   // every saved engagement rather than being overridden by a stale snapshot of the old one.
   const map: ItMap = {
     ...synthesised,
+    warnings,
+    links,
     nodes: synthesised.nodes.map((node) => ({
       ...node,
       position: engagement.positions[node.id] ?? computed.get(node.id) ?? node.position

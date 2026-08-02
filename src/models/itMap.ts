@@ -27,10 +27,11 @@ export type ItTier = "internet" | "perimeter" | "core" | "gateway" | "host";
 
 /**
  * How a link was established, strongest evidence first. `traceroute` is observed fact;
+ * `asserted` is the operator saying so, which outranks our reasoning but is not scan output;
  * `same-subnet` is a safe structural assumption; `inferred` is our reasoning and is drawn
  * as such so nobody mistakes it for scan output.
  */
-export type ItLinkEvidence = "traceroute" | "observed-flow" | "same-subnet" | "inferred";
+export type ItLinkEvidence = "traceroute" | "observed-flow" | "asserted" | "same-subnet" | "inferred";
 
 export interface ItNode {
   id: string;
@@ -101,9 +102,14 @@ export function itKindLabel(kind: ItNodeKind): string {
 const EVIDENCE_LABELS: Record<ItLinkEvidence, string> = {
   traceroute: "Traced by the scan",
   "observed-flow": "Observed traffic",
+  asserted: "Drawn by the operator",
   "same-subnet": "Same subnet",
   inferred: "Inferred from addressing"
 };
+
+/** True when a link came out of a scan rather than out of the operator or our own reasoning. */
+export const isScanEvidence = (evidence: ItLinkEvidence) =>
+  evidence === "traceroute" || evidence === "observed-flow";
 
 export function itEvidenceLabel(evidence: ItLinkEvidence): string {
   return EVIDENCE_LABELS[evidence];

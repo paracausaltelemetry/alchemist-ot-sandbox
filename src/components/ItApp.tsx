@@ -11,6 +11,7 @@ import {
   DEFAULT_VANTAGE,
   newItEngagement,
   newItScan,
+  newItUserLink,
   nextSequence,
   vantageLabel,
   type ItEngagement,
@@ -19,7 +20,7 @@ import {
 import { SAMPLE_SCAN } from "../data/sampleScan";
 import { downloadJson, downloadMarkdown } from "../lib/exporters";
 import { downloadItMapSvg } from "../lib/itExporters";
-import { isItLinkId, itEvidenceLabel, itKindLabel, type ItMap } from "../models/itMap";
+import { isItLinkId, isScanEvidence, itEvidenceLabel, itKindLabel, type ItMap } from "../models/itMap";
 import type { Point } from "../models/types";
 import type { AppView } from "../lib/appView";
 import { SiteMasthead } from "./SiteMasthead";
@@ -28,6 +29,7 @@ import { ItFindingsPanel } from "./ItFindingsPanel";
 import { ItMapOutline } from "./ItMapOutline";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ItScanDialog, type ItImportMode } from "./ItScanDialog";
+import { ItLinkDialog } from "./ItLinkDialog";
 import { CommandPalette, type Command } from "./CommandPalette";
 import { createProject } from "../lib/projectStore";
 import { oversizeFileError, oversizeWarning } from "../lib/modelLimits";
@@ -59,6 +61,8 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   const [saveFailed, setSaveFailed] = useState(false);
   /** A parsed scan waiting on the add-or-replace question. */
   const [pending, setPending] = useState<{ parsed: ParsedImport; filename: string } | null>(null);
+  /** A drawn link waiting to be described. */
+  const [pendingLink, setPendingLink] = useState<{ source: string; target: string } | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [canvasMode, setCanvasMode] = useState<ItCanvasMode>("topology");
   const [fitSignal, setFitSignal] = useState(0);
@@ -170,6 +174,52 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
       setError(null);
     },
     [engagement, persist]
+  );
+
+  /**
+   * Commits a drawn link into the authored layer.
+   *
+   * The id is derived from the endpoints, so drawing the same pair twice updates the description
+   * rather than stacking two identical lines on top of each other.
+   */
+  const addUserLink = useCallback(
+    (source: string, target: string, label: string, note: string) => {
+      setEngagement((current) => {
+        if (!current) {
+          return current;
+        }
+        const link = newItUserLink(source, target, label, note || undefined);
+        const next = {
+          ...current,
+          userLinks: [...current.userLinks.filter((entry) => entry.id !== link.id), link]
+        };
+        persist(next);
+        return next;
+      });
+      setPendingLink(null);
+    },
+    [persist]
+  );
+
+  /**
+   * Removes a drawn link.
+   *
+   * Only ever an authored one. A derived link is what the scan says, so deleting it would leave the
+   * map no longer reflecting the evidence it was built from — the inspector says so instead.
+   */
+  const removeUserLink = useCallback(
+    (linkId: string) => {
+      setEngagement((current) => {
+        if (!current) {
+          return current;
+        }
+        const next = { ...current, userLinks: current.userLinks.filter((entry) => entry.id !== linkId) };
+        persist(next);
+        return next;
+      });
+      setSelectedId(null);
+    },
+    [persist]
   );
 
   /**
@@ -307,8 +357,11 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
       return null;
     }
     const nameOf = (id: string) => map.nodes.find((node) => node.id === id)?.name ?? id;
-    return { link, sourceName: nameOf(link.source), targetName: nameOf(link.target) };
-  }, [map, selectedId]);
+    // The note lives on the authored link, not the derived one: only what is needed to draw a link
+    // is projected onto `ItLink`, so the operator's own words are read back from the engagement.
+    const note = engagement?.userLinks.find((entry) => entry.id === link.id)?.note;
+    return { link, note, sourceName: nameOf(link.source), targetName: nameOf(link.target) };
+  }, [engagement, map, selectedId]);
 
   const selectedHost = useMemo<ImportedHost | null>(() => {
     if (!selectedNode || !parsed) {
@@ -479,6 +532,15 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
         </p>
       ) : null}
       {notice ? <p className="it-notice" role="status">{notice}</p> : null}
+      {/*
+        `map.warnings` had no renderer at all, so everything the synthesis wanted to tell the
+        operator — including a link of theirs that no longer has both endpoints — went nowhere.
+      */}
+      {map?.warnings.map((warning) => (
+        <p className="it-notice" role="status" key={warning}>
+          {warning}
+        </p>
+      ))}
 
       {!map || !analysis ? (
         <section className="it-empty-state">
@@ -540,6 +602,7 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
                 onRearrange={rearrange}
                 showInferred={showInferred}
                 onToggleInferred={() => setShowInferred((value) => !value)}
+                onConnect={(source, target) => setPendingLink({ source, target })}
               />
             </div>
           )}
@@ -596,11 +659,25 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
                     <div><dt>Round trip</dt><dd>{selectedLink.link.rttMs} ms</dd></div>
                   ) : null}
                 </dl>
+                {selectedLink.note ? <p className="it-host-rationale">{selectedLink.note}</p> : null}
                 <p className="it-host-rationale">
-                  {selectedLink.link.evidence === "inferred" || selectedLink.link.evidence === "same-subnet"
-                    ? "This link is our reasoning about the addressing, not something the scan saw. Confirm it before relying on it."
-                    : "This link came from the scan output."}
+                  {selectedLink.link.evidence === "asserted"
+                    ? "You drew this link. It is yours to remove."
+                    : isScanEvidence(selectedLink.link.evidence)
+                      ? "This link came from the scan output."
+                      : "This link is our reasoning about the addressing, not something the scan saw. Confirm it before relying on it."}
                 </p>
+                {selectedLink.link.evidence === "asserted" ? (
+                  <button type="button" className="text-button" onClick={() => removeUserLink(selectedLink.link.id)}>
+                    <Trash2 size={14} aria-hidden="true" /> Remove this link
+                  </button>
+                ) : (
+                  // Deleting a derived link would leave the map no longer reflecting its evidence,
+                  // so the inspector explains rather than offering a control that must refuse.
+                  <p className="muted">
+                    Links from a scan cannot be removed — the map would stop matching the evidence it was built from.
+                  </p>
+                )}
               </div>
             ) : null}
             {engagement && engagement.scans.length > 0 ? (
@@ -664,6 +741,18 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
           }
         }}
         onCancel={() => setPending(null)}
+      />
+
+      <ItLinkDialog
+        open={pendingLink !== null}
+        sourceName={map?.nodes.find((node) => node.id === pendingLink?.source)?.name ?? ""}
+        targetName={map?.nodes.find((node) => node.id === pendingLink?.target)?.name ?? ""}
+        onConfirm={(label, note) => {
+          if (pendingLink) {
+            addUserLink(pendingLink.source, pendingLink.target, label, note);
+          }
+        }}
+        onCancel={() => setPendingLink(null)}
       />
 
       <CommandPalette open={commandOpen} commands={commands} onClose={() => setCommandOpen(false)} />

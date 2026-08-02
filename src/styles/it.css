@@ -472,3 +472,26 @@
   color: var(--ink);
   font: var(--text-xs) / 1.4 var(--font-mono);
 }
+
+/* Fields on the draw-a-link dialog. */
+.it-link-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.it-link-field > span {
+  color: var(--muted);
+  font: 650 var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.it-link-field input,
+.it-link-field textarea {
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font: var(--text-sm) / 1.4 var(--font-sans);
+  resize: vertical;
+}

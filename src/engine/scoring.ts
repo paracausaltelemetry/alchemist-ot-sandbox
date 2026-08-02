@@ -511,11 +511,14 @@ export function assessProject(project: OtProject): SecurityAssessment {
 
   const categoryScores = Object.keys(categoryWeights).map((categoryKey) => {
     const category = categoryKey as ScoreCategory;
-    const deductions = findings
-      .filter((finding) => finding.category === category)
-      .reduce((total, finding) => total + severityDeduction[finding.severity], 0);
-    const score = Math.max(0, 100 - deductions);
-    const count = findings.filter((finding) => finding.category === category).length;
+    const inCategory = findings.filter((finding) => finding.category === category);
+    // Each finding removes a share of the credit the category still holds, rather than a flat
+    // number of points off 100. Subtraction was unbounded and the rules fire per asset, so a
+    // category floored at 0 after a handful of findings — after which more problems were
+    // invisible and fixing one was worth nothing until the last one cleared.
+    const retained = inCategory.reduce((product, finding) => product * (1 - severityDeduction[finding.severity] / 100), 1);
+    const score = Math.round(100 * retained);
+    const count = inCategory.length;
     return {
       category,
       label: categoryLabels[category],

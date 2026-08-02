@@ -92,3 +92,26 @@ const KIND_LABELS: Record<ItNodeKind, string> = {
 export function itKindLabel(kind: ItNodeKind): string {
   return KIND_LABELS[kind];
 }
+
+/**
+ * How a link is described wherever one is shown — the inspector, the promoted OT conduit's name,
+ * its notes. An exhaustive `Record` rather than a `switch` with a default, so adding an evidence
+ * value is a compile error here instead of silently reading "Inferred from addressing".
+ */
+const EVIDENCE_LABELS: Record<ItLinkEvidence, string> = {
+  traceroute: "Traced by the scan",
+  "observed-flow": "Observed traffic",
+  "same-subnet": "Same subnet",
+  inferred: "Inferred from addressing"
+};
+
+export function itEvidenceLabel(evidence: ItLinkEvidence): string {
+  return EVIDENCE_LABELS[evidence];
+}
+
+/**
+ * Whether an id belongs to a link rather than a node. Link ids are minted as `link:<a>-><b>` and
+ * node ids as `it:<ip>` or `subnet:<cidr>`, so the two namespaces cannot collide and one selection
+ * id can address either.
+ */
+export const isItLinkId = (id: string) => id.startsWith("link:");

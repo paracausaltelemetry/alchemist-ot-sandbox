@@ -1,7 +1,8 @@
 import { layoutTiered } from "../data/canvasLayout";
 import { blankProject } from "../data/sampleProject";
 import { createAsset, createConduit, makeId } from "../models/factory";
-import type { ItLink, ItMap, ItNode, ItNodeKind } from "../models/itMap";
+import { itEvidenceLabel } from "../models/itMap";
+import type { ItMap, ItNode, ItNodeKind } from "../models/itMap";
 import type { Asset, AssetTypeId, Conduit, OtProject, ZoneId } from "../models/types";
 
 /**
@@ -97,7 +98,7 @@ export function promoteToOtProject(map: ItMap, name = map.name): PromotionResult
     const target = assetByNodeId.get(link.target)!;
 
     const conduit = createConduit(source.id, target.id);
-    conduit.name = evidenceLabel(link);
+    conduit.name = itEvidenceLabel(link.evidence);
     conduit.protocol = "Observed";
     conduit.port = "";
     conduit.protocolFamily = "auto";
@@ -108,7 +109,7 @@ export function promoteToOtProject(map: ItMap, name = map.name): PromotionResult
     conduit.inspected = false;
     conduit.logged = false;
     conduit.trustBoundary = source.zone !== target.zone;
-    conduit.notes = `${evidenceLabel(link)}. ${PROMOTION_NOTE}`;
+    conduit.notes = `${itEvidenceLabel(link.evidence)}. ${PROMOTION_NOTE}`;
     conduits.push(conduit);
   }
 
@@ -129,15 +130,3 @@ export function promoteToOtProject(map: ItMap, name = map.name): PromotionResult
   };
 }
 
-function evidenceLabel(link: ItLink): string {
-  switch (link.evidence) {
-    case "traceroute":
-      return "Traced by the scan";
-    case "observed-flow":
-      return "Observed traffic";
-    case "same-subnet":
-      return "Same subnet";
-    default:
-      return "Inferred from addressing";
-  }
-}

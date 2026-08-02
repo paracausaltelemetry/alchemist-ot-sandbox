@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ItApp } from "./ItApp";
@@ -12,6 +12,10 @@ function renderIt() {
 const options = () => screen.queryAllByRole("option").map((option) => option.textContent ?? "");
 
 describe("ItApp command palette", () => {
+  // The engagement persists, so a test that loads the sample would otherwise leave the next one
+  // starting with a map already on screen.
+  beforeEach(() => localStorage.clear());
+
   it("opens on Ctrl+K", async () => {
     const user = renderIt();
     expect(screen.queryByRole("combobox")).toBeNull();

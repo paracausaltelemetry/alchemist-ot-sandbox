@@ -27,8 +27,8 @@ export interface BaselineDiff {
   currentHighRisk: number;
 }
 
-function highRiskCount(project: OtProject, findings: Finding[]): number {
-  return countHighRisk(assessRisk(project, findings));
+function highRiskCount(project: OtProject): number {
+  return countHighRisk(assessRisk(project));
 }
 
 export function diffAssessments(baseline: OtProject, current: OtProject): BaselineDiff {
@@ -54,7 +54,7 @@ export function diffAssessments(baseline: OtProject, current: OtProject): Baseli
     }),
     fixed: base.findings.filter((finding) => !curFindingIds.has(finding.id)),
     introduced: cur.findings.filter((finding) => !baseFindingIds.has(finding.id)),
-    baselineHighRisk: highRiskCount(baseline, base.findings),
-    currentHighRisk: highRiskCount(current, cur.findings)
+    baselineHighRisk: highRiskCount(baseline),
+    currentHighRisk: highRiskCount(current)
   };
 }

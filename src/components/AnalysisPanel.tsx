@@ -109,7 +109,7 @@ export function AnalysisPanel({
   // Four engines, previously re-run on every render of the workbench — including every selection
   // click — and then a second time by the print document mounted alongside.
   const securityLevels = useMemo(() => assessSecurityLevels(project, project.zoneTargets), [project]);
-  const risk = useMemo(() => assessRisk(project, assessment.findings), [project, assessment.findings]);
+  const risk = useMemo(() => assessRisk(project), [project]);
   const caf = useMemo(() => assessCaf(project, assessment, securityLevels, risk), [project, assessment, securityLevels, risk]);
   const exposedTechniques = useMemo(
     () => new Set(assessment.findings.flatMap((finding) => finding.techniques ?? [])),
@@ -136,7 +136,7 @@ export function AnalysisPanel({
 
   const simulated = activeTab === "whatif" ? applyRemediations(project, activeRemediations) : project;
   const simAssessment = activeTab === "whatif" ? assessProject(simulated) : assessment;
-  const simRisk = activeTab === "whatif" ? assessRisk(simulated, simAssessment.findings) : risk;
+  const simRisk = activeTab === "whatif" ? assessRisk(simulated) : risk;
   const currentHighRisk = countHighRisk(risk);
   const simHighRisk = countHighRisk(simRisk);
   const simScoreDelta = simAssessment.overallScore - assessment.overallScore;

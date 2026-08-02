@@ -217,6 +217,61 @@ export function findReachability(project: OtProject, sourceId: string, targetId:
   };
 }
 
+/**
+ * A conduit that mediates rather than simply forwards. Reaching an asset only through one of these
+ * is a materially different exposure from reaching it directly, which is the distinction the risk
+ * heat-map needs and the reason two passes are worth it.
+ */
+function isBrokered(conduit: Conduit): boolean {
+  return conduit.control === "firewalled" || conduit.control === "jump-host" || conduit.control === "data-diode";
+}
+
+/**
+ * Entry points an attacker is assumed to start from: enterprise and business zones, plus vendor
+ * remote access and cloud services wherever they sit.
+ */
+function untrustedEntryIds(project: OtProject): string[] {
+  return project.assets
+    .filter((asset) => getZone(asset.zone).riskRank >= 6 || asset.type === "vendor-remote" || asset.type === "cloud-service")
+    .map((asset) => asset.id);
+}
+
+/** Multi-source BFS from every untrusted entry at once, optionally refusing to cross a broker. */
+function spreadFromUntrusted(project: OtProject, adjacency: Map<string, DirectedEdge[]>, crossBrokers: boolean): Set<string> {
+  const queue = untrustedEntryIds(project);
+  const reached = new Set<string>(queue);
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const edge of adjacency.get(current) ?? []) {
+      if (reached.has(edge.to) || (!crossBrokers && isBrokered(edge.conduit))) {
+        continue;
+      }
+      reached.add(edge.to);
+      queue.push(edge.to);
+    }
+  }
+
+  return reached;
+}
+
+/**
+ * How exposed each asset is to an untrusted starting point: 2 when it can be reached without ever
+ * crossing a broker, 1 when every route crosses one, 0 when it cannot be reached at all.
+ *
+ * Two multi-source passes over one adjacency map, each O(assets + conduits). Seeding every entry
+ * point into a single walk is what avoids running a search per (entry, target) pair.
+ */
+export function exposureFromUntrusted(project: OtProject): Map<string, 0 | 1 | 2> {
+  const adjacency = buildAdjacency(project);
+  const anyRoute = spreadFromUntrusted(project, adjacency, true);
+  const unbrokered = spreadFromUntrusted(project, adjacency, false);
+
+  return new Map(
+    project.assets.map((asset) => [asset.id, unbrokered.has(asset.id) ? 2 : anyRoute.has(asset.id) ? 1 : 0] as const)
+  );
+}
+
 export function reachableAssetIds(project: OtProject, sourceId: string): Set<string> {
   const adjacency = buildAdjacency(project);
   const visited = new Set<string>();

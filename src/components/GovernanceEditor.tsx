@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
+import { useEffect, useState, useRef } from "react";
 import type { EngagementContext } from "../models/types";
 
 interface GovernanceEditorProps {
@@ -25,6 +26,10 @@ const EMPTY: EngagementContext = {
  * and the "G" of GRC. Reuses the shared modal-overlay styling; commits once on save.
  */
 export function GovernanceEditor({ open, engagement, onClose, onSave }: GovernanceEditorProps) {
+  // Declared before anything else in the component so it sits ahead of every early return.
+  const focusTrapRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open, focusTrapRef);
+
   const [draft, setDraft] = useState<EngagementContext>(engagement ?? EMPTY);
 
   useEffect(() => {
@@ -61,6 +66,7 @@ export function GovernanceEditor({ open, engagement, onClose, onSave }: Governan
     <div className="modal-overlay" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div
         className="governance-editor"
+        ref={focusTrapRef}
         role="dialog"
         aria-modal="true"
         aria-label="Engagement context"

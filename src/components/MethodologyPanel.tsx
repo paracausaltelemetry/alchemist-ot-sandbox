@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
-import { useEffect } from "react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
+import { useEffect, useRef } from "react";
 import { MIN_RATEABLE_ASSETS, categoryWeights, scoreBands, severityDeduction } from "../engine/scoring";
 import { MAX_SL, foundationalRequirements } from "../engine/securityLevels";
 import { RISK_SCALE } from "../engine/risk";
@@ -27,6 +28,10 @@ const SEVERITY_LABEL: Record<Severity, string> = {
  * the knowledge-base article + table styling.
  */
 export function MethodologyPanel({ open, onClose }: MethodologyPanelProps) {
+  // Declared before anything else in the component so it sits ahead of every early return.
+  const focusTrapRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open, focusTrapRef);
+
   useEffect(() => {
     if (!open) {
       return;
@@ -52,6 +57,7 @@ export function MethodologyPanel({ open, onClose }: MethodologyPanelProps) {
     <div className="modal-overlay" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div
         className="knowledge-base methodology"
+        ref={focusTrapRef}
         role="dialog"
         aria-modal="true"
         aria-label="Methodology"

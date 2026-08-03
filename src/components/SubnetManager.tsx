@@ -1,5 +1,6 @@
 import { Plus, Trash2, X } from "lucide-react";
-import { useEffect } from "react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
+import { useEffect, useRef } from "react";
 import type { Asset, Subnet } from "../models/types";
 
 interface SubnetManagerProps {
@@ -18,6 +19,10 @@ interface SubnetManagerProps {
  * assets unassigned (handled by the caller). Reuses the shared modal-overlay styling.
  */
 export function SubnetManager({ open, subnets, assets, onClose, onAdd, onUpdate, onRemove }: SubnetManagerProps) {
+  // Declared before anything else in the component so it sits ahead of every early return.
+  const focusTrapRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open, focusTrapRef);
+
   useEffect(() => {
     if (!open) {
       return;
@@ -41,6 +46,7 @@ export function SubnetManager({ open, subnets, assets, onClose, onAdd, onUpdate,
     <div className="modal-overlay" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div
         className="subnet-manager"
+        ref={focusTrapRef}
         role="dialog"
         aria-modal="true"
         aria-label="Manage subnets"

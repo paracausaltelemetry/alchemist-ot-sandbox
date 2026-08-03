@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface ItLinkDialogProps {
   open: boolean;
@@ -21,6 +22,10 @@ type LinkPurpose = "connectivity" | "action";
  * line is a line whose meaning is gone by the time the report is written.
  */
 export function ItLinkDialog({ open, sourceName, targetName, onConfirm, onRecordAction, onCancel }: ItLinkDialogProps) {
+  // Declared before anything else in the component so it sits ahead of every early return.
+  const focusTrapRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open, focusTrapRef);
+
   const [purpose, setPurpose] = useState<LinkPurpose>("action");
   const [label, setLabel] = useState("");
   const [note, setNote] = useState("");
@@ -64,7 +69,7 @@ export function ItLinkDialog({ open, sourceName, targetName, onConfirm, onRecord
         if (event.target === event.currentTarget) onCancel();
       }}
     >
-      <div className="confirm-dialog it-link-dialog" role="dialog" aria-modal="true" aria-labelledby="it-link-dialog-title">
+      <div className="confirm-dialog it-link-dialog" ref={focusTrapRef} role="dialog" aria-modal="true" aria-labelledby="it-link-dialog-title">
         <strong id="it-link-dialog-title">What is this line?</strong>
         <p>
           {sourceName} &rarr; {targetName}.

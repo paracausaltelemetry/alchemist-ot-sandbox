@@ -1,5 +1,6 @@
 import { ExternalLink, Search, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { kbKindGroups, knowledgeBase, topicKind } from "../data/knowledgeBase";
 
 interface KnowledgeBaseProps {
@@ -30,6 +31,10 @@ function renderPoint(point: string) {
  * Reuses the shared modal-overlay styling.
  */
 export function KnowledgeBase({ open, onClose }: KnowledgeBaseProps) {
+  // Declared before anything else in the component so it sits ahead of every early return.
+  const focusTrapRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open, focusTrapRef);
+
   const [selectedId, setSelectedId] = useState(knowledgeBase[0].id);
   const [query, setQuery] = useState("");
 
@@ -73,6 +78,7 @@ export function KnowledgeBase({ open, onClose }: KnowledgeBaseProps) {
     <div className="modal-overlay" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div
         className="knowledge-base"
+        ref={focusTrapRef}
         role="dialog"
         aria-modal="true"
         aria-label="OT knowledge base"

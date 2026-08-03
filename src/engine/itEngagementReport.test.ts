@@ -20,14 +20,34 @@ function internalScan(): ParsedImport {
   };
 }
 
+/**
+ * What a scan from outside can actually see: the perimeter and the DMZ, and nothing behind them.
+ *
+ * The fixture used to run the whole sample scan from an external vantage, which quietly asserted
+ * that an outside scanner reached every host on the internal estate. Once "externally reachable"
+ * started meaning what it says, that fixture stopped describing a plausible engagement.
+ */
+function externalScan(): ParsedImport {
+  return {
+    format: "nmap-normal",
+    hosts: [
+      { ip: "198.51.100.4", hostname: "edge-fw", ports: [{ port: 443, service: "https" }] },
+      { ip: "198.51.100.10", hostname: "web-1", ports: [{ port: 80, service: "http" }, { port: 3389, service: "ms-wbt-server" }] }
+    ],
+    flows: [],
+    warnings: []
+  };
+}
+
 /** Three stages: an external scan, an exploit, a pivot scan from the host it won. */
 function engagement(): ItEngagement {
   const base = newItEngagement("Acme external test");
   return {
     ...base,
     scans: [
-      newItScan(parseNmapNormal(SAMPLE_SCAN), "external.nmap", 1, { kind: "external", label: "Client VPN" }),
-      newItScan(internalScan(), "pivot.nmap", 3, { kind: "node", nodeId: WEB })
+      newItScan(externalScan(), "external.nmap", 1, { kind: "external", label: "Client VPN" }),
+      newItScan(parseNmapNormal(SAMPLE_SCAN), "internal.nmap", 3, { kind: "node", nodeId: WEB }),
+      newItScan(internalScan(), "pivot.nmap", 5, { kind: "node", nodeId: WEB })
     ],
     events: [
       newItEvent("exploit", "Exploited SMB for SYSTEM", 2, {
@@ -53,12 +73,13 @@ describe("the engagement report", () => {
       [1, "scan"],
       [2, "event"],
       [3, "scan"],
-      [4, "event"]
+      [4, "event"],
+      [5, "scan"]
     ]);
   });
 
   it("computes the summary from the stages, so it cannot contradict them", () => {
-    expect(report.summary.scans).toBe(2);
+    expect(report.summary.scans).toBe(3);
     expect(report.summary.highestAccess).toBe("admin");
     expect(report.summary.vantages).toEqual(["Client VPN", "web-1"]);
   });
@@ -73,7 +94,7 @@ describe("the engagement report", () => {
   });
 
   it("says which hosts each scan revealed for the first time", () => {
-    const pivot = report.stages.find((stage) => stage.sequence === 3);
+    const pivot = report.stages.find((stage) => stage.sequence === 5);
     expect(pivot?.revealed).toEqual(["db-2"]);
     // And does not re-announce hosts an earlier scan already found.
     expect(pivot?.revealed).not.toContain("web-1");
@@ -109,9 +130,11 @@ describe("the engagement report", () => {
   });
 
   it("records where every scan came from and whether its time was read or typed", () => {
-    expect(report.provenance).toHaveLength(2);
-    expect(report.provenance[0]).toMatchObject({ name: "external.nmap", vantage: "Client VPN", timeSource: "read from the scan file" });
-    expect(report.provenance[1].vantage).toBe("web-1");
+    expect(report.provenance).toHaveLength(3);
+    expect(report.provenance[0]).toMatchObject({ name: "external.nmap", vantage: "Client VPN", timeSource: "—" });
+    // The sample scan opens with a real -oN banner, so this one's time was read rather than typed.
+    expect(report.provenance[1]).toMatchObject({ name: "internal.nmap", timeSource: "read from the scan file" });
+    expect(report.provenance[2].vantage).toBe("web-1");
   });
 
   it("carries no advisory score, which would mean nothing for an engagement", () => {
@@ -153,19 +176,19 @@ describe("the per-stage maps", () => {
   const stages = buildItStageMaps(engagement());
 
   it("draws one per stage", () => {
-    expect(stages.map((stage) => stage.sequence)).toEqual([1, 2, 3, 4]);
+    expect(stages.map((stage) => stage.sequence)).toEqual([1, 2, 3, 4, 5]);
   });
 
   it("omits hosts that had not been discovered yet", () => {
     const first = stages.find((stage) => stage.sequence === 1)!;
     expect(first.map.nodes.some((node) => node.id === "it:10.10.9.9")).toBe(false);
 
-    const afterPivot = stages.find((stage) => stage.sequence === 3)!;
+    const afterPivot = stages.find((stage) => stage.sequence === 5)!;
     expect(afterPivot.map.nodes.some((node) => node.id === "it:10.10.9.9")).toBe(true);
   });
 
   it("emphasises what the stage itself revealed", () => {
-    const pivot = stages.find((stage) => stage.sequence === 3)!;
+    const pivot = stages.find((stage) => stage.sequence === 5)!;
     expect([...(pivot.emphasise ?? [])]).toEqual(["it:10.10.9.9"]);
   });
 

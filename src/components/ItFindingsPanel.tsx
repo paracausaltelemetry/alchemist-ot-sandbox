@@ -67,16 +67,20 @@ export function ItFindingsPanel({ analysis }: ItFindingsPanelProps) {
       </section>
 
       <section className="it-section" aria-labelledby="it-exposed-title">
-        <h3 id="it-exposed-title"><Globe size={15} aria-hidden="true" /> Internet-facing hosts</h3>
-        {analysis.internetFacing.length === 0 ? (
-          <p className="it-empty">No hosts on public addresses.</p>
+        <h3 id="it-exposed-title"><Globe size={15} aria-hidden="true" /> Externally reachable</h3>
+        {analysis.externallyReachable.length === 0 ? (
+          <p className="it-empty">Nothing reached from outside, and no host on a public address.</p>
         ) : (
           <ul className="it-exposed-list">
-            {analysis.internetFacing.map((host) => (
+            {analysis.externallyReachable.map((host) => (
               <li key={host.ip}>
                 <b>{host.ip}</b>
                 {host.hostname ? <em>{host.hostname}</em> : null}
-                <span>{host.openPorts} open</span>
+                {/* Says which of the two it is: a scan answered from outside, or the address
+                    merely looks routable and nothing has tested it. */}
+                <span title={host.basis === "reached" ? "A scan run from outside answered for this host" : "Inferred from the address; no external scan has tested it"}>
+                  {host.openPorts} open · {host.basis === "reached" ? "reached" : "by address"}
+                </span>
               </li>
             ))}
           </ul>

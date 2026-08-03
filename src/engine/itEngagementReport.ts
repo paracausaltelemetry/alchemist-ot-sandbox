@@ -1,6 +1,6 @@
 import { accessByNode, accessRank, longestAttackChain, orderedEvents } from "./itAccess";
 import { projectEngagement } from "./itProjection";
-import { isPublicIp, type ItAnalysis } from "./itAnalysis";
+import type { ItAnalysis } from "./itAnalysis";
 import { formatScanTime, scanTimeCaveat, type ScanTime } from "../import/scanTime";
 import {
   ACCESS_LABELS,
@@ -220,8 +220,11 @@ export function buildItEngagementReport(engagement: ItEngagement): ItEngagementR
   }));
 
   // --- Summary, every number derived from the stages above --------------------
+  // Taken from the analysis rather than recomputed from addressing, so the report's headline claim
+  // and its findings table cannot disagree about which hosts were reachable from outside.
+  const externalAddresses = new Set((analysis?.externallyReachable ?? []).map((host) => host.ip));
   const externallyVisible = new Set(
-    (map?.nodes ?? []).filter((node) => node.ip && isPublicIp(node.ip)).map((node) => node.id)
+    (map?.nodes ?? []).filter((node) => node.ip && externalAddresses.has(node.ip)).map((node) => node.id)
   );
   const reachedButNotExternallyVisible = [...access.entries()]
     .filter(([nodeId, state]) => accessRank(state) >= accessRank("credentialed") && !externallyVisible.has(nodeId))

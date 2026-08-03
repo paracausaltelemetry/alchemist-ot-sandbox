@@ -77,3 +77,25 @@ describe("project serialization", () => {
     }
   });
 });
+
+describe("the assessor's consequence override", () => {
+  it("survives a save and reload", () => {
+    // An override that silently does not persist is worse than not offering one: the register
+    // would agree with the assessor until they reopened the project.
+    const project = {
+      ...sampleProject,
+      assets: sampleProject.assets.map((asset, index) => (index === 0 ? { ...asset, consequence: 5 } : asset))
+    };
+    const parsed = parseProjectJson(serializeProject(project));
+
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.project.assets[0].consequence).toBe(5);
+    }
+  });
+
+  it("leaves an asset with no override without one, rather than freezing today's derived value", () => {
+    const parsed = parseProjectJson(serializeProject(sampleProject));
+    expect(parsed.ok && parsed.project.assets.every((asset) => asset.consequence === undefined)).toBe(true);
+  });
+});

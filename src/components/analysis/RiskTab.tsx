@@ -61,7 +61,18 @@ export function RiskTab({ project, risk, onRiskTreatmentChange }: RiskTabProps) 
               return (
                 <tr key={item.assetId}>
                   <th>{assetName(item.assetId)}</th>
-                  <td>{item.consequence}</td>
+                  {/* Marked when a person set it, so the register does not present a judgement and
+                      a lookup as the same kind of number. */}
+                  <td
+                    title={
+                      item.consequenceSource === "assessor"
+                        ? "Set by the assessor"
+                        : "Derived from the asset's class and criticality"
+                    }
+                  >
+                    {item.consequence}
+                    {item.consequenceSource === "assessor" ? <abbr className="risk-assessor-set"> set</abbr> : null}
+                  </td>
                   <td title={item.reason}>{item.likelihood}</td>
                   <td>{item.score}</td>
                   <td>

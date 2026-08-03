@@ -98,3 +98,44 @@ describe("countHighRisk", () => {
     expect(countHighRisk(result)).toBe(expected);
   });
 });
+
+describe("assessor-set consequence", () => {
+  const historian = () => sampleProject.assets.find((asset) => asset.type === "historian")!;
+
+  it("uses the assessor's number over the derived one", () => {
+    // The judgement the derived value cannot make: this historian holds the batch records, and
+    // losing it stops the line whatever its asset class suggests.
+    const derived = derivedConsequence(historian());
+    expect(derived).not.toBe(5);
+    expect(consequenceFor({ ...historian(), consequence: 5 })).toBe(5);
+  });
+
+  it("moves the score, which is the whole point of being able to set it", () => {
+    const before = assessRisk(sampleProject).assets.find((item) => item.assetId === historian().id)!;
+    const raised = {
+      ...sampleProject,
+      assets: sampleProject.assets.map((asset) => (asset.id === historian().id ? { ...asset, consequence: 5 } : asset))
+    };
+    const after = assessRisk(raised).assets.find((item) => item.assetId === historian().id)!;
+
+    expect(after.consequence).toBe(5);
+    expect(after.score).toBeGreaterThan(before.score);
+    expect(after.score).toBe(5 * after.likelihood);
+  });
+
+  it("says which numbers a person chose and which the model derived", () => {
+    const raised = {
+      ...sampleProject,
+      assets: sampleProject.assets.map((asset) => (asset.id === historian().id ? { ...asset, consequence: 5 } : asset))
+    };
+    const assessed = assessRisk(raised).assets;
+
+    expect(assessed.find((item) => item.assetId === historian().id)?.consequenceSource).toBe("assessor");
+    expect(assessed.filter((item) => item.consequenceSource === "derived").length).toBe(assessed.length - 1);
+  });
+
+  it("clamps a number outside the scale rather than letting it distort the register", () => {
+    expect(consequenceFor({ ...historian(), consequence: 99 })).toBe(RISK_SCALE);
+    expect(consequenceFor({ ...historian(), consequence: 0 })).toBe(1);
+  });
+});

@@ -254,7 +254,13 @@ export function PrintableReport({ project, assessment, reachability }: Printable
               return (
                 <tr key={item.assetId}>
                   <td>{assetName(item.assetId)}</td>
-                  <td>{item.consequence}</td>
+                  {/* A printed register goes to a client. It has to be clear which consequences a
+                      person judged and which the tool derived, or the document asks the reader to
+                      trust both equally. */}
+                  <td>
+                    {item.consequence}
+                    {item.consequenceSource === "assessor" ? " (set)" : ""}
+                  </td>
                   <td>{item.likelihood}</td>
                   <td>{item.score}</td>
                   <td>{item.band}</td>

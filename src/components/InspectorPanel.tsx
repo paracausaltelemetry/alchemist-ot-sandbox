@@ -2,6 +2,7 @@ import { ChevronsRight, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { assetTypes, zones } from "../data/catalog";
 import { protocolFamilies, protocolLabel, resolveProtocolFamily } from "../data/protocols";
+import { derivedConsequence } from "../engine/risk";
 import type {
   Asset,
   BackupStatus,
@@ -15,6 +16,19 @@ import type {
   ProtocolFamilyId,
   SecurityControls
 } from "../models/types";
+
+/**
+ * The consequence scale, worded in terms of what happens to the process rather than as bare
+ * numbers. An assessor picking "5" from an unlabelled list is guessing; picking "harm to people or
+ * the environment" is making the judgement the method actually asks for.
+ */
+const CONSEQUENCE_OPTIONS = [
+  { value: 1, label: "Negligible — no operational effect" },
+  { value: 2, label: "Minor — local disruption, quickly recovered" },
+  { value: 3, label: "Moderate — partial loss of process visibility or control" },
+  { value: 4, label: "Major — loss of production or of a safety function's availability" },
+  { value: 5, label: "Severe — harm to people or the environment" }
+];
 
 interface InspectorPanelProps {
   project: OtProject;
@@ -146,6 +160,31 @@ export function InspectorPanel({
               <option value="medium">Medium</option>
               <option value="high">High</option>
               <option value="critical">Critical</option>
+            </select>
+          </label>
+          {/*
+            Consequence has always been overridable in the model and there has never been anywhere
+            to set it, so every risk score used the derived value whether or not the assessor agreed.
+            That is the wrong way round for a consequence-led method: the derived number knows the
+            asset's class and criticality, and the assessor knows this historian holds the batch
+            records and losing it stops the line. Left on "Derived", nothing changes.
+          */}
+          <label className="field">
+            <span>Consequence if compromised</span>
+            <select
+              value={asset.consequence === undefined ? "" : String(asset.consequence)}
+              onChange={(event) =>
+                onAssetChange(asset.id, {
+                  consequence: event.target.value === "" ? undefined : Number(event.target.value)
+                })
+              }
+            >
+              <option value="">Derived ({derivedConsequence(asset)}) — from class and criticality</option>
+              {CONSEQUENCE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.value} — {option.label}
+                </option>
+              ))}
             </select>
           </label>
           <details className="inspector-section">

@@ -418,3 +418,46 @@ body.light-mode .react-flow-frame .react-flow {
   line-height: 1.55;
 }
 
+
+/*
+ * The topology as text. Hidden behind the canvas on desktop (via .visually-hidden), and the only
+ * representation there is on a phone, where editing is unavailable but reading should not be.
+ */
+.topology-outline {
+  margin-top: var(--space-4);
+  text-align: left;
+}
+.topology-outline h3 {
+  margin: 0 0 var(--space-2);
+  font: 650 var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.topology-outline h4 {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+.topology-outline p {
+  margin: 0 0 var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.topology-outline ul {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.topology-outline li {
+  font-size: var(--text-sm);
+}
+.topology-outline li ul {
+  margin-top: 0.2rem;
+  gap: 0.1rem;
+}
+.topology-outline li li {
+  color: var(--muted);
+  font: var(--text-xs) / 1.5 var(--font-mono);
+}

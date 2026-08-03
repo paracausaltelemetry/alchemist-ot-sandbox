@@ -440,3 +440,25 @@ body.light-mode .query-box select {
   border-color: var(--danger);
 }
 
+
+/*
+ * The app row now sits under the shared masthead, so it opens with a way back and a title rather
+ * than repeating the brand. Same shape as `.it-toolbar` so the two apps read as siblings.
+ */
+.app-header-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.app-header-title > div {
+  display: flex;
+  flex-direction: column;
+}
+.app-header-title strong {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+}
+.app-header-title span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}

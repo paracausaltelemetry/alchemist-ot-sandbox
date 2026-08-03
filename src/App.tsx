@@ -37,6 +37,7 @@ import { createAsset, createConduit, makeId } from "./models/factory";
 import type { AssembledTopology } from "./import";
 import { AnalysisPanel } from "./components/AnalysisPanel";
 import { AppHeader } from "./components/AppHeader";
+import { SiteMasthead } from "./components/SiteMasthead";
 import { AssetPalette } from "./components/AssetPalette";
 import { CollapsedRail } from "./components/CollapsedRail";
 import { CommandPalette, type Command } from "./components/CommandPalette";
@@ -639,7 +640,7 @@ export function App({ onGoHome, onSwitchView, initialIntent, theme, onToggleThem
       { id: "arrange", label: "Auto-arrange topology", run: autoArrangeLayout },
       { id: "theme", label: "Toggle light / dark theme", run: onToggleTheme },
       { id: "home", label: "Back to dashboard", hint: "Home", run: onGoHome },
-      { id: "open-it", label: "Switch to the IT network mapper", hint: "IT", run: () => onSwitchView("it") },
+      { id: "open-it", label: "Switch to the engagement map", hint: "IT", run: () => onSwitchView("it") },
       { id: "palette", label: layout.paletteOpen ? "Collapse asset palette" : "Expand asset palette", run: togglePalette },
       { id: "dock", label: layout.dockOpen ? "Collapse analysis dock" : "Expand analysis dock", run: toggleDock },
       { id: "shortcuts", label: "Show keyboard shortcuts", hint: "?", run: () => setShortcutsOpen(true) },
@@ -699,12 +700,28 @@ export function App({ onGoHome, onSwitchView, initialIntent, theme, onToggleThem
       <a className="skip-link" href="#workspace">
         Skip to workspace
       </a>
+      {/*
+        The same masthead the IT app renders, carrying the OT/IT switch and the theme toggle. Both
+        apps now open with an identical top row and put their own controls in the row beneath it,
+        so switching between them never moves the switch.
+
+        `site-frame` is what makes them line up to the pixel: it sets the container width the
+        masthead lays itself out against, and without it the OT copy sat 39px off from the IT one.
+      */}
+      <div className="site-frame">
+      <SiteMasthead
+        theme={theme}
+        onToggleTheme={onToggleTheme}
+        isMobile={isMobile}
+        view="app"
+        onSwitchView={onSwitchView}
+      />
+      </div>
       <main className="app-shell">
         <AppHeader
           project={project}
           score={assessment.overallScore}
           band={assessment.band}
-          theme={theme}
           canUndo={history.length > 0}
           canRedo={future.length > 0}
           onProjectNameChange={(name) => commitProject((current) => ({ ...current, name }))}
@@ -723,9 +740,7 @@ export function App({ onGoHome, onSwitchView, initialIntent, theme, onToggleThem
           onNewBlank={handleNewBlank}
           onUndo={undo}
           onRedo={redo}
-          onToggleTheme={onToggleTheme}
           onGoHome={onGoHome}
-          onSwitchView={onSwitchView}
         />
 
         <section

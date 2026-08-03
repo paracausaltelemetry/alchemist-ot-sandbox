@@ -1,18 +1,14 @@
-import { BookOpen, Download, Files, FolderOpen, ImageDown, LayoutGrid, Moon, Printer, Radar, Redo2, RotateCcw, ScrollText, Share2, Sun, Upload, Undo2 } from "lucide-react";
+import { ArrowLeft, BookOpen, Download, Files, FolderOpen, ImageDown, LayoutGrid, Printer, Radar, Redo2, RotateCcw, ScrollText, Share2, Upload, Undo2 } from "lucide-react";
 import { useRef } from "react";
 import type { OtProject, SecurityAssessment } from "../models/types";
 import type { SavedProjectMeta } from "../lib/projectStore";
-import { BrandMark } from "./BrandMark";
 import { Menu } from "./Menu";
 import { ScoreGauge } from "./ScoreGauge";
-import { ViewSwitch } from "./ViewSwitch";
-import type { AppView } from "../lib/appView";
 
 interface AppHeaderProps {
   project: OtProject;
   score: number;
   band: SecurityAssessment["band"];
-  theme: "dark" | "light";
   canUndo: boolean;
   canRedo: boolean;
   onProjectNameChange: (name: string) => void;
@@ -32,8 +28,6 @@ interface AppHeaderProps {
   onNewBlank: () => void;
   onUndo: () => void;
   onRedo: () => void;
-  onToggleTheme: () => void;
-  onSwitchView: (view: AppView) => void;
 }
 
 
@@ -41,7 +35,6 @@ export function AppHeader({
   project,
   score,
   band,
-  theme,
   canUndo,
   canRedo,
   onProjectNameChange,
@@ -60,27 +53,23 @@ export function AppHeader({
   onOpenMethodology,
   onNewBlank,
   onUndo,
-  onRedo,
-  onToggleTheme,
-  onSwitchView
+  onRedo
 }: AppHeaderProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   return (
     <header className="app-header">
-      <button
-        type="button"
-        className="brand-block"
-        onClick={onGoHome}
-        title="Back to the dashboard"
-        aria-label="Alchemist, back to the dashboard"
-      >
-        <BrandMark />
+      {/* The masthead above carries the brand, so this row starts where the IT row does: a way
+          back to the dashboard, then what this app is. */}
+      <div className="app-header-title">
+        <button type="button" className="text-button" onClick={onGoHome} title="Back to the dashboard">
+          <ArrowLeft size={15} /> Dashboard
+        </button>
         <div>
-          <p className="brand-wordmark">Welbourne Security</p>
-          <h1 className="brand-subtitle">Alchemist OT Sandbox</h1>
+          <strong>OT Sandbox</strong>
+          <span>Model the architecture and assess it against the standards</span>
         </div>
-      </button>
+      </div>
 
       <div className="project-controls">
         <label className="project-name-field">
@@ -115,8 +104,12 @@ export function AppHeader({
         </div>
       </div>
 
+      {/*
+        No view switch and no theme toggle here: both live in the site masthead above, which is
+        identical across the OT and IT apps. They used to sit in this row, so the control whose
+        whole job is moving between the two apps moved itself every time you used it.
+      */}
       <nav className="toolbar" aria-label="Project actions">
-        <ViewSwitch current="app" onSwitch={onSwitchView} />
         <button type="button" className="icon-button" title="Undo" onClick={onUndo} disabled={!canUndo}>
           <Undo2 size={18} />
         </button>
@@ -151,15 +144,6 @@ export function AppHeader({
         <button type="button" className="text-button primary" onClick={onPrintReport}>
           <Printer size={16} />
           Report
-        </button>
-        <button
-          type="button"
-          className="theme-toggle"
-          onClick={onToggleTheme}
-          aria-label="Toggle light and dark mode"
-          title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-        >
-          {theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}
         </button>
       </nav>
 

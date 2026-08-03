@@ -64,7 +64,7 @@ export function ItLinkDialog({ open, sourceName, targetName, onConfirm, onRecord
         if (event.target === event.currentTarget) onCancel();
       }}
     >
-      <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="it-link-dialog-title">
+      <div className="confirm-dialog it-link-dialog" role="dialog" aria-modal="true" aria-labelledby="it-link-dialog-title">
         <strong id="it-link-dialog-title">What is this line?</strong>
         <p>
           {sourceName} &rarr; {targetName}.

@@ -1,4 +1,4 @@
-/* IT-side network mapper: a separate view reusing the topology canvas with an
+/* IT-side engagement map: a separate view reusing the topology canvas with an
    IT analysis lens. Brand stays flat, sharp and monochrome; --signal (red) is
    the only colour, reserved for high-risk / danger. */
 
@@ -548,4 +548,75 @@
   background: transparent;
   color: var(--text);
   font: var(--text-sm) / 1.4 var(--font-sans);
+}
+
+/*
+ * The IT dialogs are opaque, unlike the shared `.confirm-dialog`.
+ *
+ * `--surface-raised` carries 14% transparency, which reads as a lift on a short confirmation box.
+ * These are forms: they sit over a dense map, and the canvas showing through the field you are
+ * typing into is not a lift, it is noise. The border keeps the raised look.
+ */
+.it-event-dialog,
+.it-link-dialog,
+.it-scan-dialog {
+  background: var(--bg);
+}
+
+/* Long enough to need it on a laptop, and the map behind must not scroll instead. */
+.it-event-dialog {
+  width: min(34rem, 100%);
+  max-height: min(46rem, 88vh);
+  overflow-y: auto;
+}
+
+.it-event-dialog textarea,
+.it-link-field textarea {
+  resize: vertical;
+  max-height: 8rem;
+}
+
+/* Scan count beside the engagement name, mirroring the OT header's score slot. */
+.it-header-scans {
+  color: var(--muted);
+  font: var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Connect mode, matching the OT canvas. */
+.it-node.is-connectable {
+  cursor: crosshair;
+}
+.it-node.is-connect-source {
+  outline: 2px dashed var(--text);
+  outline-offset: 3px;
+}
+
+/* The engagement's own name, in the panel rather than the shared header. */
+.it-engagement-name {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) 0;
+}
+.it-engagement-name > span {
+  color: var(--muted);
+  font: 650 var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.it-engagement-name input {
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  font: var(--text-sm) / 1.4 var(--font-sans);
+}
+.it-engagement-name-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
 }

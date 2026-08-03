@@ -38,6 +38,7 @@ import {
 } from "../data/canvasLayout";
 import { assetTypes, getAssetType, getZone, zones } from "../data/catalog";
 import { resolveProtocolFamily } from "../data/protocols";
+import { TopologyOutline } from "./TopologyOutline";
 import { routeOrthogonalConduit } from "../engine/conduitRouting";
 import { conduitColor, conduitOpacity, conduitParallelOffsets, conduitSeverity } from "../engine/conduitVisuals";
 import type {
@@ -642,6 +643,7 @@ function TopologyCanvasInner({
       refitKey={layoutMode}
       minimapNodeColor={minimapNodeColor}
       sectionLabel="Topology canvas"
+      textEquivalent={<TopologyOutline project={project} hidden />}
       frameClassName={`mode-${canvasMode} ${isDragging ? "is-dragging" : ""}`}
       toolbar={
         <div className="canvas-titlebar">

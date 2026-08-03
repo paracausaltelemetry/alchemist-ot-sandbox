@@ -47,6 +47,13 @@ interface FlowFrameProps<T extends Node> {
   refitKey?: string;
   minimapNodeColor: (node: Node) => string;
   sectionLabel: string;
+  /**
+   * A readable equivalent of what the canvas draws, rendered visually hidden inside this region.
+   *
+   * React Flow is absolutely positioned divs with no reading order, so the region's `aria-label`
+   * was the only thing behind it — a name for a picture nobody could see the contents of.
+   */
+  textEquivalent?: ReactNode;
   frameClassName?: string;
   toolbar?: ReactNode;
   overlay?: ReactNode;
@@ -71,6 +78,7 @@ export function FlowFrame<T extends Node>({
   refitKey,
   minimapNodeColor,
   sectionLabel,
+  textEquivalent,
   frameClassName = "",
   toolbar,
   overlay,
@@ -144,6 +152,7 @@ export function FlowFrame<T extends Node>({
       onDrop={handleDrop}
     >
       {toolbar}
+      {textEquivalent}
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <div className={`react-flow-frame ${frameClassName}`} onKeyDown={onKeyDown}>
         {overlay}

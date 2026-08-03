@@ -57,6 +57,7 @@ import { ToastViewport } from "./components/ToastViewport";
 import { onStorageFailure, safeGetItem } from "./lib/safeStorage";
 import { oversizeFileError } from "./lib/modelLimits";
 import { TopologyCanvas } from "./components/TopologyCanvas";
+import { TopologyOutline } from "./components/TopologyOutline";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { usePanelLayout } from "./hooks/usePanelLayout";
 import { useToasts } from "./hooks/useToasts";
@@ -768,6 +769,12 @@ export function App({ onGoHome, onSwitchView, initialIntent, theme, onToggleThem
               <p className="canvas-mobile-stats">
                 {project.assets.length} assets · {project.conduits.length} conduits · {assessment.findings.length} findings
               </p>
+              {/*
+                The topology itself, not just a count of it. Editing needs a pointer; reading the
+                architecture does not, and a phone user was previously told how many assets existed
+                without being told what any of them were.
+              */}
+              <TopologyOutline project={project} />
             </div>
           ) : (
             <TopologyCanvas

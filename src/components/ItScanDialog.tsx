@@ -70,7 +70,7 @@ export function ItScanDialog({ open, filename, hostCount, scanCount, nodes, onCo
         if (event.target === event.currentTarget) onCancel();
       }}
     >
-      <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="it-scan-dialog-title">
+      <div className="confirm-dialog it-scan-dialog" role="dialog" aria-modal="true" aria-labelledby="it-scan-dialog-title">
         <strong id="it-scan-dialog-title">Add this scan to the engagement</strong>
         <p>
           {filename} found {hostCount} {hostCount === 1 ? "host" : "hosts"}. This engagement already has {scanCount}{" "}

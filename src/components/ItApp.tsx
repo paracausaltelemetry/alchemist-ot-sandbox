@@ -1,4 +1,4 @@
-import { ArrowLeft, Download, FileUp, PlayCircle, Share2, Trash2, X } from "lucide-react";
+import { ArrowLeft, Download, FileUp, PlayCircle, Share2, Trash2, Undo2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { detectFormat, parseByFormat } from "../import";
 import type { ImportedHost, ParsedImport } from "../import/types";
@@ -32,6 +32,7 @@ import { isItLinkId, isScanEvidence, itEvidenceLabel, itKindLabel, type ItMap } 
 import type { Point } from "../models/types";
 import type { AppView } from "../lib/appView";
 import { SiteMasthead } from "./SiteMasthead";
+import { applyUndo, describeUndo, pushUndo, type ItUndoEntry } from "../engine/itUndo";
 import { ItNetworkCanvas, type ItCanvasMode, type ItRisk } from "./ItNetworkCanvas";
 import { ItFindingsPanel } from "./ItFindingsPanel";
 import { ItMapOutline } from "./ItMapOutline";
@@ -59,9 +60,10 @@ function plural(count: number, noun: string): string {
 const POSITION_SAVE_DEBOUNCE_MS = 400;
 
 /**
- * The IT-side network mapper: upload an Nmap scan, get a network map drawn with the standard
- * network-map symbols, plus an IT analysis lens (exposed services, internet-facing hosts,
- * segmentation, inventory). Entirely client-side, like the rest of Alchemist.
+ * The IT-side engagement map: import Nmap scans, draw what the scans could not see, record what
+ * you did at each stage, and export the report that reconstructs it. Started life as a viewer for
+ * a single scan, which is why the analysis lens (exposed services, internet-facing hosts,
+ * segmentation, inventory) is still here alongside the engagement record. Entirely client-side.
  */
 export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }: ItAppProps) {
   // `engagement` changes only on load, import, clear and re-arrange — never on a drag. That is what
@@ -82,6 +84,14 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   const [pasteText, setPasteText] = useState("");
   const [showInferred, setShowInferred] = useState(true);
   const [promoteOpen, setPromoteOpen] = useState(false);
+  const [clearOpen, setClearOpen] = useState(false);
+  const [connectMode, setConnectMode] = useState(false);
+  const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
+  /**
+   * Inverse operations over the authored layer. Snapshots would clone every scan's `ParsedImport`,
+   * megabytes a step; scan removal stays out of it and goes behind a confirmation instead.
+   */
+  const [undoStack, setUndoStack] = useState<ItUndoEntry[]>([]);
   const [commandOpen, setCommandOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -200,6 +210,7 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
           return current;
         }
         const link = newItUserLink(source, target, label, note || undefined);
+        setUndoStack((stack) => pushUndo(stack, { kind: "add-user-link", linkId: link.id }));
         const next = {
           ...current,
           userLinks: [...current.userLinks.filter((entry) => entry.id !== link.id), link]
@@ -224,11 +235,89 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
         if (!current) {
           return current;
         }
+        const index = current.userLinks.findIndex((entry) => entry.id === linkId);
+        if (index < 0) {
+          return current;
+        }
+        setUndoStack((stack) => pushUndo(stack, { kind: "remove-user-link", link: current.userLinks[index], index }));
         const next = { ...current, userLinks: current.userLinks.filter((entry) => entry.id !== linkId) };
         persist(next);
         return next;
       });
       setSelectedId(null);
+    },
+    [persist]
+  );
+
+  const undo = useCallback(() => {
+    setUndoStack((stack) => {
+      const entry = stack[stack.length - 1];
+      if (!entry) {
+        return stack;
+      }
+      // Positions live in a ref during a session, so an undone move has to be cleared from there
+      // too — otherwise the next save would fold the ref's stale value straight back in.
+      if (entry.kind === "move-node") {
+        draggedPositions.current.delete(entry.nodeId);
+      }
+      if (entry.kind === "clear-positions") {
+        draggedPositions.current.clear();
+      }
+      setEngagement((current) => {
+        if (!current) {
+          return current;
+        }
+        const next = applyUndo(current, entry);
+        persist(next);
+        return next;
+      });
+      return stack.slice(0, -1);
+    });
+  }, [persist]);
+
+  /**
+   * Click-click connecting, matching the OT canvas so the two views do not feel like different
+   * products. Dragging a handle still works; this is the same operation for anyone who finds a
+   * precise drag between two distant cards awkward.
+   */
+  const toggleConnect = useCallback(() => {
+    setConnectMode((current) => {
+      setConnectSourceId(null);
+      return !current;
+    });
+  }, []);
+
+  const handleSelect = useCallback(
+    (id: string | null) => {
+      if (!connectMode || !id || isItLinkId(id)) {
+        setSelectedId(id);
+        return;
+      }
+      if (!connectSourceId) {
+        setConnectSourceId(id);
+        return;
+      }
+      // Clicking the source again is how you back out of a half-finished link.
+      if (connectSourceId === id) {
+        setConnectSourceId(null);
+        return;
+      }
+      setPendingLink({ source: connectSourceId, target: id });
+      setConnectSourceId(null);
+    },
+    [connectMode, connectSourceId]
+  );
+
+  const renameEngagement = useCallback(
+    (name: string) => {
+      setEngagement((current) => {
+        if (!current) {
+          return current;
+        }
+        const next = { ...current, name };
+        persist(next);
+        return next;
+      });
     },
     [persist]
   );
@@ -239,7 +328,9 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
         if (!current) {
           return current;
         }
-        const next = { ...current, events: [...current.events, newItEvent(draft.kind, draft.title, nextSequence(current), draft)] };
+        const event = newItEvent(draft.kind, draft.title, nextSequence(current), draft);
+        setUndoStack((stack) => pushUndo(stack, { kind: "add-event", eventId: event.id }));
+        const next = { ...current, events: [...current.events, event] };
         persist(next);
         return next;
       });
@@ -254,6 +345,11 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
         if (!current) {
           return current;
         }
+        const index = current.events.findIndex((entry) => entry.id === eventId);
+        if (index < 0) {
+          return current;
+        }
+        setUndoStack((stack) => pushUndo(stack, { kind: "remove-event", event: current.events[index], index }));
         const next = { ...current, events: current.events.filter((entry) => entry.id !== eventId) };
         persist(next);
         return next;
@@ -331,6 +427,7 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
   );
 
   const clear = useCallback(() => {
+    setUndoStack([]);
     setNotice(null);
     draggedPositions.current.clear();
     setEngagement(null);
@@ -346,13 +443,15 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
    */
   const moveNode = useCallback(
     (id: string, position: Point) => {
+      const previous = draggedPositions.current.get(id) ?? engagement?.positions[id];
+      setUndoStack((stack) => pushUndo(stack, { kind: "move-node", nodeId: id, previous }));
       draggedPositions.current.set(id, position);
       if (saveTimer.current) {
         clearTimeout(saveTimer.current);
       }
       saveTimer.current = setTimeout(() => persist(snapshot()), POSITION_SAVE_DEBOUNCE_MS);
     },
-    [persist, snapshot]
+    [engagement, persist, snapshot]
   );
 
   useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
@@ -373,6 +472,7 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
       if (!current) {
         return current;
       }
+      setUndoStack((stack) => pushUndo(stack, { kind: "clear-positions", previous: current.positions }));
       const next = { ...current, positions: {} };
       persist(next);
       return next;
@@ -473,10 +573,18 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
         event.preventDefault();
         setCommandOpen((open) => !open);
       }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        undo();
+      }
+      if (event.key === "Escape") {
+        setConnectMode(false);
+        setConnectSourceId(null);
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [undo]);
 
   const commands = useMemo<Command[]>(() => {
     const list: Command[] = [
@@ -493,6 +601,8 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
           label: showInferred ? "Hide inferred links" : "Show inferred links",
           run: () => setShowInferred((value) => !value)
         },
+        { id: "connect", label: connectMode ? "Leave connect mode" : "Connect two hosts", run: toggleConnect },
+        { id: "undo", label: "Undo the last change", run: undo },
         { id: "arrange", label: "Re-run the map layout", run: rearrange },
         { id: "promote", label: "Assess this network in the OT workbench…", hint: "OT", run: () => setPromoteOpen(true) },
         { id: "export-json", label: "Export the analysis as JSON", hint: "Export", run: exportJson },
@@ -501,7 +611,7 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
         { id: "export-stage-maps", label: "Download a map for every stage", hint: "Export", run: exportStageMaps },
         { id: "print", label: "Print the engagement report", hint: "Export", run: () => window.print() },
         { id: "export-map", label: "Export the map as SVG", hint: "Export", run: exportMap },
-        { id: "clear", label: "Clear the map", run: clear }
+        { id: "clear", label: "Clear the engagement", run: () => setClearOpen(true) }
       );
     }
     list.push(
@@ -511,14 +621,16 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
     );
     return list;
   }, [
-    clear,
     exportJson,
     exportMap,
     exportReport,
     exportScanFindings,
     exportStageMaps,
+    connectMode,
     ingest,
     map,
+    toggleConnect,
+    undo,
     onGoHome,
     onSwitchView,
     onToggleTheme,
@@ -536,6 +648,11 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
       <ItPrintableReport engagement={engagement} />
 
     <div className="it-app site-frame">
+      {/*
+        The same masthead the OT app renders: brand, site nav, the OT/IT switch and the theme
+        toggle, identical in both. Anything specific to this app goes in the row beneath, so the
+        switch itself never moves when you use it.
+      */}
       <SiteMasthead
         theme={theme}
         onToggleTheme={onToggleTheme}
@@ -549,16 +666,27 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
           <ArrowLeft size={15} aria-hidden="true" /> Dashboard
         </button>
         <div className="it-toolbar-title">
-          <strong>IT Network Mapper</strong>
-          <span>Upload an Nmap scan to map and assess the network</span>
+          <strong>Engagement Map</strong>
+          <span>Import scans, draw what they missed, and record what you did</span>
         </div>
         <div className="it-toolbar-actions">
+          <button
+            type="button"
+            className="icon-button"
+            title={undoStack.length > 0 ? describeUndo(undoStack[undoStack.length - 1]) : "Nothing to undo"}
+            onClick={undo}
+            disabled={undoStack.length === 0}
+          >
+            <Undo2 size={16} aria-hidden="true" />
+          </button>
           {map && analysis ? (
             <div className="it-export" role="group" aria-label="Export">
               <Download size={14} aria-hidden="true" />
-              <button type="button" className="text-button" onClick={exportJson} title="Download analysis as JSON">JSON</button>
               <button type="button" className="text-button" onClick={exportReport} title="Download the engagement report as Markdown">Report</button>
               <button type="button" className="text-button" onClick={() => window.print()} title="Print the engagement report">Print</button>
+              <button type="button" className="text-button" onClick={exportStageMaps} title="Download a map for every stage">Stages</button>
+              <button type="button" className="text-button" onClick={exportScanFindings} title="Download the scan findings">Findings</button>
+              <button type="button" className="text-button" onClick={exportJson} title="Download the analysis as JSON">JSON</button>
               <button type="button" className="text-button" onClick={exportMap} title="Download the map as SVG">Map</button>
             </div>
           ) : null}
@@ -572,26 +700,22 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
               <Share2 size={15} aria-hidden="true" /> Assess in OT
             </button>
           ) : null}
-          {map ? (
-            <button type="button" className="text-button" onClick={clear}>
-              <Trash2 size={15} aria-hidden="true" /> Clear
-            </button>
-          ) : null}
           <button type="button" className="text-button primary" onClick={() => inputRef.current?.click()}>
             <FileUp size={15} aria-hidden="true" /> Import Nmap scan
           </button>
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".xml,.txt,.nmap,.gnmap,.grep,text/plain,text/xml"
-            hidden
-            onChange={(event) => {
-              onFile(event.target.files?.[0]);
-              event.target.value = "";
-            }}
-          />
         </div>
       </div>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".xml,.txt,.nmap,.gnmap,.grep,text/plain,text/xml"
+        hidden
+        onChange={(event) => {
+          onFile(event.target.files?.[0]);
+          event.target.value = "";
+        }}
+      />
 
       {error ? <p className="it-error" role="alert">{error}</p> : null}
       {/*
@@ -673,7 +797,7 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
                 canvasMode={canvasMode}
                 riskByNodeId={riskByNodeId}
                 fitSignal={fitSignal}
-                onSelect={setSelectedId}
+                onSelect={handleSelect}
                 onCanvasModeChange={setCanvasMode}
                 onMoveNode={moveNode}
                 onRearrange={rearrange}
@@ -681,6 +805,9 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
                 onToggleInferred={() => setShowInferred((value) => !value)}
                 accessByNodeId={access}
                 onConnect={(source, target) => setPendingLink({ source, target })}
+                connectMode={connectMode}
+                connectSourceId={connectSourceId}
+                onToggleConnect={toggleConnect}
               />
             </div>
           )}
@@ -756,6 +883,25 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
                     Links from a scan cannot be removed — the map would stop matching the evidence it was built from.
                   </p>
                 )}
+              </div>
+            ) : null}
+            {engagement && engagement.scans.length > 0 ? (
+              <div className="it-engagement-name">
+                {/* The header names the Alchemist project; the engagement is this view's own
+                    document, so it is named — and discarded — here rather than competing for
+                    the shared header's field and File menu. */}
+                <div className="it-engagement-name-head">
+                  <span id="it-engagement-name-label">Engagement</span>
+                  <button type="button" className="text-button compact" onClick={() => setClearOpen(true)}>
+                    <Trash2 size={13} aria-hidden="true" /> Clear
+                  </button>
+                </div>
+                <input
+                  aria-labelledby="it-engagement-name-label"
+                  value={engagement.name}
+                  placeholder="Untitled engagement"
+                  onChange={(event) => renameEngagement(event.target.value)}
+                />
               </div>
             ) : null}
             {engagement && engagement.scans.length > 0 ? (
@@ -887,6 +1033,29 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
         initial={pendingEvent ?? undefined}
         onConfirm={addEvent}
         onCancel={() => setPendingEvent(null)}
+      />
+
+      {/*
+        The one destructive action here, and the one thing undo deliberately does not cover:
+        reversing it would mean holding every scan's parse alive in the history.
+      */}
+      <ConfirmDialog
+        open={clearOpen}
+        title="Clear this engagement"
+        message={
+          engagement
+            ? `Discards ${plural(engagement.scans.length, "scan")}, ${engagement.events.length} journal ${
+                engagement.events.length === 1 ? "entry" : "entries"
+              } and every link you drew. This cannot be undone — export it first if you want to keep it.`
+            : ""
+        }
+        confirmLabel="Clear it"
+        tone="danger"
+        onConfirm={() => {
+          setClearOpen(false);
+          clear();
+        }}
+        onCancel={() => setClearOpen(false)}
       />
 
       <CommandPalette open={commandOpen} commands={commands} onClose={() => setCommandOpen(false)} />

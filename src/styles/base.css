@@ -9,6 +9,15 @@ body,
   margin: 0;
 }
 
+/*
+ * Reserve the scrollbar gutter always. The OT workspace scrolls and the IT map does not, so the
+ * viewport narrowed by a scrollbar's width on one side only — which moved the shared masthead, and
+ * with it the OT/IT switch, by ~15px every time you changed app.
+ */
+html {
+  scrollbar-gutter: stable;
+}
+
 /* Guard against stray horizontal overflow (mirrors the main site's
    .page-shell { overflow: clip }). 100vw-derived widths include the
    scrollbar on Windows, so clip rather than let the page pan. */

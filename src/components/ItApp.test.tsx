@@ -64,8 +64,10 @@ describe("ItApp", () => {
   });
 
   it("keeps nothing after the map is cleared", async () => {
+    // Clearing is behind a confirmation now: it is the one action undo deliberately cannot reverse.
     const { user } = await loadSample();
     await user.click(screen.getByRole("button", { name: /^clear$/i }));
+    await user.click(screen.getByRole("button", { name: /^clear it$/i }));
 
     cleanup();
     render(<ItApp onGoHome={() => {}} onSwitchView={() => {}} theme="dark" onToggleTheme={() => {}} isMobile={false} />);

@@ -39,6 +39,9 @@ interface ItNetworkCanvasProps {
   onToggleInferred: () => void;
   /** Fired when the operator drags one node's handle onto another. */
   onConnect: (source: string, target: string) => void;
+  connectMode: boolean;
+  connectSourceId: string | null;
+  onToggleConnect: () => void;
 }
 
 type ItNodeData = {
@@ -48,6 +51,8 @@ type ItNodeData = {
   access: ItAccessState | null;
   showServices: boolean;
   dimmed: boolean;
+  connectMode: boolean;
+  connectSource: boolean;
 };
 
 type ItFlowNode = Node<ItNodeData, "itNode">;
@@ -68,7 +73,7 @@ const SERVICE_CHIP_LIMIT = 3;
  * store, which would need a larger change to avoid.
  */
 const ItNodeCard = memo(function ItNodeCard({ data }: NodeProps<ItFlowNode>) {
-  const { node, risk, access, showServices, dimmed, selected } = data;
+  const { node, risk, access, showServices, dimmed, selected, connectMode, connectSource } = data;
   const ghost = node.origin === "synthetic";
   const services = node.ports.slice(0, SERVICE_CHIP_LIMIT);
 
@@ -76,7 +81,9 @@ const ItNodeCard = memo(function ItNodeCard({ data }: NodeProps<ItFlowNode>) {
     <div
       className={`it-node${ghost ? " is-ghost" : ""}${selected ? " is-selected" : ""}${dimmed ? " is-dimmed" : ""}${
         risk ? ` it-node-risk-${risk}` : ""
-      }${access ? ` it-node-access-${access}` : ""}`}
+      }${access ? ` it-node-access-${access}` : ""}${connectMode ? " is-connectable" : ""}${
+        connectSource ? " is-connect-source" : ""
+      }`}
     >
       <Handle id="in" type="target" position={Position.Left} className="flow-handle" />
       <Handle id="out" type="source" position={Position.Right} className="flow-handle" />
@@ -146,7 +153,10 @@ function ItNetworkCanvasInner({
   onRearrange,
   showInferred,
   onToggleInferred,
-  onConnect
+  onConnect,
+  connectMode,
+  connectSourceId,
+  onToggleConnect
 }: ItNetworkCanvasProps) {
   const reactFlow = useReactFlow();
   const [isDragging, setIsDragging] = useState(false);
@@ -165,6 +175,7 @@ function ItNetworkCanvasInner({
       const risk = riskByNodeId.get(node.id) ?? null;
       const access = accessByNodeId.get(node.id) ?? null;
       const selected = selectedId === node.id;
+      const connectSource = connectSourceId === node.id;
       // In exposure mode everything unflagged recedes so the flagged hosts carry the view.
       const dimmed = isExposure && !risk;
 
@@ -177,6 +188,8 @@ function ItNetworkCanvasInner({
         // Explicit, like every other field here: one left out is one that never updates on a node
         // once it has been drawn, so recording an action would leave the old decoration in place.
         cached.flow.data.access === access &&
+        cached.flow.data.connectMode === connectMode &&
+        cached.flow.data.connectSource === connectSource &&
         cached.flow.data.showServices === showServices &&
         cached.flow.data.dimmed === dimmed
       ) {
@@ -192,7 +205,7 @@ function ItNetworkCanvasInner({
         width: IT_NODE_WIDTH,
         height: IT_NODE_HEIGHT,
         style: { width: IT_NODE_WIDTH, minHeight: IT_NODE_HEIGHT },
-        data: { node, selected, risk, access, showServices, dimmed },
+        data: { node, selected, risk, access, showServices, dimmed, connectMode, connectSource },
         zIndex: risk ? 10 : 5
       };
       cache.set(node.id, { source: node, flow });
@@ -209,7 +222,7 @@ function ItNetworkCanvasInner({
       }
     }
     return next;
-  }, [accessByNodeId, isExposure, map.nodes, riskByNodeId, selectedId, showServices]);
+  }, [accessByNodeId, connectMode, connectSourceId, isExposure, map.nodes, riskByNodeId, selectedId, showServices]);
 
   // Return the node itself when snapping is a no-op. Every change runs this over the whole
   // array, so spreading unconditionally would hand React Flow 305 new objects for one move and
@@ -352,7 +365,7 @@ function ItNetworkCanvasInner({
       onNodeDragStop={commitNodePosition}
       onNodeClick={onSelect}
       onConnect={onConnect}
-      onPaneClick={() => onSelect(null)}
+      onPaneClick={() => { if (!connectMode) onSelect(null); }}
       onKeyDown={handleKeyDown}
       snapGrid={[CANVAS_GRID_X, CANVAS_GRID_X]}
       fitSignal={fitSignal}
@@ -364,9 +377,13 @@ function ItNetworkCanvasInner({
           <div>
             <h2>Network map</h2>
             <p>
-              {counts.observed > 0
-                ? "Solid links were traced by the scan; dashed links are inferred from addressing. Drag from a host's edge to draw your own."
-                : "Links are inferred from addressing. Re-run Nmap with --traceroute to map the real paths, or drag from a host's edge to draw your own."}
+              {connectMode
+                ? connectSourceId
+                  ? "Select the host at the other end."
+                  : "Select the host this link starts from."
+                : counts.observed > 0
+                  ? "Solid links were traced by the scan; dashed links are inferred from addressing. Drag from a host's edge to draw your own."
+                  : "Links are inferred from addressing. Re-run Nmap with --traceroute to map the real paths, or drag from a host's edge to draw your own."}
             </p>
             <div className="canvas-stats" aria-label="Map summary">
               <span>
@@ -408,6 +425,15 @@ function ItNetworkCanvasInner({
               onClick={onToggleInferred}
             >
               {showInferred ? "Hide inferred" : "Show inferred"}
+            </button>
+            <button
+              type="button"
+              className={`text-button compact${connectMode ? " is-active" : ""}`}
+              title="Draw a link by clicking two hosts"
+              aria-pressed={connectMode}
+              onClick={onToggleConnect}
+            >
+              Connect
             </button>
             <button type="button" className="text-button compact" title="Re-run the layout" onClick={onRearrange}>
               Arrange

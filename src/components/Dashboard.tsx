@@ -43,7 +43,7 @@ export type DashboardIntent = "reference" | "methodology" | "tour";
 
 interface DashboardProps {
   onEnter: (intent?: DashboardIntent) => void;
-  /** Opens the IT-side network mapper (a separate view). */
+  /** Opens the IT-side engagement map (a separate view). */
   onOpenIt?: () => void;
   /** Drives the masthead's OT/IT switch. Neither side is current while on the dashboard. */
   onSwitchView?: (view: AppView) => void;
@@ -159,7 +159,7 @@ export function Dashboard({ onEnter, onOpenIt, onSwitchView, theme, onToggleThem
               {onOpenIt ? (
                 <button type="button" className="text-button" onClick={onOpenIt}>
                   <Waypoints size={15} aria-hidden="true" />
-                  IT network mapper
+                  Engagement map
                 </button>
               ) : null}
             </div>

@@ -22,11 +22,40 @@ export interface RiskyService {
   publicIp: boolean;
 }
 
+/**
+ * How a host came to be called externally reachable.
+ *
+ * `reached` is an observation: a scan run from outside the network answered for this host.
+ * `address` is an inference from the address alone, which is all a single internal scan can offer —
+ * a publicly routable address may still sit behind a firewall that drops everything.
+ */
+export type ExposureBasis = "reached" | "address";
+
 export interface ExposedHost {
   ip: string;
   hostname?: string;
   openPorts: number;
+  basis: ExposureBasis;
 }
+
+/**
+ * What the scans that produced this parse could see, which the parse itself cannot say.
+ *
+ * Without it the analysis has only addressing to reason from, and "internet-facing" quietly means
+ * "has a public address". Once an engagement accumulates scans from different vantages that stops
+ * being good enough: a host reached from outside is externally reachable whatever its address, and
+ * hosts only ever seen from inside should not sit under the same heading as ones that were not.
+ */
+export interface ItAnalysisContext {
+  /** Host keys answered by at least one scan run from an external vantage. */
+  reachedFromOutside?: Set<string>;
+  /** True when any scan in this engagement ran from outside, so absence of evidence means something. */
+  hasExternalScan?: boolean;
+}
+
+/** The key the map and the engagement both use for a host. */
+export const itHostKey = (host: { ip?: string; hostname?: string }): string =>
+  (host.ip || host.hostname || "").toLowerCase();
 
 export interface SubnetSummary {
   cidr: string;
@@ -42,9 +71,15 @@ export interface ItAnalysis {
   totalHosts: number;
   totalOpenPorts: number;
   subnets: SubnetSummary[];
+  /**
+   * Every host seen *so far* sits in one subnet. Worth stating as a shape, but it is a statement
+   * about the scans and not about the network: another scan from another vantage can and does
+   * reveal segments that flip this to false.
+   */
   flatNetwork: boolean;
   largestSubnet?: SubnetSummary;
-  internetFacing: ExposedHost[];
+  /** Hosts reachable from outside the network, each carrying how that was established. */
+  externallyReachable: ExposedHost[];
   riskyServices: RiskyService[];
   byOs: Tally[];
   byVendor: Tally[];
@@ -163,18 +198,27 @@ function subnetOf(host: ImportedHost): string | undefined {
   return undefined;
 }
 
-export function analyseItNetwork(parsed: ParsedImport): ItAnalysis {
+export function analyseItNetwork(parsed: ParsedImport, context: ItAnalysisContext = {}): ItAnalysis {
   const hosts = parsed.hosts;
   const riskyServices: RiskyService[] = [];
-  const internetFacing: ExposedHost[] = [];
+  const externallyReachable: ExposedHost[] = [];
   const subnetCounts = new Map<string, number>();
   let totalOpenPorts = 0;
 
   for (const host of hosts) {
     totalOpenPorts += host.ports.length;
     const publicIp = isPublicIp(host.ip);
-    if (publicIp) {
-      internetFacing.push({ ip: host.ip as string, hostname: host.hostname, openPorts: host.ports.length });
+    // An observation outranks the inference: a host that answered a scan from outside is externally
+    // reachable whether or not its address says it should be.
+    const reached = context.reachedFromOutside?.has(itHostKey(host)) ?? false;
+    const exposed = reached || publicIp;
+    if (exposed) {
+      externallyReachable.push({
+        ip: host.ip || host.hostname || "unknown",
+        hostname: host.hostname,
+        openPorts: host.ports.length,
+        basis: reached ? "reached" : "address"
+      });
     }
     const subnet = subnetOf(host);
     if (subnet) {
@@ -185,8 +229,8 @@ export function analyseItNetwork(parsed: ParsedImport): ItAnalysis {
       if (!definition) {
         continue;
       }
-      // Reachable from the internet outranks everything the port table says.
-      const severity: ItSeverity = publicIp ? "high" : definition.internal;
+      // Reachable from outside outranks everything the port table says.
+      const severity: ItSeverity = exposed ? "high" : definition.internal;
       riskyServices.push({
         ip: host.ip || host.hostname || "unknown",
         hostname: host.hostname,
@@ -194,8 +238,12 @@ export function analyseItNetwork(parsed: ParsedImport): ItAnalysis {
         transport: port.transport,
         service: port.service || definition.reason.split(":")[0],
         severity,
-        reason: publicIp ? `${definition.reason} — reachable from the internet` : definition.reason,
-        publicIp
+        reason: reached
+          ? `${definition.reason} — reached from outside the network`
+          : publicIp
+            ? `${definition.reason} — on a publicly routable address`
+            : definition.reason,
+        publicIp: exposed
       });
     }
   }
@@ -216,7 +264,7 @@ export function analyseItNetwork(parsed: ParsedImport): ItAnalysis {
     subnets,
     flatNetwork,
     largestSubnet,
-    internetFacing,
+    externallyReachable,
     riskyServices,
     byOs: tally(hosts.map((host) => host.os || "").filter(Boolean)),
     byVendor: tally(hosts.map((host) => host.vendor || "").filter(Boolean)),
@@ -231,7 +279,8 @@ export function itReportMarkdown(analysis: ItAnalysis): string {
   lines.push(`- Open ports: ${analysis.totalOpenPorts}`);
   lines.push(`- Subnets: ${analysis.subnets.length}`);
   if (analysis.flatNetwork) {
-    lines.push(`- Flat network: every host sits in ${analysis.largestSubnet?.cidr}`);
+    // "seen so far", because this is a statement about the scans and not about the network.
+    lines.push(`- Flat network: every host seen so far sits in ${analysis.largestSubnet?.cidr}`);
   }
 
   lines.push("", "## Risky exposed services", "");
@@ -245,13 +294,14 @@ export function itReportMarkdown(analysis: ItAnalysis): string {
     }
   }
 
-  lines.push("", "## Internet-facing hosts", "");
-  if (analysis.internetFacing.length === 0) {
+  lines.push("", "## Externally reachable hosts", "");
+  if (analysis.externallyReachable.length === 0) {
     lines.push("None.");
   } else {
-    for (const host of analysis.internetFacing) {
+    for (const host of analysis.externallyReachable) {
       const name = host.hostname ? ` (${host.hostname})` : "";
-      lines.push(`- ${host.ip}${name} — ${host.openPorts} open ports`);
+      const basis = host.basis === "reached" ? "reached from outside" : "publicly routable address";
+      lines.push(`- ${host.ip}${name} — ${host.openPorts} open ports (${basis})`);
     }
   }
 

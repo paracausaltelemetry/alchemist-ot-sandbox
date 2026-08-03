@@ -34,8 +34,10 @@ describe("analyseItNetwork", () => {
     expect(analysis.totalOpenPorts).toBe(6);
   });
 
-  it("finds the internet-facing host", () => {
-    expect(analysis.internetFacing.map((host) => host.ip)).toEqual(["203.0.113.10"]);
+  it("finds the host on a public address, and says that is all it knows", () => {
+    expect(analysis.externallyReachable.map((host) => host.ip)).toEqual(["203.0.113.10"]);
+    // With no external scan to go on, a routable address is an inference, not an observation.
+    expect(analysis.externallyReachable[0].basis).toBe("address");
   });
 
   it("flags risky services and escalates internet-facing ones to high", () => {
@@ -88,9 +90,13 @@ describe("severity grading", () => {
     expect(severityOf("10.0.0.21", 6379)).toBe("high");
   });
 
-  it("escalates anything on a public address", () => {
+  it("escalates anything on a public address, without claiming it was reached", () => {
     expect(severityOf("198.51.100.5", 445)).toBe("high");
-    expect(graded.riskyServices.find((service) => service.ip === "198.51.100.5")?.reason).toMatch(/internet/i);
+    // "on a publicly routable address", not "reachable from the internet": with no scan run from
+    // outside, the address is all the evidence there is.
+    expect(graded.riskyServices.find((service) => service.ip === "198.51.100.5")?.reason).toMatch(
+      /publicly routable address/i
+    );
   });
 
   it("leaves a normal internal estate with a readable number of high findings", () => {
@@ -104,7 +110,7 @@ describe("itReportMarkdown", () => {
     const md = itReportMarkdown(analyseItNetwork(parsed));
     expect(md).toContain("# IT network map");
     expect(md).toContain("## Risky exposed services");
-    expect(md).toContain("## Internet-facing hosts");
+    expect(md).toContain("## Externally reachable hosts");
     expect(md).toContain("203.0.113.10");
     expect(md.trimEnd().endsWith("\n") || md.endsWith("\n")).toBe(true);
   });

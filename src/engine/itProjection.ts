@@ -1,4 +1,4 @@
-import { analyseItNetwork, type ItAnalysis } from "./itAnalysis";
+import { analyseItNetwork, itHostKey, type ItAnalysis } from "./itAnalysis";
 import { synthesiseItTopology } from "./itTopology";
 import { layoutItMap } from "../data/itLayout";
 import { accessByNode, attackLinks } from "./itAccess";
@@ -108,5 +108,17 @@ export function projectEngagement(engagement: ItEngagement): ItProjection {
     }))
   };
 
-  return { map, analysis: analyseItNetwork(parsed), parsed, access: accessByNode(engagement.events) };
+  // Which hosts a scan run from outside actually answered for. The parse cannot know this — it is a
+  // property of where the scan was run, which only the engagement records.
+  const externalScans = engagement.scans.filter((scan) => scan.vantage.kind === "external");
+  const reachedFromOutside = new Set(
+    externalScans.flatMap((scan) => scan.parsed.hosts.map((host) => itHostKey(host)))
+  );
+
+  return {
+    map,
+    analysis: analyseItNetwork(parsed, { reachedFromOutside, hasExternalScan: externalScans.length > 0 }),
+    parsed,
+    access: accessByNode(engagement.events)
+  };
 }

@@ -140,7 +140,7 @@ export function ItApp({ onGoHome, onSwitchView, theme, onToggleTheme, isMobile }
     if (!map || !analysis) {
       return risks;
     }
-    const high = new Set<string>(analysis.internetFacing.map((host) => host.ip));
+    const high = new Set<string>(analysis.externallyReachable.map((host) => host.ip));
     const medium = new Set<string>();
     for (const service of analysis.riskyServices) {
       if (service.severity === "high") {

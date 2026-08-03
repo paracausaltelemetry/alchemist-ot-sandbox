@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface ShortcutsOverlayProps {
   open: boolean;
@@ -19,6 +20,10 @@ const SHORTCUTS: Array<{ keys: string; action: string }> = [
 ];
 
 export function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {
+  // Declared before anything else in the component so it sits ahead of every early return.
+  const focusTrapRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open, focusTrapRef);
+
   useEffect(() => {
     if (!open) {
       return;
@@ -41,6 +46,7 @@ export function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {
     <div className="modal-overlay" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div
         className="shortcuts-overlay"
+        ref={focusTrapRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="shortcuts-title"

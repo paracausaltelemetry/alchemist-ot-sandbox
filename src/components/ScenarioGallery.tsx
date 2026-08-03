@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
-import { useEffect } from "react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
+import { useEffect, useRef } from "react";
 import type { ScenarioMeta } from "../data/scenarios";
 import type { OtProject } from "../models/types";
 
@@ -16,6 +17,10 @@ interface ScenarioGalleryProps {
  * Reuses the shared modal-overlay styling.
  */
 export function ScenarioGallery({ open, scenarios, onClose, onLoad }: ScenarioGalleryProps) {
+  // Declared before anything else in the component so it sits ahead of every early return.
+  const focusTrapRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open, focusTrapRef);
+
   useEffect(() => {
     if (!open) {
       return;
@@ -37,6 +42,7 @@ export function ScenarioGallery({ open, scenarios, onClose, onLoad }: ScenarioGa
     <div className="modal-overlay" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div
         className="scenario-gallery"
+        ref={focusTrapRef}
         role="dialog"
         aria-modal="true"
         aria-label="Sector scenarios"

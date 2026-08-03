@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 import { type ItVantage } from "../models/itEngagement";
 import type { ItNode } from "../models/itMap";
 
@@ -31,6 +32,10 @@ const EXTERNAL_PRESETS = ["External", "Client VPN", "Internal dropbox", "Tester 
  * client LAN, and from a machine inside the segment being described.
  */
 export function ItScanDialog({ open, filename, hostCount, scanCount, nodes, onConfirm, onCancel }: ItScanDialogProps) {
+  // Declared before anything else in the component so it sits ahead of every early return.
+  const focusTrapRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open, focusTrapRef);
+
   const [mode, setMode] = useState<ItImportMode>("add");
   const [vantageId, setVantageId] = useState<string>("external:External");
 
@@ -70,7 +75,7 @@ export function ItScanDialog({ open, filename, hostCount, scanCount, nodes, onCo
         if (event.target === event.currentTarget) onCancel();
       }}
     >
-      <div className="confirm-dialog it-scan-dialog" role="dialog" aria-modal="true" aria-labelledby="it-scan-dialog-title">
+      <div className="confirm-dialog it-scan-dialog" ref={focusTrapRef} role="dialog" aria-modal="true" aria-labelledby="it-scan-dialog-title">
         <strong id="it-scan-dialog-title">Add this scan to the engagement</strong>
         <p>
           {filename} found {hostCount} {hostCount === 1 ? "host" : "hosts"}. This engagement already has {scanCount}{" "}

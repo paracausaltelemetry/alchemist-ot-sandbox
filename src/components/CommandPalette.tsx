@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 export interface Command {
   id: string;
@@ -19,6 +20,10 @@ interface CommandPaletteProps {
  * combobox driving a listbox.
  */
 export function CommandPalette({ open, commands, onClose }: CommandPaletteProps) {
+  // Declared before anything else in the component so it sits ahead of every early return.
+  const focusTrapRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open, focusTrapRef);
+
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -77,6 +82,7 @@ export function CommandPalette({ open, commands, onClose }: CommandPaletteProps)
     <div className="modal-overlay command-overlay" role="presentation" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div
         className="command-palette"
+        ref={focusTrapRef}
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"

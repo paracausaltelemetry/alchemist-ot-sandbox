@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 import {
   ACCESS_LABELS,
   EVENT_KIND_LABELS,
@@ -37,6 +38,10 @@ interface ItEventDialogProps {
  * finding with no CVE and no neat ATT&CK id — the awkward one.
  */
 export function ItEventDialog({ open, nodes, initial, onConfirm, onCancel }: ItEventDialogProps) {
+  // Declared before anything else in the component so it sits ahead of every early return.
+  const focusTrapRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open, focusTrapRef);
+
   const [kind, setKind] = useState<ItEventKind>("exploit");
   const [title, setTitle] = useState("");
   const [sourceNodeId, setSourceNodeId] = useState<string>(EXTERNAL_ORIGIN);
@@ -89,7 +94,7 @@ export function ItEventDialog({ open, nodes, initial, onConfirm, onCancel }: ItE
         if (event.target === event.currentTarget) onCancel();
       }}
     >
-      <div className="confirm-dialog it-event-dialog" role="dialog" aria-modal="true" aria-labelledby="it-event-title">
+      <div className="confirm-dialog it-event-dialog" ref={focusTrapRef} role="dialog" aria-modal="true" aria-labelledby="it-event-title">
         <strong id="it-event-title">Record what you did</strong>
 
         <label className="it-link-field">

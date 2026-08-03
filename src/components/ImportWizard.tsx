@@ -1,4 +1,5 @@
 import { FileUp, X } from "lucide-react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { detectFormat, importFormatLabels, importTopology, type AssembledTopology, type ImportFormat } from "../import";
 import { oversizeFileError, oversizeWarning } from "../lib/modelLimits";
@@ -21,6 +22,10 @@ const FORMAT_HINTS: Record<ImportFormat, string> = {
 };
 
 export function ImportWizard({ open, onClose, onApply }: ImportWizardProps) {
+  // Declared before anything else in the component so it sits ahead of every early return.
+  const focusTrapRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open, focusTrapRef);
+
   const [format, setFormat] = useState<ImportFormat>("nmap-xml");
   const [fileName, setFileName] = useState("");
   const [rawText, setRawText] = useState("");
@@ -108,6 +113,7 @@ export function ImportWizard({ open, onClose, onApply }: ImportWizardProps) {
     >
       <div
         className="import-wizard"
+        ref={focusTrapRef}
         role="dialog"
         aria-modal="true"
         aria-label="Import network scan"

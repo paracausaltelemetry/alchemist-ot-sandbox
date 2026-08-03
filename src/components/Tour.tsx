@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 import { X } from "lucide-react";
 import { safeSetItem } from "../lib/safeStorage";
 
@@ -71,6 +72,10 @@ function cardStyle(box: Box | null): CSSProperties {
  * remembered in localStorage, keyboard navigable, and static (reduced-motion safe).
  */
 export function Tour({ open, onClose }: TourProps) {
+  // Declared before anything else in the component so it sits ahead of every early return.
+  const focusTrapRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(open, focusTrapRef);
+
   const [step, setStep] = useState(0);
   const [box, setBox] = useState<Box | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
@@ -139,7 +144,7 @@ export function Tour({ open, onClose }: TourProps) {
   }
 
   return (
-    <div className="tour" role="dialog" aria-modal="true" aria-label="Guided tour">
+    <div className="tour" ref={focusTrapRef} role="dialog" aria-modal="true" aria-label="Guided tour">
       {box ? (
         <>
           <div className="tour-dim" style={{ top: 0, left: 0, width: "100%", height: Math.max(0, box.top) }} />

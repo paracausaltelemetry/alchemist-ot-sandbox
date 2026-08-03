@@ -863,3 +863,14 @@ button.verdict-finding:hover {
   margin-top: 0.2rem;
 }
 
+
+/* Marks a consequence a person set, so it reads differently from a derived one. */
+.risk-assessor-set {
+  margin-left: 0.25rem;
+  border: 0;
+  color: var(--muted);
+  font: 650 0.62rem / 1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  text-transform: uppercase;
+}

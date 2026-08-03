@@ -27,6 +27,13 @@ export interface AssetRisk {
   band: RiskBand;
   /** Why the likelihood is what it is, for the heat-map row title. */
   reason: string;
+  /**
+   * Whether the consequence is the assessor's judgement or the model's derivation.
+   *
+   * A consequence-led method lives or dies on this: a register that cannot distinguish a number
+   * somebody decided from one a lookup table produced is asking the reader to trust both equally.
+   */
+  consequenceSource: "assessor" | "derived";
 }
 
 export interface RiskAssessment {
@@ -133,6 +140,7 @@ export function assessRisk(project: OtProject): RiskAssessment {
     .map((asset) => {
       const assetExposure = exposure.get(asset.id) ?? 0;
       const consequence = consequenceFor(asset);
+      const consequenceSource: AssetRisk["consequenceSource"] = asset.consequence !== undefined ? "assessor" : "derived";
       const likelihood = likelihoodForAsset(asset, assetExposure);
       const score = consequence * likelihood;
       return {
@@ -141,7 +149,8 @@ export function assessRisk(project: OtProject): RiskAssessment {
         likelihood,
         score,
         band: riskBand(score),
-        reason: likelihoodReason(asset, assetExposure)
+        reason: likelihoodReason(asset, assetExposure),
+        consequenceSource
       };
     })
     .sort((a, b) => b.score - a.score);

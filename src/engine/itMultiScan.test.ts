@@ -99,3 +99,38 @@ describe("merging successive scans", () => {
     expect(nextSequence(pruned)).toBe(3);
   });
 });
+
+describe("identity across sources that key differently", () => {
+  const nodeIdsOf = (parses: ParsedImport[]) => nodeIds(withScans(...parses));
+
+  it("resolves one machine seen by MAC, by address and by name into one asset", () => {
+    // The acceptance case for merging vendor feeds with scans: an inventory keys on MAC, Nmap keys
+    // on address, and an external scan may only have resolved the name.
+    const inventory = parse([{ mac: "00:1A:2B:3C:4D:5E", ports: [] }]);
+    const scan = parse([{ ip: "10.10.4.7", mac: "001a2b3c4d5e", ports: [{ port: 443 }] }]);
+    const external = parse([{ hostname: "hist-1", ip: "10.10.4.7", ports: [{ port: 22 }] }]);
+
+    expect(nodeIdsOf([inventory, scan, external])).toEqual(["it:10.10.4.7"]);
+  });
+
+  it("follows a machine that changed subnet between scans", () => {
+    const before = parse([{ ip: "10.0.1.50", mac: "aa:bb:cc:dd:ee:ff", ports: [{ port: 445 }] }]);
+    const after = parse([{ ip: "10.0.9.14", mac: "aa:bb:cc:dd:ee:ff", ports: [{ port: 3389 }] }]);
+
+    const ids = nodeIdsOf([before, after]);
+    expect(ids).toHaveLength(1);
+
+    // Both sightings' ports survive the merge, so neither scan's evidence is lost to the move.
+    const node = projectEngagement(withScans(before, after)).map!.nodes.find((entry) => entry.id === ids[0])!;
+    expect(node.ports.map((port) => port.port).sort((a, b) => a - b)).toEqual([445, 3389]);
+  });
+
+  it("keeps a reused address as two assets, and says why", () => {
+    const first = parse([{ ip: "10.0.0.20", mac: "11:11:11:11:11:11", ports: [] }]);
+    const second = parse([{ ip: "10.0.0.20", mac: "22:22:22:22:22:22", ports: [] }]);
+    const { map } = projectEngagement(withScans(first, second));
+
+    expect(map!.nodes.filter((node) => node.origin === "scanned")).toHaveLength(2);
+    expect(map!.warnings.some((warning) => /seen with 2 different MAC addresses/.test(warning))).toBe(true);
+  });
+});

@@ -1,4 +1,5 @@
 import { classifyItDevice, isRouterLike } from "../import/itInference";
+import { resolveIdentities } from "./identity";
 import type { ImportedHost, ParsedImport } from "../import/types";
 import type { ItLink, ItLinkEvidence, ItMap, ItNode } from "../models/itMap";
 import type { Subnet } from "../models/types";
@@ -49,6 +50,12 @@ function cidrOf(ip: string | undefined): string | undefined {
   return isIpv4(ip) ? `${ip.split(".").slice(0, 3).join(".")}.0/24` : undefined;
 }
 
+/**
+ * The key for a traceroute hop, which carries only an address or a name.
+ *
+ * Host records go through `resolveIdentities` instead — a hop has no MAC to union on, and inventing
+ * an identity for one would let a router silently absorb a scanned host.
+ */
 function hostKey(host: { ip?: string; hostname?: string }): string {
   return (host.ip || host.hostname || "").toLowerCase();
 }
@@ -72,26 +79,12 @@ function compareCidr(a: string, b: string): number {
 }
 
 /**
- * Hostname to address, learned from any host record that carried both.
- *
- * This is what stops one machine becoming two nodes. `hostKey` prefers the address and falls back
- * to the hostname, so a scan from outside that resolves `web-1` by name with no address keys on
- * `web-1` while a scan from inside keys on `198.51.100.10`. That is exactly the case a multi-scan
- * engagement is built around — the same host seen from two vantages — so the split would appear at
- * the moment the story depends on it not appearing.
- */
-function hostAliases(hosts: ImportedHost[]): Map<string, string> {
-  const aliases = new Map<string, string>();
-  for (const host of hosts) {
-    if (host.ip && host.hostname) {
-      aliases.set(host.hostname.toLowerCase(), host.ip.toLowerCase());
-    }
-  }
-  return aliases;
-}
-
-/**
  * Merges duplicate hosts, folding their ports together.
+ *
+ * Identity comes from `resolveIdentities`, which unions every identifier a record carries — so a
+ * host known by name from outside and by address from inside is one host, and so is a laptop that
+ * changed subnet between scans. It replaces a local alias pass that only understood hostname to
+ * address and never looked at the MAC at all.
  *
  * Ports are a union, and the scalars are last-non-empty-wins rather than first-wins: across scans,
  * a later credentialed or internal scan knows more about a host than the external one that found
@@ -99,15 +92,13 @@ function hostAliases(hosts: ImportedHost[]): Map<string, string> {
  * disappears from the map**. For a record of what was observed that is the honest default, but it
  * is an assumption, not a fact about the network.
  */
-function mergeHosts(hosts: ImportedHost[]): ImportedHost[] {
-  const aliases = hostAliases(hosts);
-  const keyOf = (host: ImportedHost) => {
-    if (host.ip) {
-      return host.ip.toLowerCase();
-    }
-    const name = host.hostname?.toLowerCase();
-    return name ? (aliases.get(name) ?? name) : "";
-  };
+function mergeHosts(hosts: ImportedHost[]): {
+  hosts: ImportedHost[];
+  keyOf: (host: ImportedHost) => string;
+  warnings: string[];
+} {
+  const identity = resolveIdentities(hosts);
+  const keyOf = (host: ImportedHost) => identity.keyFor(host);
 
   const byKey = new Map<string, ImportedHost>();
   for (const host of hosts) {
@@ -125,7 +116,7 @@ function mergeHosts(hosts: ImportedHost[]): ImportedHost[] {
         existing.ports.push(port);
       }
     }
-    // The address is the identity: a hostname-only record folded in by alias must not blank it.
+    // The address is the identity: a hostname-only record folded in must not blank it.
     existing.ip ||= host.ip;
     existing.hostname = host.hostname || existing.hostname;
     existing.vendor = host.vendor || existing.vendor;
@@ -134,7 +125,11 @@ function mergeHosts(hosts: ImportedHost[]): ImportedHost[] {
     existing.vlan = host.vlan || existing.vlan;
     existing.distance = host.distance ?? existing.distance;
   }
-  return [...byKey.values()].sort((a, b) => keyOf(a).localeCompare(keyOf(b)));
+  return {
+    hosts: [...byKey.values()].sort((a, b) => keyOf(a).localeCompare(keyOf(b))),
+    keyOf,
+    warnings: identity.warnings
+  };
 }
 
 interface TraceChain {
@@ -145,7 +140,13 @@ interface TraceChain {
 
 export function synthesiseItTopology(parsed: ParsedImport, name = "Scanned network"): ItMap {
   const warnings = [...parsed.warnings];
-  const hosts = mergeHosts(parsed.hosts);
+  const merged = mergeHosts(parsed.hosts);
+  const hosts = merged.hosts;
+  // Node identity comes from the resolver, not from `ip || hostname`. Two machines that shared an
+  // address were correctly held apart by the merge and then collapsed again here, because both
+  // still answered to the same address when the node id was minted.
+  const identityKey = merged.keyOf;
+  warnings.push(...merged.warnings);
   const traces = parsed.traces ?? [];
 
   // --- Subnets -------------------------------------------------------------
@@ -156,11 +157,11 @@ export function synthesiseItTopology(parsed: ParsedImport, name = "Scanned netwo
     if (host.vlan) {
       const id = `subnet:vlan:${host.vlan}`;
       subnetById.set(id, { id, name: `VLAN ${host.vlan}`, cidr: cidr ?? "", vlan: host.vlan });
-      subnetIdByHostKey.set(hostKey(host), id);
+      subnetIdByHostKey.set(identityKey(host), id);
     } else if (cidr) {
       const id = `subnet:${cidr}`;
       subnetById.set(id, { id, name: cidr, cidr, vlan: "" });
-      subnetIdByHostKey.set(hostKey(host), id);
+      subnetIdByHostKey.set(identityKey(host), id);
     }
   }
   const subnets = [...subnetById.values()].sort((a, b) => compareCidr(a.cidr || a.name, b.cidr || b.name));
@@ -191,7 +192,7 @@ export function synthesiseItTopology(parsed: ParsedImport, name = "Scanned netwo
 
   // --- Nodes ---------------------------------------------------------------
   const nodes = new Map<string, ItNode>();
-  const scannedKeys = new Set(hosts.map(hostKey));
+  const scannedKeys = new Set(hosts.map(identityKey));
 
   const addNode = (node: ItNode) => {
     nodes.set(node.id, node);
@@ -199,8 +200,10 @@ export function synthesiseItTopology(parsed: ParsedImport, name = "Scanned netwo
   };
 
   for (const host of hosts) {
-    const key = hostKey(host);
-    const isTracerouteHop = hopKeys.has(key);
+    const key = identityKey(host);
+    // Hop matching stays on the address: a hop has no MAC, so it can only ever be recognised by
+    // the address or name it answered with.
+    const isTracerouteHop = hopKeys.has(hostKey(host));
     const hostPart = isIpv4(host.ip) ? host.ip.split(".")[3] : undefined;
     const isGatewayAddress = hostPart !== undefined && GATEWAY_HOST_PARTS.has(hostPart);
     const kind = classifyItDevice(host, { isTracerouteHop, isGatewayAddress });

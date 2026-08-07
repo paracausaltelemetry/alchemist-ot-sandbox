@@ -1,5 +1,6 @@
 import { ASSET_MIN_X, ASSET_NODE_HEIGHT, ASSET_NODE_WIDTH } from "../data/canvasLayout";
 import { getAssetType } from "../data/catalog";
+import { resolveIdentities, type HostIdentifiers } from "../engine/identity";
 import { createAsset, createConduit, makeId } from "../models/factory";
 import type { Asset, Conduit, Criticality, Subnet, ZoneId } from "../models/types";
 import { familyForFlow, inferAssetType, protocolLabelForFlow, protocolsForHost } from "./inference";
@@ -20,8 +21,17 @@ const COL_STEP = ASSET_NODE_WIDTH + 60;
 const ROW_STEP = ASSET_NODE_HEIGHT + 70;
 const BLOCK_GAP = 80;
 
-function hostKey(host: ImportedHost): string {
-  return (host.ip || host.hostname || "").toLowerCase();
+/**
+ * Identity for the assembled topology, resolved once per import.
+ *
+ * The same resolver the map synthesis uses, so the two paths cannot disagree about how many
+ * machines a scan describes — they each had their own `ip || hostname` copy before this.
+ */
+function hostKeys(parsed: ParsedImport) {
+  const flowHosts: ImportedHost[] = parsed.flows.flatMap((flow) =>
+    [flow.sourceIp, flow.targetIp].filter(Boolean).map((ip) => ({ ip, ports: [] }))
+  );
+  return resolveIdentities([...parsed.hosts, ...flowHosts]);
 }
 
 function isIpv4(value: string | undefined): value is string {
@@ -59,10 +69,10 @@ function normalizeCriticality(raw: string | undefined): Criticality | undefined 
 }
 
 /** Merges duplicate hosts (same IP/hostname) and folds in any IPs seen only in flows. */
-function collectHosts(parsed: ParsedImport): ImportedHost[] {
+function collectHosts(parsed: ParsedImport, identity: ReturnType<typeof hostKeys>): ImportedHost[] {
   const byKey = new Map<string, ImportedHost>();
   for (const host of parsed.hosts) {
-    const key = hostKey(host);
+    const key = identity.keyFor(host);
     if (!key) {
       continue;
     }
@@ -88,7 +98,9 @@ function collectHosts(parsed: ParsedImport): ImportedHost[] {
   }
   for (const flow of parsed.flows) {
     for (const ip of [flow.sourceIp, flow.targetIp]) {
-      const key = ip.toLowerCase();
+      // A flow endpoint may already be a known host under a different identifier, so it goes
+      // through the resolver too rather than being keyed on its raw address.
+      const key = identity.keyFor({ ip });
       if (key && !byKey.has(key)) {
         byKey.set(key, { ip, ports: [] });
       }
@@ -103,7 +115,7 @@ interface Group {
 }
 
 /** Groups hosts into subnets by VLAN, else by /24, and records which hosts are ungrouped. */
-function groupSubnets(hosts: ImportedHost[]): { groups: Group[]; ungrouped: ImportedHost[]; subnetByHost: Map<string, string> } {
+function groupSubnets(hosts: ImportedHost[], keyOf: (host: HostIdentifiers) => string): { groups: Group[]; ungrouped: ImportedHost[]; subnetByHost: Map<string, string> } {
   const groups = new Map<string, Group>();
   const ungrouped: ImportedHost[] = [];
   const subnetByHost = new Map<string, string>();
@@ -131,14 +143,18 @@ function groupSubnets(hosts: ImportedHost[]): { groups: Group[]; ungrouped: Impo
       groups.set(key, group);
     }
     group.hosts.push(host);
-    subnetByHost.set(hostKey(host), group.subnet.id);
+    subnetByHost.set(keyOf(host), group.subnet.id);
   }
 
   return { groups: [...groups.values()], ungrouped, subnetByHost };
 }
 
 /** Lays out each subnet block as a grid, stacking blocks vertically so containers stay tidy. */
-function layoutPositions(groups: Group[], ungrouped: ImportedHost[]): Map<string, { x: number; y: number }> {
+function layoutPositions(
+  groups: Group[],
+  ungrouped: ImportedHost[],
+  keyOf: (host: HostIdentifiers) => string
+): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>();
   let cursorY = 60;
   const blocks: ImportedHost[][] = [...groups.map((group) => group.hosts), ...(ungrouped.length > 0 ? [ungrouped] : [])];
@@ -147,7 +163,7 @@ function layoutPositions(groups: Group[], ungrouped: ImportedHost[]): Map<string
     block.forEach((host, index) => {
       const col = index % LAYOUT_COLS;
       const row = Math.floor(index / LAYOUT_COLS);
-      positions.set(hostKey(host), { x: ASSET_MIN_X + 40 + col * COL_STEP, y: cursorY + row * ROW_STEP });
+      positions.set(keyOf(host), { x: ASSET_MIN_X + 40 + col * COL_STEP, y: cursorY + row * ROW_STEP });
     });
     const rows = Math.max(1, Math.ceil(block.length / LAYOUT_COLS));
     cursorY += rows * ROW_STEP + BLOCK_GAP;
@@ -159,19 +175,22 @@ function layoutPositions(groups: Group[], ungrouped: ImportedHost[]): Map<string
 /** Maps a parsed import into a ready-to-use set of assets, conduits and subnets. */
 export function assembleTopology(parsed: ParsedImport): AssembledTopology {
   const warnings = [...parsed.warnings];
-  let hosts = collectHosts(parsed);
+  const identity = hostKeys(parsed);
+  const keyOf = (host: HostIdentifiers) => identity.keyFor(host);
+  warnings.push(...identity.warnings);
+  let hosts = collectHosts(parsed, identity);
 
   if (hosts.length > MAX_ASSETS) {
     warnings.push(`Imported the first ${MAX_ASSETS} of ${hosts.length} hosts; trim the source for the rest.`);
     hosts = hosts.slice(0, MAX_ASSETS);
   }
 
-  const { groups, ungrouped, subnetByHost } = groupSubnets(hosts);
-  const positions = layoutPositions(groups, ungrouped);
+  const { groups, ungrouped, subnetByHost } = groupSubnets(hosts, keyOf);
+  const positions = layoutPositions(groups, ungrouped, keyOf);
 
   const assetIdByKey = new Map<string, string>();
   const assets = hosts.map((host) => {
-    const key = hostKey(host);
+    const key = keyOf(host);
     const type = inferAssetType(host);
     const zone = normalizeZoneHint(host.zoneHint) ?? getAssetType(type).defaultZone;
     const asset = createAsset(type, positions.get(key) ?? { x: 96, y: 60 }, zone);
@@ -201,8 +220,10 @@ export function assembleTopology(parsed: ParsedImport): AssembledTopology {
   let dropped = 0;
 
   for (const flow of parsed.flows) {
-    const sourceId = assetIdByKey.get(flow.sourceIp.toLowerCase());
-    const targetId = assetIdByKey.get(flow.targetIp.toLowerCase());
+    // Through the resolver, not the raw address: a flow endpoint may be keyed on a hostname or a
+    // MAC once several sources describe the same machine.
+    const sourceId = assetIdByKey.get(keyOf({ ip: flow.sourceIp }));
+    const targetId = assetIdByKey.get(keyOf({ ip: flow.targetIp }));
     if (!sourceId || !targetId || sourceId === targetId) {
       continue;
     }

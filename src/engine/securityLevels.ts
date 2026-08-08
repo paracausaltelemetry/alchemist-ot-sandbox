@@ -1,4 +1,4 @@
-import { getZone, zones } from "../data/catalog";
+import { getZone, modelledZones } from "../data/catalog";
 import { protocolLacksNativeSecurity } from "../data/protocols";
 import type { Asset, Conduit, OtProject, ZoneId } from "../models/types";
 
@@ -169,7 +169,7 @@ function frLevelsForZone(zone: ZoneId, project: OtProject): Record<FoundationalR
  */
 export function assessSecurityLevels(project: OtProject, zoneTargets?: Partial<Record<ZoneId, number>>): SecurityLevelAssessment {
   return {
-    zones: zones.map((zone) => {
+    zones: modelledZones.map((zone) => {
       const frLevels = frLevelsForZone(zone.id, project);
       const target = zoneTargets?.[zone.id] ?? defaultTargetSL(zone.id);
       const modelled = project.assets.some((asset) => asset.zone === zone.id);

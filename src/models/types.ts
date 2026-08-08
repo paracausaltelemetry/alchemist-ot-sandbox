@@ -1,6 +1,12 @@
 export const PROJECT_SCHEMA_VERSION = 2;
 
 export type ZoneId =
+  /**
+   * Above Level 5, and deliberately outside the Purdue model: the internet is not a zone of the
+   * system under consideration, it is what the system is exposed to. It exists so a converged map
+   * can draw the edge being defended, and 62443 signalling skips it for exactly that reason.
+   */
+  | "internet"
   | "level5"
   | "level4"
   | "level3"

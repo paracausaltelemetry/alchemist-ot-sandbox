@@ -45,9 +45,32 @@ describe("projecting the estate", () => {
     // reason about, not a second kind of thing living in a separate view.
     for (const asset of projectMap(sampleMap()).assets) {
       expect(asset.type).toBeTruthy();
-      expect(asset.zone).toMatch(/^level[0-5]$/);
+      expect(asset.zone).toMatch(/^(internet|level[0-5])$/);
       expect(asset.controls).toBeDefined();
     }
+  });
+
+  it("draws the edge being defended, rather than filing the internet under Enterprise IT", () => {
+    const internet = projectMap(sampleMap()).assets.find((asset) => asset.deviceKind === "internet");
+    expect(internet?.zone).toBe("internet");
+  });
+
+  it("does not put a publicly addressed host in a control zone", () => {
+    // Port inference reads RDP as an engineering workstation, which is right inside a plant and
+    // wrong on a routable address. On a converged estate the weaker claim is the true one.
+    const external = projectMap(sampleMap()).assets.filter(
+      (asset) => /^(198\.51\.100|203\.0\.113)\./.test(asset.ipAddress)
+    );
+
+    expect(external.length).toBeGreaterThan(0);
+    for (const asset of external) {
+      expect(["internet", "level5"]).toContain(asset.zone);
+    }
+  });
+
+  it("takes the firewall the topology identified, rather than guessing from ports", () => {
+    const firewall = projectMap(sampleMap()).assets.find((asset) => asset.deviceKind === "firewall");
+    expect(firewall?.type).toBe("firewall");
   });
 
   it("keeps both vocabularies, so a scanned host still draws as a network symbol", () => {

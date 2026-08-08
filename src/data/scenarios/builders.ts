@@ -65,6 +65,8 @@ export const conduitDefaults = {
 
 /** Default Y per Purdue zone — keeps a scenario tidy in both Network and Purdue views. */
 export const laneY: Record<ZoneId, number> = {
+  // One lane above Enterprise IT, the same 118px apart as every other band.
+  internet: -121,
   level5: -3,
   level4: 115,
   level3: 233,

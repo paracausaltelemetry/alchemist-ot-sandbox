@@ -1,6 +1,20 @@
-import type { AssetTypeDefinition, ScoreCategory, ZoneDefinition } from "../models/types";
+import type { AssetTypeDefinition, ScoreCategory, ZoneDefinition, ZoneId } from "../models/types";
 
 export const zones: ZoneDefinition[] = [
+  {
+    /**
+     * Not a Purdue level and not a 62443 zone — the internet is what the estate is exposed to, not
+     * part of it. Listed first because the map reads top-down from the edge, and given a rank above
+     * Enterprise IT so every existing "is this the untrusted side" threshold treats it correctly.
+     */
+    id: "internet",
+    name: "Internet",
+    shortName: "WAN",
+    levelLabel: "Internet",
+    riskRank: 8,
+    description: "Everything outside the system under consideration.",
+    color: "#eef1f4"
+  },
   {
     id: "level5",
     name: "Enterprise IT",
@@ -182,8 +196,31 @@ export const standardReferences = {
   mitreIcs: "MITRE ATT&CK for ICS"
 };
 
+/**
+ * Zones of the system under consideration — every band but the internet.
+ *
+ * 62443 Security Levels and the "not modelled" list describe what the operator is responsible for.
+ * Naming the internet in either invites someone to go and model it, and reporting it as an
+ * unmodelled gap would be a finding against the whole world.
+ *
+ * Not for anything that counts what is actually there — the zone matrix and the canvas both keep the
+ * internet, because dropping a row silently hides the internet-facing conduits that matter most.
+ */
+export const modelledZones: ZoneDefinition[] = zones.filter((zone) => zone.id !== "internet");
+
 export function getZone(id: string): ZoneDefinition {
-  return zones.find((zone) => zone.id === id) ?? zones[0];
+  // Unknown ids fall back to Enterprise IT, not to `zones[0]` — that used to be the same thing, and
+  // then the internet was prepended. A bad id resolving to riskRank 8 would flip every
+  // `isEnterpriseZone` threshold silently.
+  return zones.find((zone) => zone.id === id) ?? getZoneOrThrow("level5");
+}
+
+function getZoneOrThrow(id: ZoneId): ZoneDefinition {
+  const zone = zones.find((entry) => entry.id === id);
+  if (!zone) {
+    throw new Error(`catalog is missing the ${id} zone`);
+  }
+  return zone;
 }
 
 export function getAssetType(id: string): AssetTypeDefinition {

@@ -1,0 +1,463 @@
+.canvas-titlebar {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+}
+
+.canvas-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-top: 0.4rem;
+}
+
+.canvas-stats span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+}
+
+.canvas-stats strong {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-right: 0.18rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.canvas-stats .canvas-stat-danger strong {
+  color: var(--signal);
+}
+
+.canvas-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.segmented-control {
+  display: inline-flex;
+  border: 1px solid var(--line);
+}
+
+.segmented-control button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 2.15rem;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  color: var(--muted);
+  background: transparent;
+  padding: 0.38rem 0.6rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.segmented-control button svg {
+  opacity: 0.85;
+}
+
+.segmented-control button:hover:not(.active) {
+  color: var(--text);
+}
+
+.segmented-control button:last-child {
+  border-right: 0;
+}
+
+.segmented-control button.active {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+
+.canvas-titlebar h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.canvas-titlebar p {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* On narrow screens the two rigid segmented-controls (up to six buttons)
+   are wider than the viewport. Stack the titlebar and turn the actions row
+   into a horizontally scrollable strip so every control stays reachable
+   instead of being clipped off-screen. */
+@media (max-width: 640px) {
+  .canvas-titlebar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+  }
+
+  .canvas-actions {
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.2rem;
+  }
+
+  .canvas-actions > * {
+    flex: 0 0 auto;
+  }
+}
+
+.canvas-metrics {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.canvas-metrics span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0.42rem 0.58rem;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+/* Collapsible on-canvas key, anchored top-left of the flow frame. */
+.canvas-legend {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 6;
+  width: 11.5rem;
+  border: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg));
+}
+
+.canvas-legend.is-collapsed {
+  width: auto;
+}
+
+.canvas-legend-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.canvas-legend-head span {
+  flex: 1;
+  text-align: left;
+}
+
+.canvas-legend-head:hover {
+  background: var(--accent-soft);
+}
+
+.canvas-legend-body {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.1rem 0.6rem 0.6rem;
+}
+
+.canvas-legend-group {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.canvas-legend-group h4 {
+  margin: 0 0 0.05rem;
+  color: var(--muted);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: color-mix(in srgb, var(--text) 80%, var(--muted));
+  font-size: 0.7rem;
+  line-height: 1.2;
+}
+
+.legend-row i {
+  flex: none;
+  width: 1.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.legend-line {
+  height: 0;
+  border-top: 2.5px solid var(--muted);
+}
+
+.legend-line.dashed {
+  border-top-style: dashed;
+}
+
+.legend-line.dotted {
+  border-top-style: dotted;
+}
+
+.legend-arrow {
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.legend-boundary {
+  width: 0.62rem;
+  height: 0.62rem;
+  margin: 0 0.34rem;
+  border: 2px solid var(--muted);
+  border-radius: 999px;
+}
+
+.legend-swatch {
+  height: 0.28rem;
+  border-radius: 999px;
+}
+
+.react-flow-frame {
+  min-height: 0;
+  position: relative;
+}
+
+.react-flow-frame .react-flow {
+  background: var(--bg-deep);
+}
+
+body.light-mode .react-flow-frame .react-flow {
+  background: #f2f2ef;
+}
+
+.react-flow__attribution {
+  display: none;
+}
+
+.react-flow__edge-textbg {
+  fill: color-mix(in srgb, var(--bg) 82%, transparent);
+}
+
+.react-flow__edge-text {
+  fill: var(--muted);
+}
+
+.react-flow__controls,
+.react-flow__minimap {
+  border: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+  background: color-mix(in srgb, var(--surface) 82%, transparent) !important;
+  box-shadow: none !important;
+}
+
+.react-flow__controls button {
+  border-bottom: 1px solid var(--line) !important;
+  background: transparent !important;
+  color: var(--text) !important;
+}
+
+.react-flow__controls svg {
+  fill: var(--text);
+}
+
+.canvas-minimap {
+  width: 9.5rem !important;
+  height: 6.5rem !important;
+  opacity: 0.55;
+  transition: opacity 160ms ease;
+}
+
+.canvas-minimap:hover {
+  opacity: 0.86;
+}
+
+.canvas-hud {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 6;
+  width: 14rem;
+  max-width: calc(100% - 1.5rem);
+  display: grid;
+  border: 1px solid var(--line-strong);
+  background: color-mix(in srgb, var(--surface) 90%, var(--bg));
+}
+
+.canvas-hud-head {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.55rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  transition: background-color var(--motion) var(--ease);
+}
+
+.canvas-hud-head:hover {
+  background: var(--accent-soft);
+}
+
+.canvas-hud-headline {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.canvas-hud-head > svg {
+  color: var(--muted);
+}
+
+.canvas-hud-body {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0 0.6rem 0.6rem;
+}
+
+.canvas-hud-detail {
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.canvas-hud-finding {
+  display: flex;
+  gap: 0.42rem;
+  align-items: flex-start;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--signal);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.3;
+  transition: border-color var(--motion) var(--ease), background-color var(--motion) var(--ease);
+}
+
+.canvas-hud-finding:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.canvas-hud-finding svg {
+  flex: 0 0 auto;
+  margin-top: 0.05rem;
+  color: var(--signal);
+}
+
+.canvas-hud-finding.severity-medium,
+.canvas-hud-finding.severity-low {
+  border-left-color: var(--line-strong);
+}
+
+.canvas-hud-finding.severity-medium svg,
+.canvas-hud-finding.severity-low svg {
+  color: var(--muted);
+}
+
+.canvas-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  width: min(24rem, calc(100% - 3rem));
+  display: grid;
+  gap: 0.4rem;
+  padding: 1.1rem 1.25rem;
+  border: 1px dashed var(--line-strong);
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  text-align: center;
+  pointer-events: none;
+}
+
+.canvas-empty strong {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.canvas-empty p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+
+/*
+ * The topology as text. Hidden behind the canvas on desktop (via .visually-hidden), and the only
+ * representation there is on a phone, where editing is unavailable but reading should not be.
+ */
+.topology-outline {
+  margin-top: var(--space-4);
+  text-align: left;
+}
+.topology-outline h3 {
+  margin: 0 0 var(--space-2);
+  font: 650 var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.topology-outline h4 {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+.topology-outline p {
+  margin: 0 0 var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+.topology-outline ul {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.topology-outline li {
+  font-size: var(--text-sm);
+}
+.topology-outline li ul {
+  margin-top: 0.2rem;
+  gap: 0.1rem;
+}
+.topology-outline li li {
+  color: var(--muted);
+  font: var(--text-xs) / 1.5 var(--font-mono);
+}

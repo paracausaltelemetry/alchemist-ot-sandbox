@@ -1,0 +1,213 @@
+/* --- Baseline vs current diff --- */
+.baseline-view {
+  display: grid;
+  gap: 0.9rem;
+  align-content: start;
+}
+
+.baseline-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: stretch;
+}
+
+.baseline-score,
+.baseline-delta {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  padding: 0.5rem 0.75rem;
+  display: grid;
+  gap: 0.1rem;
+  min-width: 6rem;
+}
+
+.baseline-score span,
+.baseline-delta span {
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.baseline-score strong,
+.baseline-delta strong {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.baseline-delta.is-up {
+  border-left-color: var(--accent);
+}
+
+.baseline-delta.is-down,
+.baseline-delta.is-down strong {
+  border-left-color: var(--signal);
+  color: var(--signal);
+}
+
+.baseline-summary-actions {
+  display: inline-flex;
+  gap: 0.45rem;
+  align-items: center;
+  margin-left: auto;
+}
+
+.baseline-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.baseline-cols h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.baseline-findings + h3 {
+  margin-top: 0.9rem;
+}
+
+.baseline-findings {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.baseline-findings li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.baseline-findings li span {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.baseline-findings li.is-introduced,
+.baseline-findings li.is-introduced span {
+  border-left-color: var(--signal);
+  color: var(--signal);
+}
+
+.kb-table .delta-up {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.kb-table .delta-down {
+  color: var(--signal);
+  font-weight: 700;
+}
+
+.baseline-empty {
+  display: grid;
+  gap: 0.8rem;
+  justify-items: start;
+  max-width: 32rem;
+  padding: 0.5rem 0;
+}
+
+.baseline-empty p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+@media (max-width: 760px) {
+  .baseline-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- What-if remediation simulator --- */
+.whatif-view {
+  display: grid;
+  gap: 0.9rem;
+  align-content: start;
+}
+
+.whatif-list {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.whatif-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0.55rem 0.65rem;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.whatif-toggle.on {
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.whatif-toggle:hover,
+.whatif-toggle:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.whatif-check {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  margin-top: 0.05rem;
+}
+
+.whatif-toggle.on .whatif-check {
+  border-color: var(--accent);
+}
+
+.whatif-text {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.whatif-text strong {
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.whatif-text small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+

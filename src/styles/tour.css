@@ -1,0 +1,79 @@
+/* --- Guided tour --- */
+.tour {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-top);
+}
+
+.tour-dim {
+  position: fixed;
+  background: rgba(8, 9, 10, 0.62);
+}
+
+.tour-dim-full {
+  inset: 0;
+}
+
+.tour-ring {
+  position: fixed;
+  border: 1px solid var(--accent);
+  pointer-events: none;
+}
+
+.tour-card {
+  background: var(--surface-raised);
+  border: 1px solid var(--line-strong);
+  padding: 0.9rem 1rem 0.8rem;
+  width: 300px;
+  max-width: calc(100vw - 1.5rem);
+}
+
+.tour-card-center {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.tour-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.tour-card-head strong {
+  font-family: var(--font-display);
+  font-size: 0.98rem;
+  color: var(--text);
+}
+
+.tour-card p {
+  margin: 0.45rem 0 0.8rem;
+  color: color-mix(in srgb, var(--text) 82%, var(--muted));
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.tour-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.tour-progress {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.tour-card-actions {
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
+.tour-card-actions .text-button {
+  min-height: 2.1rem;
+  padding: 0 0.8rem;
+}

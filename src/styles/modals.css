@@ -1,0 +1,286 @@
+.subnet-manager {
+  width: min(42rem, 100%);
+  max-height: min(80vh, 42rem);
+  overflow: auto;
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.1rem 1.2rem 1.2rem;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-raised);
+}
+
+.subnet-manager-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.subnet-manager-head strong {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.subnet-manager-head p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.subnet-manager-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.subnet-manager-empty {
+  font-size: 0.82rem;
+}
+
+.subnet-manager-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1.2fr 0.8fr auto auto;
+  gap: 0.5rem;
+  align-items: end;
+  padding: 0.5rem;
+  border: 1px solid var(--line);
+}
+
+.subnet-manager-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2.1rem;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.subnet-manager-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.import-wizard {
+  width: min(34rem, 100%);
+  max-height: min(85vh, 44rem);
+  overflow: auto;
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.1rem 1.2rem 1.2rem;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-raised);
+}
+
+.import-wizard-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.import-wizard-head strong {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.import-wizard-head p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.import-wizard-hint {
+  margin: -0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.import-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1.2rem 1rem;
+  border: 1px dashed var(--line-strong);
+  background: color-mix(in srgb, var(--accent) 3%, transparent);
+  text-align: center;
+}
+
+.import-dropzone span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.import-wizard-error {
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--signal);
+  color: var(--signal);
+  font-size: 0.8rem;
+}
+
+.import-preview {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+}
+
+.import-preview-counts {
+  display: flex;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+}
+
+.import-preview-counts span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.import-preview-counts strong {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  color: var(--text);
+  margin-right: 0.3rem;
+}
+
+.import-preview-warnings {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.2rem;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.import-preview-oversize {
+  margin: 0;
+  padding: 0.5rem 0.65rem;
+  border-left: 3px solid var(--warn, #e0a53f);
+  background: color-mix(in srgb, var(--warn, #e0a53f) 12%, transparent);
+  color: var(--text);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.import-mode {
+  display: flex;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.import-wizard-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.scenario-gallery {
+  width: min(56rem, 100%);
+  max-height: min(85vh, 46rem);
+  overflow: auto;
+  display: grid;
+  gap: 1rem;
+  padding: 1.1rem 1.2rem 1.2rem;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-raised);
+}
+
+.scenario-gallery-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.scenario-gallery-head strong {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.scenario-gallery-head p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+  gap: 0.75rem;
+}
+
+.scenario-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--accent) 3%, transparent);
+}
+
+.scenario-sector {
+  align-self: flex-start;
+  padding: 0.12rem 0.45rem;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.scenario-card strong {
+  font-family: var(--font-display);
+  font-size: 0.96rem;
+  color: var(--text);
+}
+
+.scenario-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  flex: 1;
+}
+
+.scenario-standards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.scenario-standards span {
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.scenario-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.2rem;
+}
+
+.scenario-counts {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+

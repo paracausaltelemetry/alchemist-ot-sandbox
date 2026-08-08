@@ -1,0 +1,94 @@
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("../assets/fonts/inter-var.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 500 700;
+  font-display: swap;
+  src: url("../assets/fonts/space-grotesk-var.woff2") format("woff2");
+}
+
+:root {
+  color-scheme: dark;
+
+  /* Brand: monochrome ink/paper, matching paracausaltelemetry.com. --signal is the
+     single colour, reserved for danger / live / critical states. --accent === --text
+     (interactive ink). Flat (no shadows), sharp corners (no rounding). */
+  --bg: #0a0b0c;
+  --bg-deep: #060708;
+  --surface: rgba(13, 14, 16, 0.92);
+  --surface-raised: rgba(19, 21, 24, 0.92);
+  --line: rgba(196, 202, 205, 0.14);
+  --line-strong: rgba(206, 212, 215, 0.28);
+  --text: #e9ebe8;
+  --muted: #8e979c;
+  --accent: #e9ebe8;
+  --accent-ink: #0a0b0c;
+  --accent-soft: rgba(233, 235, 232, 0.08);
+  /* Monochrome sweep colour for the radar brand mark (matches the CTF archive). */
+  --accent-blue: #aab3b8;
+  --signal: #e5484d;
+  --danger: #e5484d;
+
+  /* Structural tokens (no colour/shadow/radius change — brand stays flat & sharp). */
+  --shadow: none;
+  --radius: 0;
+  --motion-fast: 140ms;
+  --motion: 180ms;
+  --ease: ease;
+
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-mono: Consolas, "Courier New", monospace;
+
+  /* Spacing scale — matches the rhythm the stylesheet already uses (0.35/0.5/0.65/0.8/1rem),
+     so adopting a token never moves a pixel. Prefer these over new literal values. */
+  --space-1: 0.35rem;
+  --space-2: 0.5rem;
+  --space-3: 0.65rem;
+  --space-4: 0.8rem;
+  --space-5: 1rem;
+  --space-6: 1.5rem;
+  --space-7: 2rem;
+
+  /* Type scale — the sizes the UI already leans on. */
+  --text-xs: 0.62rem;
+  --text-sm: 0.72rem;
+  --text-md: 0.78rem;
+  --text-base: 0.86rem;
+  --text-lg: 1rem;
+  --text-xl: 1.35rem;
+
+  /* Z-index tiers. Canvas-internal stacking (−2…7) stays literal; everything that
+     floats above the workspace uses a tier so new surfaces slot in predictably. */
+  --z-header: 20;
+  --z-menu: 30;
+  --z-toast: 60;
+  --z-modal: 80;
+  --z-top: 100;
+}
+
+body.light-mode {
+  color-scheme: light;
+  --bg: #fafaf8;
+  --bg-deep: #f0f0ed;
+  --surface: rgba(255, 255, 255, 0.92);
+  --surface-raised: rgba(255, 255, 255, 0.86);
+  --line: rgba(22, 24, 26, 0.12);
+  --line-strong: rgba(22, 24, 26, 0.26);
+  --text: #16181a;
+  --muted: #5d6469;
+  --accent: #16181a;
+  --accent-ink: #fafaf8;
+  --accent-soft: rgba(22, 24, 26, 0.06);
+  --accent-blue: #5d6469;
+  --signal: #c4373b;
+  --danger: #c4373b;
+}
+

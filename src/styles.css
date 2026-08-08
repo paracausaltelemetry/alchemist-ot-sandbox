@@ -1,0 +1,24 @@
+/* Alchemist stylesheet, split by workspace area. Import order matters: it preserves
+   the original cascade, so append new rules to the area file they belong to rather
+   than reordering imports. Vite inlines these at build time (no runtime requests). */
+@import "./styles/tokens.css";
+@import "./styles/base.css";
+@import "./styles/header.css";
+@import "./styles/workspace.css";
+@import "./styles/canvas.css";
+@import "./styles/overlays.css";
+@import "./styles/canvas-modes.css";
+@import "./styles/modals.css";
+@import "./styles/nodes-edges.css";
+@import "./styles/inspector.css";
+@import "./styles/analysis.css";
+@import "./styles/responsive.css";
+@import "./styles/print.css";
+@import "./styles/grc.css";
+@import "./styles/knowledge.css";
+@import "./styles/site-frame.css";
+@import "./styles/dashboard.css";
+@import "./styles/improve.css";
+@import "./styles/tour.css";
+@import "./styles/it.css";
+@import "./styles/it-map.css";

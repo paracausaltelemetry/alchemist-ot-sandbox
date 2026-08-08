@@ -1,0 +1,121 @@
+@media (max-width: 1280px) {
+  .app-header {
+    grid-template-columns: 1fr minmax(20rem, 34rem);
+  }
+
+  .toolbar {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .workspace-grid {
+    --col-palette: 13.75rem;
+    --col-inspector: 20rem;
+    --canvas-min: 27rem;
+  }
+
+  .reachability-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 980px) {
+  .app-shell {
+    padding: 0.75rem;
+  }
+
+  .app-header {
+    grid-template-columns: 1fr;
+    position: static;
+  }
+
+  .workspace-grid,
+  .workspace-grid.inspector-hidden {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(34rem, 62vh) auto auto;
+  }
+
+  .asset-palette,
+  .canvas-shell,
+  .inspector-panel,
+  .analysis-panel {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .asset-palette {
+    overflow: visible;
+  }
+
+  .palette-list {
+    grid-template-columns: repeat(auto-fit, minmax(10.8rem, 1fr));
+  }
+
+  .report-summary-grid,
+  .category-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Read-only mobile workspace: no palette/inspector/canvas, so the grid is just
+   the desktop-only notice above the analysis panel, each sized to content. */
+.workspace-grid.mobile-readonly {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto;
+}
+
+.canvas-mobile-notice {
+  grid-column: 1;
+  display: grid;
+  gap: 0.6rem;
+  align-content: start;
+  padding: 1.25rem;
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--accent, #5b8cff);
+  background: var(--surface, #12161b);
+}
+
+.canvas-mobile-notice h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.canvas-mobile-notice p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.canvas-mobile-notice .canvas-mobile-stats {
+  color: var(--text);
+  font: 600 0.78rem/1.4 var(--font-mono, ui-monospace, monospace);
+}
+
+@media (max-width: 620px) {
+  .toolbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .icon-button,
+  .text-button,
+  .theme-toggle {
+    width: 100%;
+  }
+
+  .menu {
+    width: 100%;
+  }
+
+  .menu-panel {
+    min-width: 100%;
+  }
+
+  .field-row,
+  .control-grid,
+  .report-preview {
+    grid-template-columns: 1fr;
+  }
+}
+

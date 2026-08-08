@@ -1,0 +1,353 @@
+/* --- OT knowledge base (reference library) --- */
+.knowledge-base {
+  width: min(61rem, 100%);
+  height: min(84vh, 46rem);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-raised);
+}
+
+/* Methodology reuses the knowledge-base shell as a single, narrower reading column. */
+.methodology {
+  width: min(46rem, 100%);
+}
+
+.methodology .kb-body {
+  grid-template-columns: 1fr;
+}
+
+.kb-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.kb-head strong {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
+.kb-head p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.kb-body {
+  display: grid;
+  grid-template-columns: 15.5rem 1fr;
+  min-height: 0;
+}
+
+.kb-nav {
+  overflow-y: auto;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.kb-search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.8rem;
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--line);
+}
+
+.kb-search svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.kb-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  padding: 0;
+}
+
+.kb-search input::placeholder {
+  color: var(--muted);
+}
+
+.kb-search input:focus {
+  outline: none;
+}
+
+.kb-search:focus-within {
+  border-bottom-color: var(--accent);
+}
+
+.kb-nav-list {
+  padding: 0.85rem 0.7rem;
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.kb-nav-group {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.kb-nav-group h4 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0 0 0.3rem;
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.kb-nav-group h4 span {
+  flex: none;
+  letter-spacing: 0;
+  opacity: 0.65;
+  font-variant-numeric: tabular-nums;
+}
+
+.kb-nav-item {
+  text-align: left;
+  border: 0;
+  border-left: 2px solid transparent;
+  background: transparent;
+  color: color-mix(in srgb, var(--text) 76%, var(--muted));
+  padding: 0.44rem 0.6rem;
+  font-size: 0.81rem;
+  line-height: 1.3;
+  cursor: pointer;
+  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
+}
+
+.kb-nav-item:hover {
+  color: var(--text);
+  background: var(--accent-soft);
+}
+
+.kb-nav-item:focus-visible {
+  outline: none;
+  color: var(--text);
+  background: var(--accent-soft);
+  border-left-color: var(--line-strong);
+}
+
+.kb-nav-item.active {
+  color: var(--text);
+  border-left-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.kb-nav-empty {
+  margin: 0;
+  padding: 0.3rem 0.6rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.kb-article {
+  overflow-y: auto;
+  padding: 1.4rem 1.7rem 1.9rem;
+}
+
+.kb-article-cat {
+  display: inline-block;
+  padding: 0.14rem 0.55rem;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.kb-article h3 {
+  margin: 0.7rem 0 0.55rem;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  line-height: 1.14;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.kb-summary {
+  margin: 0 0 1.6rem;
+  padding: 0.1rem 0 0.1rem 0.85rem;
+  border-left: 3px solid var(--line-strong);
+  color: color-mix(in srgb, var(--text) 82%, var(--muted));
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.kb-article section {
+  margin-bottom: 1.5rem;
+}
+
+.kb-article section h4 {
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.kb-article ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.kb-article li {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  color: var(--muted);
+  font-size: 0.83rem;
+  line-height: 1.5;
+}
+
+.kb-term {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.kb-refs {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.kb-refs h4 {
+  margin: 0 0 0.55rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.kb-ref-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.kb-ref-chips span {
+  padding: 0.16rem 0.55rem;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.kb-table-wrap {
+  overflow-x: auto;
+  margin: 0.4rem 0 1.2rem;
+}
+
+.kb-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.kb-table th,
+.kb-table td {
+  border: 1px solid var(--line);
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.kb-table th {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.kb-table td {
+  color: var(--muted);
+}
+
+.kb-table td:first-child {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.kb-links {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.4rem 0 0.6rem;
+}
+
+.kb-link {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--line);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.84rem;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.kb-link:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.kb-link svg {
+  flex: none;
+  color: var(--muted);
+  transform: translateY(1px);
+}
+
+.kb-link span {
+  flex: 1;
+}
+
+.kb-link small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+@media (max-width: 640px) {
+  .kb-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .kb-nav {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    max-height: 14rem;
+  }
+}
+

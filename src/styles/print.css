@@ -1,0 +1,101 @@
+@media print {
+  body,
+  body.light-mode {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /*
+   * Every live view, not just the OT one. `.app-shell` is the workbench's own wrapper, so the IT
+   * view — which renders `.it-app site-frame` — printed the entire running UI above its report:
+   * toolbar, canvas, panels and all.
+   */
+  .app-shell,
+  .it-app {
+    display: none;
+  }
+
+  /* Stage maps sit inside the timeline; scale them to the page rather than clipping them. */
+  .it-print-map svg {
+    max-width: 100%;
+    height: auto;
+    margin: 8px 0 4px;
+  }
+
+  .it-print-stage {
+    page-break-inside: avoid;
+    margin-bottom: 18px;
+  }
+
+  .it-print-when {
+    margin: 0 0 6px;
+    font-size: 9pt;
+    font-style: italic;
+  }
+
+  .print-document {
+    display: block;
+    color: #000;
+    padding: 0;
+    font-family: Arial, sans-serif;
+    font-size: 11pt;
+  }
+
+  .print-document header {
+    border-bottom: 2px solid #000;
+    padding-bottom: 12px;
+    margin-bottom: 18px;
+  }
+
+  .print-document header p {
+    margin: 0 0 4px;
+    font-size: 10pt;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .print-document h1 {
+    margin: 0 0 6px;
+    font-size: 24pt;
+  }
+
+  .print-document h2 {
+    margin: 18px 0 8px;
+    font-size: 14pt;
+  }
+
+  .print-document p {
+    margin: 0 0 8px;
+  }
+
+  .print-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .print-metrics span,
+  .print-finding {
+    border: 1px solid #999;
+    padding: 8px;
+  }
+
+  .print-document table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .print-document th,
+  .print-document td {
+    border: 1px solid #999;
+    padding: 5px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .print-finding {
+    break-inside: avoid;
+    margin-bottom: 8px;
+  }
+}
+

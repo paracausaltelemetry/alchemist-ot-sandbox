@@ -1,0 +1,622 @@
+/* IT-side engagement map: a separate view reusing the topology canvas with an
+   IT analysis lens. Brand stays flat, sharp and monochrome; --signal (red) is
+   the only colour, reserved for high-risk / danger. */
+
+.it-app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.it-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.it-toolbar-title {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.it-toolbar-title strong {
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+}
+.it-toolbar-title span {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.it-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+.it-export {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-right: var(--space-3);
+  border-right: 1px solid var(--line);
+  color: var(--muted);
+}
+.it-export svg {
+  color: var(--muted);
+}
+
+.it-error {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--line);
+  color: var(--signal);
+  font-size: var(--text-sm);
+}
+
+/* Empty state */
+.it-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-4);
+  max-width: 60ch;
+  margin: clamp(2rem, 8vh, 6rem) auto;
+  padding: 0 var(--space-5);
+}
+.it-empty-state h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+}
+.it-empty-state p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+.it-cmd {
+  align-self: stretch;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line-strong);
+  background: var(--bg-deep);
+  color: var(--text);
+  font: var(--text-sm) / 1.4 var(--font-mono);
+  overflow-x: auto;
+}
+.it-note {
+  font-size: var(--text-sm);
+}
+.it-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.it-paste {
+  align-self: stretch;
+}
+.it-paste summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+.it-paste-area {
+  display: block;
+  width: 100%;
+  min-height: 8rem;
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line-strong);
+  background: var(--bg-deep);
+  color: var(--text);
+  font: var(--text-sm) / 1.4 var(--font-mono);
+  resize: vertical;
+}
+
+/* Selected-host detail */
+.it-host-detail {
+  padding-bottom: var(--space-5);
+  margin-bottom: var(--space-5);
+  border-bottom: 1px solid var(--line-strong);
+}
+.it-host-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.it-host-detail-head h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+}
+.it-host-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: var(--space-3) 0;
+}
+.it-host-meta div {
+  display: flex;
+  gap: var(--space-2);
+}
+.it-host-meta dt {
+  color: var(--muted);
+  font: var(--text-xs) / 1.4 var(--font-mono);
+  text-transform: uppercase;
+}
+.it-host-meta dd {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.it-host-detail h4 {
+  margin: var(--space-3) 0 var(--space-2);
+  color: var(--muted);
+  font: 650 var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.it-host-ports {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.it-host-ports li {
+  display: flex;
+  gap: var(--space-3);
+  font: var(--text-sm) / 1.4 var(--font-mono);
+}
+.it-host-ports li b {
+  min-width: 5rem;
+}
+.it-host-ports li span {
+  color: var(--muted);
+}
+
+/* Workspace: canvas + analysis panel */
+.it-workspace {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 380px);
+}
+.it-canvas-wrap {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  border-right: 1px solid var(--line);
+}
+.it-mobile-note {
+  padding: var(--space-5);
+  color: var(--muted);
+}
+
+.it-host-rationale {
+  margin: 0 0 var(--space-3);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+.it-host-rationale em {
+  font-style: normal;
+  color: var(--text);
+}
+
+.it-panel {
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-5);
+}
+
+/* Findings */
+.it-findings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.it-stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid var(--line-strong);
+  background: var(--line-strong);
+}
+.it-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: var(--space-3);
+  background: var(--surface);
+}
+.it-stat b {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+}
+.it-stat span {
+  color: var(--muted);
+  font: var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.it-stat[data-alert="true"] b {
+  color: var(--signal);
+}
+
+.it-warn {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--signal);
+  background: color-mix(in srgb, var(--signal) 10%, transparent);
+}
+.it-warn svg {
+  flex: none;
+  color: var(--signal);
+  margin-top: 0.15rem;
+}
+.it-warn p {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+}
+
+.it-section h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  font: 650 var(--text-sm) / 1 var(--font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.it-section h3 svg {
+  color: var(--muted);
+}
+.it-empty {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.it-risk-list,
+.it-exposed-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.it-risk-list li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--muted);
+}
+.it-risk-list li[data-severity="high"] {
+  border-left-color: var(--signal);
+}
+.it-risk-list li[data-severity="medium"] {
+  border-left-color: var(--text);
+}
+.it-sev {
+  grid-row: 1 / span 2;
+  align-self: center;
+  font: 700 var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.it-risk-list li[data-severity="high"] .it-sev {
+  color: var(--signal);
+}
+.it-risk-host {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-base);
+}
+.it-risk-host em {
+  color: var(--muted);
+  font-style: normal;
+  font-size: var(--text-sm);
+}
+.it-risk-port {
+  grid-column: 2;
+  color: var(--text);
+  font: var(--text-sm) / 1.3 var(--font-mono);
+}
+.it-risk-reason {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+.it-exposed-list li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+}
+.it-exposed-list li b {
+  font-family: var(--font-mono);
+}
+.it-exposed-list li em {
+  color: var(--muted);
+  font-style: normal;
+  font-size: var(--text-sm);
+}
+.it-exposed-list li span {
+  margin-left: auto;
+  color: var(--muted);
+  font: var(--text-xs) / 1 var(--font-mono);
+}
+
+.it-inventory {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+.it-inv-group h4 {
+  margin: 0 0 var(--space-2);
+  color: var(--muted);
+  font: 650 var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.it-inv-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.it-inv-group li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+.it-inv-group li span {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 960px) {
+  .it-workspace {
+    grid-template-columns: 1fr;
+  }
+  .it-canvas-wrap {
+    display: none;
+  }
+  .it-inventory {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Advisory notice: the scan worked, but something about it is worth saying. Distinct from
+   .it-error, which means nothing was mapped. */
+.it-notice {
+  margin: 0;
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+/* The engagement's scan list: which scans built the map that is on screen, in the order they ran. */
+.it-scan-list {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.it-scan-list h4 {
+  margin: 0 0 var(--space-2);
+  color: var(--muted);
+  font: 650 var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.it-scan-list ol {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.it-scan-list li {
+  font-size: var(--text-sm);
+}
+.it-scan-list li span {
+  display: block;
+  color: var(--muted);
+  font: var(--text-xs) / 1.4 var(--font-mono);
+}
+.it-scan-list p {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-xs);
+}
+
+/* Where a scan was run from. Asked at import; nothing in a scan file records it. */
+.it-vantage-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.it-vantage-field > span {
+  color: var(--muted);
+  font: 650 var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Offered only when the scan file recorded no time of its own. */
+.it-scan-time-entry input {
+  margin-top: var(--space-2);
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  font: var(--text-xs) / 1.4 var(--font-mono);
+}
+
+/* Fields on the draw-a-link dialog. */
+.it-link-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+.it-link-field > span {
+  color: var(--muted);
+  font: 650 var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.it-link-field input,
+.it-link-field textarea {
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  font: var(--text-sm) / 1.4 var(--font-sans);
+  resize: vertical;
+}
+
+/* The journal: what the operator did, in order, alongside what the scans saw. */
+.it-journal {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+.it-journal-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.it-journal h4 {
+  margin: 0 0 var(--space-2);
+  color: var(--muted);
+  font: 650 var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.it-journal-list {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.it-journal-list li {
+  font-size: var(--text-sm);
+}
+.it-journal-list li span {
+  display: block;
+  color: var(--muted);
+  font: var(--text-xs) / 1.5 var(--font-mono);
+}
+.it-journal p {
+  margin: 0;
+  font-size: var(--text-xs);
+}
+
+/* Two fields to a row where they are short enough to read side by side. */
+.it-event-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+.it-event-dialog select,
+.it-event-dialog input,
+.it-event-dialog textarea {
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  font: var(--text-sm) / 1.4 var(--font-sans);
+}
+
+/*
+ * The IT dialogs are opaque, unlike the shared `.confirm-dialog`.
+ *
+ * `--surface-raised` carries 14% transparency, which reads as a lift on a short confirmation box.
+ * These are forms: they sit over a dense map, and the canvas showing through the field you are
+ * typing into is not a lift, it is noise. The border keeps the raised look.
+ */
+.it-event-dialog,
+.it-link-dialog,
+.it-scan-dialog {
+  background: var(--bg);
+}
+
+/* Long enough to need it on a laptop, and the map behind must not scroll instead. */
+.it-event-dialog {
+  width: min(34rem, 100%);
+  max-height: min(46rem, 88vh);
+  overflow-y: auto;
+}
+
+.it-event-dialog textarea,
+.it-link-field textarea {
+  resize: vertical;
+  max-height: 8rem;
+}
+
+/* Scan count beside the engagement name, mirroring the OT header's score slot. */
+.it-header-scans {
+  color: var(--muted);
+  font: var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Connect mode, matching the OT canvas. */
+.it-node.is-connectable {
+  cursor: crosshair;
+}
+.it-node.is-connect-source {
+  outline: 2px dashed var(--text);
+  outline-offset: 3px;
+}
+
+/* The engagement's own name, in the panel rather than the shared header. */
+.it-engagement-name {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) 0;
+}
+.it-engagement-name > span {
+  color: var(--muted);
+  font: 650 var(--text-xs) / 1 var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.it-engagement-name input {
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  font: var(--text-sm) / 1.4 var(--font-sans);
+}
+.it-engagement-name-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}

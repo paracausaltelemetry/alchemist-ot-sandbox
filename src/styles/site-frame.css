@@ -1,0 +1,448 @@
+/* Shared Paracausal Telemetry site frame, mirrored from the main site (paracausaltelemetry.com)
+   so the Alchemist landing opens in the same familiar shell: sticky header, radar brand,
+   primary nav, and a large page-hero band. Reuses the app's existing --accent / --muted /
+   --line-strong / --signal brand tokens and the .brand-mark + .theme-toggle rules. */
+.site-frame {
+  /* Match the main site's container width (paracausaltelemetry.com uses 1440). */
+  --content-width: min(1440px, calc(100vw - 2rem));
+  --header-height: 5.5rem;
+  --gutter: 1rem;
+}
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-header, 20);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  /* Fill the .dashboard container; a viewport-derived width here overflowed
+     the narrower parent (100vw includes the scrollbar, and the parent has its
+     own max-width + padding). */
+  width: 100%;
+  min-height: var(--header-height);
+  margin: 0 auto;
+  padding: 1rem 0.45rem;
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.site-header::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
+}
+
+.site-header .brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.brand-copy strong {
+  font-size: 0.95rem;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.brand-copy small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* Mobile-only Menu button (ported from the main site's js/site-header.js
+   pattern); hidden on desktop where the nav renders inline. */
+.site-menu-toggle {
+  display: none;
+}
+
+.site-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1.3rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.site-nav a,
+.site-nav .is-current {
+  position: relative;
+  padding-bottom: 0.15rem;
+  color: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.site-nav .is-current {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.site-nav a::after,
+.site-nav .is-current::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 1px;
+  background: var(--signal);
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 180ms ease;
+}
+
+.site-nav .is-current::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+.site-nav a:hover::after,
+.site-nav a:focus-visible::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+/* Large familiar hero band beneath the header. */
+.page-hero {
+  width: 100%;
+  margin: 0 auto;
+  padding: 5.5rem 0 3rem;
+}
+
+.page-hero .eyebrow {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.page-hero h1 {
+  max-width: 52rem;
+  margin: 0.45rem 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(2.3rem, 4.5vw, 3.6rem);
+  line-height: 1;
+}
+
+.page-hero-lede {
+  max-width: 42rem;
+  margin: 1.15rem 0 0;
+  color: var(--text);
+  font-size: 1.08rem;
+  line-height: 1.7;
+}
+
+/* Dithering hero card, modelled on the main site's projects/writeups
+   .page-hero-card: a compact sub-page card holding the WebGL ordered-dither
+   warp field (lib/heroDither.ts) behind bottom-left copy. Only the main-site
+   landing hero is intentionally larger. */
+.page-hero.hero-cta {
+  padding: 1.2rem 0 0;
+}
+
+.hero-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-end;
+  min-height: clamp(15rem, 32svh, 20rem);
+  padding: clamp(2rem, 5vh, 3rem) clamp(1.4rem, 3vw, 2.5rem);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+/* WebGL warp field: cobalt on the dark theme, amber on paper. Explicit colours
+   (not a token) so the field stays blue while the app chrome stays monochrome.
+   Opacity/blend live here; heroDither reads this `color` for the field tint. */
+.hero-dither {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  color: #5b8cff;
+  opacity: 0.4;
+  mix-blend-mode: screen;
+  image-rendering: pixelated;
+  pointer-events: none;
+}
+
+body.light-mode .hero-dither {
+  color: #ec4e02;
+  opacity: 0.4;
+  mix-blend-mode: multiply;
+}
+
+/* Text protection: a page-coloured pool rising from the bottom edge quiets the
+   dither field where the copy sits (matches the projects/writeups card). */
+.hero-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--bg) 85%, transparent),
+    transparent 78%
+  );
+  pointer-events: none;
+}
+
+.hero-card .hero-copy {
+  position: relative;
+  z-index: 2;
+  max-width: 52rem;
+}
+
+/* Notice shown in place of the workbench CTAs on the phone/tablet hero gate. */
+.mobile-gate-note {
+  margin: 1.5rem 0 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line-strong);
+  border-left: 3px solid var(--accent, #5b8cff);
+  color: var(--text);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 960px) {
+  /* Mobile: the main site's unified top nav — sticky compact header with a
+     Menu button, and the primary nav collapsed underneath it. Driven by
+     body.mobile-lite (Root toggles it at this same 960px breakpoint) and
+     body.site-menu-open (SiteMasthead toggles it from the Menu button). */
+  body.mobile-lite .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    width: 100%;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: auto;
+    padding:
+      0.7rem
+      max(var(--gutter), env(safe-area-inset-right))
+      0.65rem
+      max(var(--gutter), env(safe-area-inset-left));
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+    backdrop-filter: none;
+  }
+
+  body.light-mode.mobile-lite .site-header {
+    background: #ffffff;
+  }
+
+  body.mobile-lite .brand,
+  body.mobile-lite .brand-copy {
+    min-width: 0;
+  }
+
+  body.mobile-lite .brand-copy strong {
+    font-size: 0.82rem;
+  }
+
+  body.mobile-lite .brand-copy small {
+    font-size: 0.74rem;
+  }
+
+  body.mobile-lite .site-menu-toggle {
+    display: inline-flex;
+    min-width: 4.8rem;
+    min-height: 2.75rem;
+    padding: 0 0.8rem;
+    border: 1px solid var(--line-strong);
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    color: var(--text);
+    font: 600 0.72rem/1 var(--font-mono, ui-monospace, monospace);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  body.mobile-lite .site-menu-toggle[hidden] {
+    display: none;
+  }
+
+  body.mobile-lite .site-menu-toggle svg {
+    width: 1rem;
+    height: 1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    transition: transform 180ms ease;
+  }
+
+  body.mobile-lite.site-menu-open .site-menu-toggle svg {
+    transform: rotate(90deg);
+  }
+
+  body.mobile-lite .header-actions {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    width: 100%;
+    max-height: 0;
+    margin: 0;
+    padding: 0;
+    gap: 0.75rem;
+    overflow: hidden;
+    border: 0;
+    background: var(--bg);
+    backdrop-filter: none;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-0.45rem);
+    transition: max-height 220ms ease, padding 220ms ease, opacity 160ms ease, transform 180ms ease;
+  }
+
+  body.light-mode.mobile-lite .header-actions {
+    background: #ffffff;
+  }
+
+  body.mobile-lite.site-menu-open .header-actions {
+    max-height: 26rem;
+    padding: 0.75rem 0 0.2rem;
+    border-top: 1px solid var(--line);
+    opacity: 1;
+    pointer-events: auto;
+    transform: none;
+  }
+
+  body.mobile-lite .site-nav {
+    position: static;
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 0;
+    padding: 0;
+    border: solid var(--line);
+    border-width: 1px 0 0 1px;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  body.mobile-lite .site-nav a {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 2.9rem;
+    padding: 0 0.75rem;
+    border: solid var(--line);
+    border-width: 0 1px 1px 0;
+    border-radius: 0;
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1.1;
+    text-align: left;
+    background: transparent;
+    transform: none;
+  }
+
+  body.mobile-lite .site-nav a::after {
+    display: none;
+  }
+
+  body.mobile-lite .theme-toggle {
+    width: 2.8rem;
+    height: 2.8rem;
+    min-height: 2.8rem;
+  }
+
+  body.mobile-lite .site-nav a:hover,
+  body.mobile-lite .site-nav a:focus-visible,
+  body.mobile-lite .site-menu-toggle:hover,
+  body.mobile-lite .site-menu-toggle:focus-visible {
+    color: var(--text);
+    background: #151a1e;
+    transform: none;
+  }
+
+  body.light-mode.mobile-lite .site-nav a:hover,
+  body.light-mode.mobile-lite .site-nav a:focus-visible,
+  body.light-mode.mobile-lite .site-menu-toggle:hover,
+  body.light-mode.mobile-lite .site-menu-toggle:focus-visible {
+    background: #eef4f8;
+  }
+
+  body.mobile-lite .site-nav a.is-current,
+  body.mobile-lite .site-nav a[aria-current="page"] {
+    color: var(--accent-ink);
+    background: var(--accent);
+  }
+
+  .page-hero {
+    padding: 3.5rem 0 2rem;
+  }
+
+  /* Compact the dithering hero on phones so the header + hero fit one screen
+     instead of the desktop 66svh card. */
+  .page-hero.hero-cta {
+    padding: 1.5rem 0 2rem;
+  }
+
+  .hero-card {
+    min-height: clamp(18rem, 52svh, 23rem);
+    padding: clamp(1.9rem, 6svh, 2.8rem) 1.25rem;
+  }
+
+  .page-hero h1 {
+    font-size: clamp(2rem, 7.5vw, 2.6rem);
+  }
+
+  .page-hero-lede {
+    font-size: 0.96rem;
+  }
+}
+
+/* The top-level OT / IT switch, shown in the site masthead on every view. Alchemist has two
+   halves; before this the only route between them was one button on the dashboard. */
+.view-switch {
+  flex: none;
+}
+.view-switch button {
+  white-space: nowrap;
+}
+
+@media (max-width: 960px) {
+  /* On mobile the nav collapses under the Menu button, but the switch is the primary
+     affordance here, so it stays out on the bar. */
+  body.mobile-lite .view-switch {
+    order: -1;
+  }
+}

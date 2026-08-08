@@ -1,0 +1,426 @@
+.asset-node {
+  position: relative;
+  width: 13.25rem;
+  min-height: 6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--text) 22%, var(--line-strong));
+  border-left: 3px solid var(--zone-color);
+  border-radius: 0;
+  color: var(--text);
+  /* Two-stop wash bleeding from the accented left edge to the panel surface — gives the
+     flat card depth without a shadow, and keeps the zone colour reading as data. */
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, var(--surface) 85%, var(--zone-color)) 0%,
+    color-mix(in srgb, var(--surface) 96%, var(--zone-color)) 52%
+  );
+  box-shadow: none;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+body.light-mode .asset-node {
+  background: linear-gradient(
+    100deg,
+    color-mix(in srgb, #fafaf8 82%, var(--zone-color)) 0%,
+    color-mix(in srgb, #fafaf8 94%, var(--zone-color)) 52%
+  );
+  border-color: rgba(22, 24, 26, 0.36);
+}
+
+.react-flow__renderer {
+  cursor: grab;
+}
+
+.asset-node.criticality-critical,
+.asset-node.criticality-high {
+  border-left-color: var(--signal);
+}
+
+.asset-node::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 0.72rem;
+  height: 0.72rem;
+  border-top: 2px solid var(--accent);
+  border-right: 2px solid var(--accent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.asset-node.is-selected {
+  border-color: var(--accent);
+  box-shadow: none;
+}
+
+.asset-node.is-selected::after {
+  opacity: 1;
+}
+
+.asset-node.is-highlighted {
+  border-color: var(--signal);
+  box-shadow: none;
+}
+
+.asset-node.is-connectable {
+  cursor: crosshair;
+}
+
+.asset-node.is-connectable:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--surface-raised) 92%, var(--accent));
+}
+
+.asset-node.is-connect-source {
+  border-color: var(--signal);
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+.asset-node-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+  /* Reserve room for the absolutely-positioned zone chip so the name never runs under it. */
+  padding-right: 1.9rem;
+}
+
+.asset-node-icon {
+  flex: none;
+  width: 2.2rem;
+  height: 2.2rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--zone-color) 42%, var(--line));
+  color: color-mix(in srgb, var(--text) 72%, var(--zone-color));
+  background: color-mix(in srgb, var(--zone-color) 12%, transparent);
+}
+
+.asset-node.is-highlighted .asset-node-icon {
+  color: var(--signal);
+  border-color: color-mix(in srgb, var(--signal) 60%, var(--line));
+}
+
+.asset-node-heading {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  padding-top: 0.05rem;
+}
+
+.asset-node-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.18;
+}
+
+.asset-node-zone {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.04rem 0.32rem;
+  border: 1px solid color-mix(in srgb, var(--zone-color) 55%, var(--line-strong));
+  background: color-mix(in srgb, var(--zone-color) 20%, var(--surface));
+  color: color-mix(in srgb, var(--text) 80%, var(--zone-color));
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.asset-node-rename {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--accent);
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.18;
+  padding: 0.05rem 0.2rem;
+  outline: none;
+}
+
+.asset-node-type {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.asset-node-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding-top: 0.34rem;
+  border-top: 1px solid color-mix(in srgb, var(--zone-color) 20%, var(--line));
+}
+
+.asset-node-addr {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+}
+
+.asset-node-badges {
+  flex: none;
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.2rem;
+  max-width: 55%;
+}
+
+.asset-badge {
+  padding: 0.04rem 0.28rem;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.asset-badge.tone-danger {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+.asset-badge.tone-warn {
+  border-color: color-mix(in srgb, var(--text) 45%, var(--line-strong));
+  color: color-mix(in srgb, var(--text) 70%, var(--muted));
+}
+
+.flow-handle {
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 1px solid var(--bg);
+  /* The fallback belongs inside `var()`, not in a preceding declaration.
+     `--zone-color` is set inline on `.asset-node` only, so on an IT node the `color-mix()` resolved
+     against an undefined custom property, the whole declaration became invalid, and the handle
+     rendered fully transparent. The usual "plain colour first, fancy colour second" idiom does not
+     help here: the build's CSS minifier collapses the duplicate `background` declarations and keeps
+     only the second. Declaring the fallback here also leaves the inherited value winning when a
+     zone actually sets one, which a `--zone-color` declaration on this selector would not. */
+  background: color-mix(in srgb, var(--accent) 82%, var(--zone-color, var(--accent)));
+  opacity: 0.6;
+  transition: opacity 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+
+.flow-handle:hover {
+  transform: scale(1.25);
+}
+
+.canvas-connect-banner {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--signal);
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg));
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.canvas-connect-banner span {
+  color: var(--muted);
+}
+
+/* `.it-node` joins these: the handles were rendered on IT nodes but gated on `.asset-node`
+   selectors alone, so they existed, occupied space and were draggable while staying invisible. */
+.asset-node:hover .flow-handle,
+.asset-node.is-connectable .flow-handle,
+.asset-node.is-selected .flow-handle,
+.it-node:hover .flow-handle,
+.it-node.is-connectable .flow-handle,
+.it-node.is-selected .flow-handle {
+  opacity: 1;
+}
+
+.flow-handle:hover {
+  background: var(--signal);
+}
+
+.conduit-boundary-tick {
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.92;
+  pointer-events: none;
+}
+
+.protocol-edge-path {
+  pointer-events: none;
+}
+
+.protocol-edge-underlay {
+  pointer-events: none;
+}
+
+.protocol-edge-hitbox {
+  pointer-events: stroke;
+}
+
+.conduit-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  width: 2600px;
+  height: 1450px;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.conduit-overlay-path {
+  fill: none;
+  stroke-width: 5.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.conduit-overlay-underlay {
+  fill: none;
+  stroke-width: 14;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+/* Subtle "packet flow" on highlighted/selected edges — dots of background cut into the line. */
+.conduit-overlay-flow {
+  fill: none;
+  stroke: var(--bg);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-dasharray: 0.5 13;
+  opacity: 0.85;
+  pointer-events: none;
+  animation: conduit-flow 0.85s linear infinite;
+}
+
+@keyframes conduit-flow {
+  to {
+    stroke-dashoffset: -13.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .conduit-overlay-flow {
+    animation: none;
+    display: none;
+  }
+}
+
+.conduit-overlay-hitbox {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 24;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.conduit-overlay-boundary {
+  fill: var(--bg);
+  stroke-width: 3;
+  pointer-events: none;
+}
+
+body.light-mode .conduit-overlay-boundary {
+  fill: #ffffff;
+}
+
+.conduit-overlay-label {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  opacity: 0;
+  paint-order: stroke;
+  pointer-events: none;
+  stroke: var(--bg);
+  stroke-width: 5px;
+  transition: opacity 140ms ease;
+}
+
+.conduit-overlay-edge:hover .conduit-overlay-label,
+.conduit-overlay-edge.label-visible .conduit-overlay-label {
+  opacity: 1;
+}
+
+.react-flow-frame.mode-clean .conduit-overlay-path {
+  stroke-width: 5.8;
+}
+
+.react-flow-frame.mode-boundary .conduit-overlay-path {
+  stroke-width: 5;
+}
+
+.react-flow-frame.mode-reachability .conduit-overlay-edge:not(.is-highlighted):not(.is-selected) .conduit-overlay-path {
+  stroke-width: 3.8;
+}
+
+body.light-mode .conduit-overlay-label {
+  stroke: #ffffff;
+}
+
+.conduit-label {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  min-width: 2.35rem;
+  min-height: 1.35rem;
+  border: 1px solid var(--line-strong);
+  color: var(--text);
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  padding: 0.18rem 0.38rem;
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  font-weight: 700;
+  line-height: 1;
+  pointer-events: none;
+}
+
+body.light-mode .conduit-label {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.conduit-label.is-emphasized {
+  color: var(--signal);
+  background: var(--bg);
+}
+

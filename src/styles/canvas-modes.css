@@ -1,0 +1,149 @@
+.react-flow-frame.mode-risk .conduit-overlay-edge.is-highlighted .conduit-overlay-underlay {
+  animation: conduit-pulse 1.8s var(--ease) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.snap-grid-background {
+  opacity: 0.4;
+  transition: opacity 140ms ease;
+}
+
+.react-flow-frame.is-dragging .snap-grid-background {
+  opacity: 0.85;
+}
+
+.zone-band-layer {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+}
+
+.zone-band-node {
+  position: absolute;
+  left: -248px;
+  top: var(--zone-band-y);
+  width: var(--zone-band-width, 1900px);
+  height: var(--zone-band-height);
+  display: grid;
+  grid-template-columns: 16rem 1fr;
+  grid-template-rows: auto auto;
+  align-content: center;
+  row-gap: 0.18rem;
+  padding: 0 0 0 1rem;
+  border-top: 1px solid color-mix(in srgb, var(--zone-band-color) 24%, var(--line));
+  border-bottom: 1px solid color-mix(in srgb, var(--zone-band-color) 18%, var(--line));
+  color: var(--text);
+  background: color-mix(in srgb, var(--zone-band-color) 10%, transparent);
+  pointer-events: none;
+}
+
+.zone-band-node::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 16rem;
+  border-right: 2px solid color-mix(in srgb, var(--zone-band-color) 60%, var(--line));
+  background: color-mix(in srgb, var(--bg) 82%, var(--zone-band-color));
+}
+
+.zone-band-node strong,
+.zone-band-node span {
+  position: relative;
+  z-index: 1;
+}
+
+.zone-band-node strong {
+  grid-column: 1;
+  padding-left: 0.25rem;
+  font-size: 1.08rem;
+  line-height: 1.1;
+}
+
+.zone-band-node span {
+  grid-column: 1;
+  padding-left: 0.25rem;
+  color: color-mix(in srgb, var(--text) 70%, var(--muted));
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Ghost variant: faint Purdue tier washes behind the free network layout. The y axis
+   already encodes the tier there, so make it legible without switching projections. */
+.zone-band-node.is-ghost {
+  border-top: 1px dashed color-mix(in srgb, var(--zone-band-color) 20%, var(--line));
+  border-bottom: none;
+  background: color-mix(in srgb, var(--zone-band-color) 4%, transparent);
+}
+
+.zone-band-node.is-ghost::before {
+  border-right: 1px solid color-mix(in srgb, var(--zone-band-color) 34%, var(--line));
+  background: none;
+}
+
+.zone-band-node.is-ghost strong {
+  font-size: 0.82rem;
+  color: color-mix(in srgb, var(--text) 72%, var(--muted));
+}
+
+.zone-band-node.is-ghost span {
+  font-size: 0.6rem;
+  color: var(--muted);
+}
+
+/* Subnet containers — labelled grouping boxes behind the nodes in the network layout. */
+.subnet-layer {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+}
+
+.subnet-box {
+  position: absolute;
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--line));
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+
+.subnet-box-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  max-width: 100%;
+  padding: 0.22rem 0.55rem;
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+  border-right: 1px solid var(--line-strong);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.subnet-box-label strong {
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.subnet-box-label small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+

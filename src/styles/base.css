@@ -1,0 +1,77 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+/*
+ * Reserve the scrollbar gutter always. The OT workspace scrolls and the IT map does not, so the
+ * viewport narrowed by a scrollbar's width on one side only — which moved the shared masthead, and
+ * with it the OT/IT switch, by ~15px every time you changed app.
+ */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* Guard against stray horizontal overflow (mirrors the main site's
+   .page-shell { overflow: clip }). 100vw-derived widths include the
+   scrollbar on Windows, so clip rather than let the page pan. */
+body {
+  overflow-x: clip;
+}
+
+body {
+  min-width: 320px;
+  color: var(--text);
+  font-family: var(--font-body);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+select {
+  color-scheme: dark;
+}
+
+select option {
+  color: var(--text);
+  background: #101214;
+}
+
+body.light-mode select {
+  color-scheme: light;
+}
+
+body.light-mode select option {
+  color: #16181a;
+  background: #ffffff;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+}
+

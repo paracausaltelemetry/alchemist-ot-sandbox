@@ -1,0 +1,254 @@
+/* --- GRC: NCSC CAF compliance view, risk treatment, governance editor --- */
+.caf-view {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.caf-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.caf-posture {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.caf-posture strong {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  color: var(--text);
+}
+
+.caf-posture span {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.caf-objective-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.caf-objective-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--line);
+}
+
+.caf-objective-pill strong {
+  font-family: var(--font-display);
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.caf-objective-pill span {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.caf-objective-group h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.caf-principles {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.caf-principle {
+  border: 1px solid var(--line);
+}
+
+.caf-principle summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.65rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.caf-principle summary::-webkit-details-marker {
+  display: none;
+}
+
+.caf-code {
+  flex: none;
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--text);
+  font-size: 0.78rem;
+  min-width: 1.6rem;
+}
+
+.caf-title {
+  flex: 1;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.caf-status {
+  flex: none;
+  padding: 0.08rem 0.45rem;
+  border: 1px solid var(--line-strong);
+  font-family: var(--font-display);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.caf-status-achieved {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.caf-status-partial {
+  border-color: #d6a617;
+  color: #d6a617;
+}
+
+.caf-status-not-achieved {
+  border-color: var(--signal);
+  color: var(--signal);
+}
+
+.caf-principle-body {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0 0.65rem 0.65rem;
+}
+
+.caf-rationale {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.caf-gap {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.caf-gap strong {
+  color: var(--signal);
+}
+
+.caf-guidance {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.caf-findings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.caf-finding-link {
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--text);
+  padding: 0.12rem 0.45rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.caf-finding-link:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.caf-override {
+  max-width: 22rem;
+}
+
+.caf-refs {
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-style: italic;
+}
+
+.treatment-select,
+.treatment-input {
+  width: 100%;
+  min-width: 4.4rem;
+  border: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  padding: 0.16rem 0.28rem;
+}
+
+.treatment-residual {
+  width: 3.4rem;
+  min-width: 3.4rem;
+}
+
+.governance-editor {
+  width: min(40rem, 100%);
+  max-height: min(85vh, 44rem);
+  overflow: auto;
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.1rem 1.2rem 1.2rem;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-raised);
+}
+
+.governance-editor-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.governance-editor-head strong {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: var(--text);
+}
+
+.governance-editor-head p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.governance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.6rem;
+}
+
+.governance-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+

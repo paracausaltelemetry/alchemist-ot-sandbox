@@ -84,3 +84,127 @@
 .map-node .asset-node-icon svg {
   display: block;
 }
+
+/* --- Overlays -------------------------------------------------------------
+
+   One encoding vocabulary, shared by the card band and the legend swatch, so a reader learns it
+   once. Hue is not a channel here: the brand is monochrome and `--signal` means danger, so ordinal
+   overlays vary ink weight and categorical ones vary a repeatable fill.
+
+   `--overlay-ink` is the bucket's 0..1 weight, set inline by `bucketStyle`. It floors at 0.12 so
+   the faintest band is still visible — a bucket that renders as nothing is a bucket the reader
+   cannot tell from "the overlay had no answer", which is a different statement entirely. */
+.map-node-overlay,
+.map-legend-swatch {
+  --overlay-alpha: calc(0.12 + var(--overlay-ink, 0) * 0.78);
+  background: color-mix(in srgb, var(--text) calc(var(--overlay-alpha) * 100%), transparent);
+}
+
+.map-node-overlay[data-signal="true"],
+.map-legend-swatch[data-signal="true"] {
+  background: var(--signal);
+}
+
+/* Patterns, not hues. Each is a repeating fill at full ink, so they separate for a reader who
+   cannot separate two colours — which is the whole reason nine overlays can share one palette. */
+.map-node-overlay[data-pattern="solid"],
+.map-legend-swatch[data-pattern="solid"] {
+  background: var(--text);
+}
+
+.map-node-overlay[data-pattern="hatch"],
+.map-legend-swatch[data-pattern="hatch"] {
+  background: repeating-linear-gradient(45deg, var(--text) 0 2px, transparent 2px 5px);
+}
+
+.map-node-overlay[data-pattern="cross-hatch"],
+.map-legend-swatch[data-pattern="cross-hatch"] {
+  background:
+    repeating-linear-gradient(45deg, var(--text) 0 1.5px, transparent 1.5px 5px),
+    repeating-linear-gradient(-45deg, var(--text) 0 1.5px, transparent 1.5px 5px);
+}
+
+.map-node-overlay[data-pattern="grid"],
+.map-legend-swatch[data-pattern="grid"] {
+  background:
+    repeating-linear-gradient(0deg, var(--text) 0 1.5px, transparent 1.5px 5px),
+    repeating-linear-gradient(90deg, var(--text) 0 1.5px, transparent 1.5px 5px);
+}
+
+.map-node-overlay[data-pattern="dots"],
+.map-legend-swatch[data-pattern="dots"] {
+  background: radial-gradient(var(--text) 1px, transparent 1.2px) 0 0 / 5px 5px;
+}
+
+.map-node-overlay[data-pattern="outline"],
+.map-legend-swatch[data-pattern="outline"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--text);
+}
+
+/* A band across the top of the card, not a recolour of it: the card's own wash already carries the
+   zone, and two washes fighting reads as neither. */
+.map-node-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  pointer-events: none;
+}
+
+.map-legend {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 5;
+  max-width: 13rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+}
+
+.map-legend h4 {
+  margin: 0 0 var(--space-2);
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.map-legend ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.map-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.map-legend-swatch {
+  flex: 0 0 auto;
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 1px solid var(--line);
+}
+
+/* Borderless with a rule under it, matching every other input in the app. */
+.map-overlay-picker select {
+  padding: 0.2rem 0.1rem;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-sm);
+}

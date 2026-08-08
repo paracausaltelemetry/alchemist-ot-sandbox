@@ -1,5 +1,5 @@
 import { getAssetType, getZone } from "../data/catalog";
-import type { Conduit, OtProject, PathRisk, ReachabilityResult } from "../models/types";
+import type { Asset, Conduit, OtProject, PathRisk, ReachabilityResult } from "../models/types";
 
 type DirectedEdge = {
   from: string;
@@ -227,12 +227,26 @@ function isBrokered(conduit: Conduit): boolean {
 }
 
 /**
- * Entry points an attacker is assumed to start from: enterprise and business zones, plus vendor
- * remote access and cloud services wherever they sit.
+ * Entry points an attacker is assumed to start from.
+ *
+ * Where the model draws the internet, that is the starting point, plus vendor remote access and
+ * cloud services wherever they sit. Where it does not — every project authored before the internet
+ * band existed — fall back to treating enterprise and business zones as the untrusted side, which
+ * is what this has always done and what those projects were assessed against.
+ *
+ * The distinction matters because seeding Enterprise IT makes "an Enterprise IT asset is directly
+ * reachable from an untrusted start" true by definition. On an authored OT model that is a
+ * reasonable worst case; on a converged map, where most of the estate is corporate, it reported
+ * every single asset as directly exposed and said nothing about any of them.
  */
 function untrustedEntryIds(project: OtProject): string[] {
+  const external = (asset: Asset) => asset.type === "vendor-remote" || asset.type === "cloud-service";
+  const modelsTheInternet = project.assets.some((asset) => asset.zone === "internet");
+
   return project.assets
-    .filter((asset) => getZone(asset.zone).riskRank >= 6 || asset.type === "vendor-remote" || asset.type === "cloud-service")
+    .filter((asset) =>
+      modelsTheInternet ? asset.zone === "internet" || external(asset) : getZone(asset.zone).riskRank >= 6 || external(asset)
+    )
     .map((asset) => asset.id);
 }
 

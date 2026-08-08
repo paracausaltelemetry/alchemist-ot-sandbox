@@ -24,9 +24,12 @@ import { layoutMapAssets } from "../data/mapLayout";
 import { routeOrthogonalConduit } from "../engine/conduitRouting";
 import { isScanEvidence, itKindLabel, type ItLinkEvidence } from "../models/itMap";
 import { ACCESS_LABELS, type ItAccessState } from "../models/itEngagement";
+import { bucketsFor, overlays, type Overlay, type OverlayBucket, type OverlayContext, type OverlayId } from "../engine/overlays";
 import type { MapAsset, MapConnection, ProjectedMap } from "../models/cyberMap";
 import type { Point } from "../models/types";
 import { AssetGlyph } from "./AssetGlyph";
+import { MapLegend } from "./MapLegend";
+import { bucketStyle } from "./canvas/overlayStyle";
 import { NetworkSymbol } from "./NetworkSymbol";
 import { FlowFrame } from "./canvas/FlowFrame";
 import { LinkOverlay, type LinkOverlayItem } from "./canvas/LinkOverlay";
@@ -58,6 +61,11 @@ interface MapCanvasProps {
   fitSignal: number;
   /** Hides the links inferred from addressing, leaving what a scan actually observed. */
   showInferred: boolean;
+  /** Which overlay recolours the map. There is no "no overlay" — Purdue level is the plain read. */
+  overlayId: OverlayId;
+  /** Everything the overlays need, built once by the owner so switching is not a re-assessment. */
+  overlayContext: OverlayContext;
+  onOverlayChange: (id: OverlayId) => void;
   onSelect: (id: string | null) => void;
   /**
    * Where an asset was put, and the zone that lane means — always together.
@@ -75,6 +83,8 @@ type MapNodeData = {
   asset: MapAsset;
   selected: boolean;
   access: ItAccessState | null;
+  /** Null when the active overlay has nothing to say about this asset. */
+  bucket: OverlayBucket | null;
 };
 
 type MapFlowNode = Node<MapNodeData, "mapAsset">;
@@ -104,7 +114,7 @@ function describeClass(asset: MapAsset, typeLabel: string): string {
  * estate puts hundreds of cards down, and moving one rebuilds the whole node array.
  */
 const MapAssetCard = memo(function MapAssetCard({ data }: NodeProps<MapFlowNode>) {
-  const { asset, selected, access } = data;
+  const { asset, selected, access, bucket } = data;
   const type = getAssetType(asset.type);
   const zone = getZone(asset.zone);
   const inferred = asset.confidence < 1;
@@ -114,8 +124,19 @@ const MapAssetCard = memo(function MapAssetCard({ data }: NodeProps<MapFlowNode>
       className={`asset-node map-node criticality-${asset.criticality}${selected ? " is-selected" : ""}${
         inferred ? " is-ghost" : ""
       }${access ? ` it-node-access-${access}` : ""}`}
-      style={{ "--zone-color": zone.color } as CSSProperties}
+      style={{ "--zone-color": zone.color, ...(bucket ? bucketStyle(bucket) : {}) } as CSSProperties}
     >
+      {/* The overlay reads as a band across the top of the card rather than as a recolour of it:
+          the card's own wash already carries the zone, and two washes fighting reads as neither.
+          A null bucket draws nothing at all, because the overlay having no answer is not a band. */}
+      {bucket ? (
+        <span
+          className="map-node-overlay"
+          data-pattern={bucket.pattern ?? "ramp"}
+          data-signal={bucket.signal ? "true" : undefined}
+          title={bucket.label}
+        />
+      ) : null}
       <Handle id="in" type="target" position={Position.Left} className="flow-handle" />
       <Handle id="out" type="source" position={Position.Right} className="flow-handle" />
       <span className="asset-node-zone" title={`${zone.levelLabel}: ${zone.name}`}>
@@ -173,12 +194,25 @@ function MapCanvasInner({
   positions,
   fitSignal,
   showInferred,
+  overlayId,
+  overlayContext,
+  onOverlayChange,
   onSelect,
   onPlaceAsset,
   onToggleInferred
 }: MapCanvasProps) {
   const reactFlow = useReactFlow();
   const [isDragging, setIsDragging] = useState(false);
+
+  const overlay = useMemo<Overlay>(() => overlays.find((entry) => entry.id === overlayId) ?? overlays[0], [overlayId]);
+  const assetBuckets = useMemo(
+    () => bucketsFor(overlay, map.assets, overlayContext),
+    [map.assets, overlay, overlayContext]
+  );
+  const connectionBuckets = useMemo(
+    () => bucketsFor(overlay, map.connections, overlayContext),
+    [map.connections, overlay, overlayContext]
+  );
 
   const laidOut = useMemo(() => layoutMapAssets(map.assets, positions), [map.assets, positions]);
 
@@ -189,6 +223,7 @@ function MapCanvasInner({
     const next = map.assets.map((asset) => {
       const selected = selectedId === asset.id;
       const access = map.access.get(asset.id) ?? null;
+      const bucket = assetBuckets.get(asset.id) ?? null;
       const position = laidOut.get(asset.id) ?? asset.position;
 
       const cached = cache.get(asset.id);
@@ -197,6 +232,9 @@ function MapCanvasInner({
         cached.source === asset &&
         cached.flow.data.selected === selected &&
         cached.flow.data.access === access &&
+        // Explicit, like every other field in this hit test: one left out is one that never updates
+        // once a card has been drawn, so switching overlay would leave the old band in place.
+        cached.flow.data.bucket === bucket &&
         cached.flow.position.x === position.x &&
         cached.flow.position.y === position.y
       ) {
@@ -214,7 +252,7 @@ function MapCanvasInner({
         width: ASSET_NODE_WIDTH,
         height: ASSET_NODE_HEIGHT,
         style: { width: ASSET_NODE_WIDTH, minHeight: ASSET_NODE_HEIGHT },
-        data: { asset, selected, access }
+        data: { asset, selected, access, bucket }
       };
       cache.set(asset.id, { source: asset, flow });
       return flow;
@@ -229,7 +267,7 @@ function MapCanvasInner({
       }
     }
     return next;
-  }, [laidOut, map.access, map.assets, selectedId]);
+  }, [assetBuckets, laidOut, map.access, map.assets, selectedId]);
 
   // Snap x to the grid and y to the lane its centre falls in: vertical position *is* the zone here,
   // so a free y would let a card sit between two levels and mean nothing.
@@ -280,7 +318,11 @@ function MapCanvasInner({
       const route = routeOrthogonalConduit(source, target, 0);
       const observed = isScanEvidence(connection.evidence);
       const asserted = connection.evidence === "asserted" || connection.evidence === "attack";
+      const bucket = connectionBuckets.get(connection.id) ?? null;
 
+      // Dash stays evidence and only evidence. An overlay says what a line *means*; the dash says
+      // where it came from, and letting an overlay take that channel would make a scanned link and
+      // a guessed one indistinguishable the moment anyone changed overlay.
       return [
         {
           id: connection.id,
@@ -289,8 +331,10 @@ function MapCanvasInner({
           labelY: route.labelY,
           label: connection.name,
           labelVisible: observed || asserted,
-          color: observed || asserted ? "var(--text)" : "var(--muted)",
-          opacity: observed || asserted ? 0.9 : 0.55,
+          color: bucket?.signal ? "var(--signal)" : observed || asserted ? "var(--text)" : "var(--muted)",
+          // Under a connection overlay the ramp carries the reading, so weight sets the opacity and
+          // the faintest bucket still stays legible rather than disappearing.
+          opacity: bucket ? 0.35 + bucket.weight * 0.6 : observed || asserted ? 0.9 : 0.55,
           markerEnd: true,
           dash: EVIDENCE_DASH[connection.evidence],
           strokeWidth: asserted ? ASSERTED_STROKE_WIDTH : undefined,
@@ -301,7 +345,7 @@ function MapCanvasInner({
         }
       ];
     });
-  }, [livePositions, map.connections, selectedId, showInferred]);
+  }, [connectionBuckets, livePositions, map.connections, selectedId, showInferred]);
 
   const commitNodePosition = useCallback<OnNodeDrag<MapFlowNode>>(
     (_, node) => {
@@ -374,7 +418,7 @@ function MapCanvasInner({
         <div className="canvas-titlebar">
           <div>
             <h2>Estate map</h2>
-            <p>One canvas from the internet edge to Level 0. Drag a card into another band to re-zone it.</p>
+            <p>{overlay.description}. Drag a card into another band to re-zone it.</p>
             <div className="canvas-stats" aria-label="Map summary">
               <span>
                 <strong>{counts.assets}</strong> assets
@@ -393,6 +437,24 @@ function MapCanvasInner({
             </div>
           </div>
           <div className="canvas-actions" aria-label="Map controls">
+            {/* A select rather than a segmented control: nine buttons is a second toolbar, and the
+                overlays are one choice from a list, which is what a select already means. */}
+            {/* `aria-label` rather than a wrapping `<label>`: a label element's accessible name is
+                its whole text content, and a select's options are inside it — so the wrapped
+                version announced "Overlay" followed by all nine option labels. */}
+            <div className="map-overlay-picker">
+              <select
+                aria-label="Overlay"
+                value={overlayId}
+                onChange={(event) => onOverlayChange(event.target.value as OverlayId)}
+              >
+                {overlays.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <button
               type="button"
               className={`text-button compact${showInferred ? "" : " primary"}`}
@@ -413,6 +475,7 @@ function MapCanvasInner({
           </div>
         </div>
       }
+      overlay={<MapLegend overlay={overlay} />}
     >
       <div
         className="zone-band-layer"

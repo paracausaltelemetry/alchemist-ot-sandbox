@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { parseNmapNormal } from "../import/nmapText";
 import { SAMPLE_SCAN } from "../data/sampleScan";
-import { projectMap } from "../engine/mapProjection";
+import { asOtProject, projectMap } from "../engine/mapProjection";
+import { buildOverlayContext, type OverlayId } from "../engine/overlays";
 import { newCyberMap, newImportSource, nextMapSequence, type CyberMapDocument } from "../models/cyberMap";
 import { loadCyberMap, saveCyberMap } from "../lib/mapStore";
 import type { Point } from "../models/types";
@@ -33,8 +34,14 @@ export function MapPreview({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showInferred, setShowInferred] = useState(true);
   const [fitSignal, setFitSignal] = useState(0);
+  // Purdue level is the default because it is the plain read of the map, and the one that teaches
+  // a reader what the ramp means before they trust it on an overlay they cannot check by eye.
+  const [overlayId, setOverlayId] = useState<OverlayId>("purdue");
 
   const map = useMemo(() => projectMap(doc), [doc]);
+  // Built once per document, not per overlay switch: three overlays want assessment output and two
+  // want a graph walk, so rebuilding on click would put a full `assessProject` on every change.
+  const overlayContext = useMemo(() => buildOverlayContext(map, asOtProject(doc, map)), [doc, map]);
 
   const commit = useCallback((next: CyberMapDocument) => {
     setDoc(next);
@@ -82,6 +89,9 @@ export function MapPreview({
             positions={doc.positions}
             fitSignal={fitSignal}
             showInferred={showInferred}
+            overlayId={overlayId}
+            overlayContext={overlayContext}
+            onOverlayChange={setOverlayId}
             onSelect={setSelectedId}
             onPlaceAsset={placeAsset}
             onToggleInferred={() => setShowInferred((shown) => !shown)}

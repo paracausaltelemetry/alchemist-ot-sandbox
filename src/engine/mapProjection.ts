@@ -157,6 +157,7 @@ export function projectMap(doc: CyberMapDocument): ProjectedMap {
       ...(protocols.length > 0 ? { protocols } : {}),
       provenance: "imported",
       deviceKind: node.kind,
+      ...(node.os ? { os: node.os } : {}),
       ports: node.ports,
       identifiers: {
         ips: node.ip ? [node.ip] : [],
@@ -210,9 +211,30 @@ export function projectMap(doc: CyberMapDocument): ProjectedMap {
 
   const zoneOf = new Map(assets.map((asset) => [asset.id, asset.zone] as const));
 
+  const typeOf = new Map(assets.map((asset) => [asset.id, asset.type] as const));
+  /**
+   * A link that terminates on a device the topology classified as a firewall or a jump host is
+   * brokered, not simply routed.
+   *
+   * Not a rule — a scan never shows the rule that allowed a packet, and `firewallRule` stays
+   * `unknown` for exactly that reason. But *something mediates here* is a different claim from
+   * *nothing does*, and it is the one the exposure walk turns on. Without it every derived link
+   * defaulted to `routed`, so the whole estate came back "reachable without a broker" and the
+   * exposure overlay painted all ten cards `--signal`: the brand's one colour spent on saying
+   * nothing.
+   *
+   * Known imprecision: brokering lives on the conduit, so a link *to* a firewall is marked the same
+   * as a link *through* one, and the firewall itself therefore reads as brokered from the internet
+   * when it is in fact directly on it. One band too cautious on the broker, and correct for
+   * everything behind it. Fixing it properly means moving brokering onto the node, which changes
+   * what every existing OT model scores and does not belong in a change about overlays.
+   */
+  const brokeredBy = (id: string) => typeOf.get(id) === "firewall" || typeOf.get(id) === "jump-host";
+
   const derived: MapConnection[] = synthesised.links.map((link) => ({
     ...conduitDefaults(link.id, link.source, link.target),
     name: link.label ?? "",
+    control: brokeredBy(link.source) || brokeredBy(link.target) ? "firewalled" : "routed",
     // A scan shows reachability, never the rule that allowed it.
     trustBoundary: zoneOf.get(link.source) !== zoneOf.get(link.target),
     provenance: "imported",

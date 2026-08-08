@@ -10,7 +10,6 @@ import {
   type ItEvent,
   type ItEventKind
 } from "../models/itEngagement";
-import type { ItNode } from "../models/itMap";
 
 export type ItEventDraft = Pick<
   ItEvent,
@@ -19,7 +18,12 @@ export type ItEventDraft = Pick<
 
 interface ItEventDialogProps {
   open: boolean;
-  nodes: ItNode[];
+  /**
+   * Anything with an id and a name. Widened from `ItNode[]` when the converged map started
+   * recording its own journal: the dialog only ever put these two fields in a select, and a
+   * second near-identical dialog over `MapAsset` would have been two places to fix a wording.
+   */
+  nodes: Array<{ id: string; name: string }>;
   /** Pre-fills the endpoints when the entry was started by drawing a line between two hosts. */
   initial?: { sourceNodeId?: string; targetNodeId?: string };
   onConfirm: (draft: ItEventDraft) => void;

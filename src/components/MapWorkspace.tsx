@@ -4,9 +4,19 @@ import { parseNmapNormal } from "../import/nmapText";
 import { SAMPLE_SCAN } from "../data/sampleScan";
 import { asOtProject, projectMap } from "../engine/mapProjection";
 import { buildOverlayContext, type OverlayId } from "../engine/overlays";
-import { newCyberMap, newImportSource, nextMapSequence, type AssetOverride, type CyberMapDocument } from "../models/cyberMap";
+import {
+  newCyberMap,
+  newImportSource,
+  newUserConnection,
+  nextMapSequence,
+  type AssetOverride,
+  type CyberMapDocument
+} from "../models/cyberMap";
+import { newItEvent } from "../models/itEngagement";
 import { loadCyberMap, saveCyberMap } from "../lib/mapStore";
 import type { Point } from "../models/types";
+import { ItEventDialog, type ItEventDraft } from "./ItEventDialog";
+import { ItLinkDialog } from "./ItLinkDialog";
 import { MapBottomPanel } from "./MapBottomPanel";
 import { MapCanvas } from "./MapCanvas";
 import { MapInspector } from "./MapInspector";
@@ -38,6 +48,11 @@ export function MapWorkspace({
   const [fitSignal, setFitSignal] = useState(0);
   const [overlayId, setOverlayId] = useState<OverlayId>("purdue");
   const [importError, setImportError] = useState<string | null>(null);
+  const [connectMode, setConnectMode] = useState(false);
+  const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
+  /** The pair being joined, held while the operator says what the line means. */
+  const [pendingLink, setPendingLink] = useState<{ source: string; target: string } | null>(null);
+  const [eventDraft, setEventDraft] = useState<{ sourceNodeId?: string; targetNodeId?: string } | null>(null);
 
   const map = useMemo(() => projectMap(doc), [doc]);
   const project = useMemo(() => asOtProject(doc, map), [doc, map]);
@@ -138,6 +153,87 @@ export function MapWorkspace({
     [commit, doc]
   );
 
+  // --- The engagement record ------------------------------------------------
+
+  const beginConnection = useCallback((source: string, target: string) => {
+    if (source !== target) {
+      setPendingLink({ source, target });
+    }
+    setConnectSourceId(null);
+  }, []);
+
+  /**
+   * Click-to-connect, as an alternative to dragging a handle.
+   *
+   * Two ways to draw one line because the handles are small and the estate is dense: dragging from
+   * a 14px target across a scrolling canvas is a fiddly action to ask of someone mid-assessment.
+   */
+  const selectOnCanvas = useCallback(
+    (id: string | null) => {
+      if (!connectMode || !id) {
+        setSelectedId(id);
+        return;
+      }
+      if (!connectSourceId) {
+        setConnectSourceId(id);
+        return;
+      }
+      beginConnection(connectSourceId, id);
+    },
+    [beginConnection, connectMode, connectSourceId]
+  );
+
+  const confirmLink = useCallback(
+    (label: string, note: string) => {
+      if (!pendingLink) {
+        return;
+      }
+      commit({
+        ...doc,
+        connections: [
+          ...doc.connections,
+          newUserConnection(pendingLink.source, pendingLink.target, { label, note })
+        ]
+      });
+      setPendingLink(null);
+      setConnectMode(false);
+    },
+    [commit, doc, pendingLink]
+  );
+
+  /**
+   * A drawn line that turns out to be an action, not a cable.
+   *
+   * Handing the endpoints straight to the journal form is the whole reason the link dialog asks:
+   * an operator who has just dragged from the host they came from to the host they landed on has
+   * already said the interesting part, and making them retype it is how a journal stops being kept.
+   */
+  const escalateToEvent = useCallback(() => {
+    if (pendingLink) {
+      setEventDraft({ sourceNodeId: pendingLink.source, targetNodeId: pendingLink.target });
+    }
+    setPendingLink(null);
+    setConnectMode(false);
+  }, [pendingLink]);
+
+  const recordEvent = useCallback(
+    (draft: ItEventDraft) => {
+      const { kind, title, ...rest } = draft;
+      commit({ ...doc, events: [...doc.events, newItEvent(kind, title, nextMapSequence(doc), rest)] });
+      setEventDraft(null);
+    },
+    [commit, doc]
+  );
+
+  const deleteEvent = useCallback(
+    (eventId: string) => {
+      // Access and attack edges are folded from the journal rather than stored, so deleting an
+      // entry withdraws both. That is the point of not storing them.
+      commit({ ...doc, events: doc.events.filter((entry) => entry.id !== eventId) });
+    },
+    [commit, doc]
+  );
+
   const selectedAsset = selectedId ? map.assets.find((asset) => asset.id === selectedId) : undefined;
   const selectedConnection = selectedId ? map.connections.find((entry) => entry.id === selectedId) : undefined;
   const selectedFindings = selectedId ? (overlayContext.findingsByAsset.get(selectedId) ?? []) : [];
@@ -180,9 +276,16 @@ export function MapWorkspace({
               overlayId={overlayId}
               overlayContext={overlayContext}
               onOverlayChange={setOverlayId}
-              onSelect={setSelectedId}
+              onSelect={selectOnCanvas}
               onPlaceAsset={placeAsset}
               onToggleInferred={() => setShowInferred((shown) => !shown)}
+              onConnect={beginConnection}
+              connectMode={connectMode}
+              connectSourceId={connectSourceId}
+              onToggleConnect={() => {
+                setConnectMode((on) => !on);
+                setConnectSourceId(null);
+              }}
             />
           )}
         </div>
@@ -204,8 +307,30 @@ export function MapWorkspace({
           selectedId={selectedId}
           nameOf={nameOf}
           onSelect={setSelectedId}
+          onRecordEvent={() => setEventDraft({})}
+          onDeleteEvent={deleteEvent}
         />
       </main>
+
+      <ItLinkDialog
+        open={pendingLink !== null}
+        sourceName={pendingLink ? nameOf(pendingLink.source) : ""}
+        targetName={pendingLink ? nameOf(pendingLink.target) : ""}
+        onConfirm={confirmLink}
+        onRecordAction={escalateToEvent}
+        onCancel={() => {
+          setPendingLink(null);
+          setConnectMode(false);
+        }}
+      />
+
+      <ItEventDialog
+        open={eventDraft !== null}
+        nodes={map.assets}
+        initial={eventDraft ?? undefined}
+        onConfirm={recordEvent}
+        onCancel={() => setEventDraft(null)}
+      />
     </div>
   );
 }

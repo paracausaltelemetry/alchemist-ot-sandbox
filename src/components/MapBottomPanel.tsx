@@ -21,11 +21,22 @@ interface MapBottomPanelProps {
   /** Findings carry asset ids, and `it:10.10.2.30` is not something a reader recognises. */
   nameOf: (assetId: string) => string;
   onSelect: (id: string) => void;
+  onRecordEvent: () => void;
+  onDeleteEvent: (eventId: string) => void;
 }
 
 const SEVERITY_ORDER = ["critical", "high", "medium", "low"];
 
-export function MapBottomPanel({ warnings, findings, events, selectedId, nameOf, onSelect }: MapBottomPanelProps) {
+export function MapBottomPanel({
+  warnings,
+  findings,
+  events,
+  selectedId,
+  nameOf,
+  onSelect,
+  onRecordEvent,
+  onDeleteEvent
+}: MapBottomPanelProps) {
   // Opens on whatever has something to say. A panel that always opens on an empty tab teaches the
   // reader that it is empty, and they stop looking.
   const [tab, setTab] = useState<BottomTab>(warnings.length > 0 ? "warnings" : "findings");
@@ -99,19 +110,39 @@ export function MapBottomPanel({ warnings, findings, events, selectedId, nameOf,
         ) : null}
 
         {tab === "events" ? (
-          events.length === 0 ? (
-            <p className="muted">Nothing recorded.</p>
-          ) : (
-            <ul className="map-bottom-list">
-              {[...events]
-                .sort((a, b) => a.sequence - b.sequence)
-                .map((event) => (
-                  <li key={event.id}>
-                    <strong>{EVENT_KIND_LABELS[event.kind]}</strong> {event.title}
-                  </li>
-                ))}
-            </ul>
-          )
+          <>
+            <div className="map-bottom-actions">
+              <button type="button" className="text-button compact" onClick={onRecordEvent}>
+                Record what you did
+              </button>
+            </div>
+            {events.length === 0 ? (
+              <p className="muted">Nothing recorded.</p>
+            ) : (
+              <ul className="map-bottom-list">
+                {[...events]
+                  .sort((a, b) => a.sequence - b.sequence)
+                  .map((event) => (
+                    <li key={event.id}>
+                      <strong>{EVENT_KIND_LABELS[event.kind]}</strong> {event.title}
+                      {event.targetNodeId ? <span className="map-bottom-affected">
+                        <button type="button" onClick={() => onSelect(event.targetNodeId!)}>
+                          {nameOf(event.targetNodeId)}
+                        </button>
+                      </span> : null}
+                      <button
+                        type="button"
+                        className="text-button compact"
+                        onClick={() => onDeleteEvent(event.id)}
+                        title="Delete this entry, withdrawing the access and the attack edge it granted"
+                      >
+                        Delete
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            )}
+          </>
         ) : null}
       </div>
     </section>

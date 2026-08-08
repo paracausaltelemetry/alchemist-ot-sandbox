@@ -1,5 +1,5 @@
 // Dithered-warp background field — a dependency-free WebGL port of the same
-// effect the main Welbourne Security site uses behind its heroes, so the
+// effect the main Paracausal Telemetry site uses behind its heroes, so the
 // Alchemist landing shares the identical "flowing" background. A domain-warped
 // fbm noise field drifts slowly and is quantised through a 4x4 Bayer matrix
 // for the chunky ordered-dither sweep. The canvas renders one cell per fragment

@@ -4,7 +4,7 @@ Alchemist OT Sandbox is a browser-local architectural advisory tool. It does not
 
 ## Reporting Vulnerabilities
 
-Please report security issues privately to Welbourne Security before public disclosure. Include reproduction steps, affected version or commit, and impact.
+Please report security issues privately to Paracausal Telemetry before public disclosure. Include reproduction steps, affected version or commit, and impact.
 
 ## Data Handling
 

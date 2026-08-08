@@ -20,7 +20,7 @@ describe("project serialization", () => {
         organisation: "Acme Water",
         sector: "Water",
         regime: "NIS Regulations 2018",
-        assessor: "A. Welbourne",
+        assessor: "A. Analyst",
         assessmentDate: "2026-06-19",
         scope: "Treatment plant OT",
         limitations: "Logical model only"

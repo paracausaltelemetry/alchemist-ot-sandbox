@@ -2,7 +2,7 @@
 
 Alchemist OT Sandbox is a browser-only OT network architecture assessor for modelling Purdue-style zones, IEC 62443-style conduits, reachability, and segmentation risk.
 
-The V1 production site is intended to be hosted on GitHub Pages at `https://alchemist.welbournesecurity.com/`.
+The V1 production site is intended to be hosted on GitHub Pages at `https://alchemist.paracausaltelemetry.com/`.
 
 ## What It Does
 
@@ -64,13 +64,13 @@ pnpm build
 The repository deploys `dist/` through GitHub Actions using GitHub Pages. In the GitHub repository settings:
 
 1. Set Pages source to GitHub Actions.
-2. Set the custom domain to `alchemist.welbournesecurity.com`.
+2. Set the custom domain to `alchemist.paracausaltelemetry.com`.
 3. Enable Enforce HTTPS after GitHub provisions the certificate.
 
 At the DNS provider, add:
 
 ```text
-CNAME alchemist.welbournesecurity.com -> <owner>.github.io
+CNAME alchemist.paracausaltelemetry.com -> <owner>.github.io
 ```
 
 Use the GitHub Pages owner or organization name only in the DNS target. Do not include the repository name. The app does not require server-side routes or an API.
@@ -88,10 +88,10 @@ pnpm build
 Then verify:
 
 - The GitHub Pages workflow completes from `main`.
-- `https://alchemist.welbournesecurity.com/` loads over HTTPS with no blank screen.
+- `https://alchemist.paracausaltelemetry.com/` loads over HTTPS with no blank screen.
 - JSON export, SVG export, and print/PDF report still work.
 - Mobile width has no horizontal overflow, while the canvas workflow remains desktop/tablet-first.
-- The main Welbourne Security site links to Alchemist from its navbar.
+- The main Paracausal Telemetry site links to Alchemist from its navbar.
 
 ## Guidance Anchors
 

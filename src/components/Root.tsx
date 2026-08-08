@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { App } from "../App";
 import { Dashboard, type DashboardIntent } from "./Dashboard";
 import { ItApp } from "./ItApp";
+import { MapPreview } from "./MapPreview";
 import { initialView, LAST_VIEW_STORAGE_KEY, type AppView } from "../lib/appView";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
 
@@ -62,6 +63,7 @@ export function Root() {
   const [view, setView] = useState<AppView>(() => initialView(window.location.hash, readLastView()));
   const [intent, setIntent] = useState<DashboardIntent | undefined>(undefined);
   const [theme, setTheme] = useState<"dark" | "light">(() => initialTheme());
+  const [hash, setHash] = useState(() => window.location.hash);
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -81,7 +83,10 @@ export function Root() {
   }, [view]);
 
   useEffect(() => {
-    const onHashChange = () => setView(initialView(window.location.hash, readLastView()));
+    const onHashChange = () => {
+      setHash(window.location.hash);
+      setView(initialView(window.location.hash, readLastView()));
+    };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
@@ -118,6 +123,14 @@ export function Root() {
   }, []);
 
   const openIt = useCallback(() => switchView("it"), [switchView]);
+
+  // Not an `AppView`: the converged map is not a third app to switch to, it is what replaces both.
+  // It rides on the hash alone so it can be opened and looked at before the workspace around it
+  // exists, and so it is never what a reload lands on. Checked before the remembered view, which
+  // would otherwise win over an explicit link.
+  if (hash === "#map") {
+    return <MapPreview theme={theme} onToggleTheme={toggleTheme} isMobile={isMobile} />;
+  }
 
   if (view === "home") {
     return (

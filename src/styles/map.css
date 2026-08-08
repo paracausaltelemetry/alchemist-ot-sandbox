@@ -1,0 +1,86 @@
+/* The converged map: one canvas from the internet edge to Level 0. */
+
+/* The preview frame at #map. A bare shell until the workspace exists; the canvas has no intrinsic
+   height of its own, so the page has to bound it or the flow collapses to nothing. */
+.map-preview {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;
+}
+
+.map-preview-main {
+  position: relative;
+  /* `flex: 1` and `min-height: 0` together: without the grow the main is content-sized and the
+     canvas collapses to its toolbar; without the min-height a flex item refuses to shrink below
+     its content, so the flow spills past the viewport instead of scrolling inside its own column. */
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  min-height: 0;
+  padding: var(--space-4);
+  gap: var(--space-3);
+}
+
+/* `.canvas-shell` carries `grid-column: 2` for the workbench's palette/canvas/inspector grid. Left
+   alone here it lands in an implicit second column and leaves a 456px void down the left. */
+.map-preview-main > * {
+  grid-column: 1;
+}
+
+.map-preview-main > .canvas-shell {
+  min-height: 0;
+  height: 100%;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.map-preview-warnings {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* The canonical bordered-row motif, so a warning reads the way every other list of points does. */
+.map-preview-warnings li {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.map-preview-selection {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.map-preview-selection strong {
+  color: var(--text);
+}
+
+.map-frame .react-flow__node {
+  cursor: pointer;
+}
+
+/* An asset nothing scanned directly is drawn as an outline, matching the IT map's ghost. Its
+   position on the canvas is a claim about the estate, and an inferred one should not look like an
+   observed one. */
+.asset-node.is-ghost {
+  border-style: dashed;
+  background: transparent;
+  color: var(--muted);
+}
+
+.asset-node.is-ghost .asset-node-icon {
+  border-style: dashed;
+}
+
+/* Both vocabularies on one card: the network symbol sizes itself, so the icon well only has to
+   stop it from stretching the head row. */
+.map-node .asset-node-icon svg {
+  display: block;
+}

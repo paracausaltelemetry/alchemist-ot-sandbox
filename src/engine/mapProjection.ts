@@ -1,8 +1,9 @@
-import { getAssetType } from "../data/catalog";
+import { getAssetType, getZone } from "../data/catalog";
 import { createAsset } from "../models/factory";
 import { inferAssetType, protocolsForHost } from "../import/inference";
 import { synthesiseItTopology } from "./itTopology";
 import { accessByNode, attackLinks } from "./itAccess";
+import { isPublicIp } from "./itAnalysis";
 import type { ImportedHost, ParsedImport } from "../import/types";
 import type { ItNode } from "../models/itMap";
 import type {
@@ -13,7 +14,7 @@ import type {
   MapConnection,
   ProjectedMap
 } from "../models/cyberMap";
-import type { Conduit, OtProject, Subnet } from "../models/types";
+import type { AssetTypeId, Conduit, OtProject, Subnet, ZoneId } from "../models/types";
 import { blankProject } from "../data/sampleProject";
 
 /**
@@ -77,6 +78,44 @@ function hostFor(node: ItNode): ImportedHost {
   };
 }
 
+/**
+ * The OT class of a scanned node.
+ *
+ * Port and OS inference alone cannot see a firewall — it is the one device class a scan identifies
+ * structurally, from where it sits in a traceroute, and `synthesiseItTopology` has already made
+ * that call. Ignoring it produced cards reading "Firewall · Enterprise IT", which is a device
+ * contradicting itself.
+ */
+function assetTypeFor(node: ItNode, host: ImportedHost): AssetTypeId {
+  if (node.kind === "firewall") {
+    return "firewall";
+  }
+  return inferAssetType(host);
+}
+
+/**
+ * A *starting* Purdue zone, derived from what the asset appears to be.
+ *
+ * A converged estate is exactly where this guess is least reliable, so it is the first thing an
+ * assessor is expected to override. Two things are not guesses and override the asset class:
+ *
+ * - The internet is the internet. It is why the band exists.
+ * - A publicly routable address cannot be in a control zone. `inferAssetType` reads RDP as an
+ *   engineering workstation, which is a good call inside a plant and a bad one on 198.51.100.10 —
+ *   it put an internet-facing web server in Supervisory Control on the very first sample scan.
+ *   Capping at Enterprise IT is the weaker claim and the true one.
+ */
+function zoneFor(node: ItNode, type: AssetTypeId): ZoneId {
+  if (node.kind === "internet" || node.tier === "internet") {
+    return "internet";
+  }
+  const derived = getAssetType(type).defaultZone;
+  if (isPublicIp(node.ip) && getZone(derived).riskRank < getZone("level5").riskRank) {
+    return "level5";
+  }
+  return derived;
+}
+
 function applyOverride(asset: MapAsset, override: AssetOverride | undefined): MapAsset {
   if (!override) {
     return asset;
@@ -102,11 +141,8 @@ export function projectMap(doc: CyberMapDocument): ProjectedMap {
   // --- Assets -------------------------------------------------------------
   const assets: MapAsset[] = synthesised.nodes.map((node) => {
     const host = hostFor(node);
-    const type = inferAssetType(host);
-    // The zone is a *starting* position derived from what the asset appears to be. A converged
-    // estate is exactly where that guess is least reliable, so it is the first thing an assessor
-    // is expected to override.
-    const zone = getAssetType(type).defaultZone;
+    const type = assetTypeFor(node, host);
+    const zone = zoneFor(node, type);
     const base = createAsset(type, doc.positions[node.id] ?? node.position, zone);
     const protocols = protocolsForHost(host);
 

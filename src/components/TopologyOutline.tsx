@@ -1,4 +1,4 @@
-import { getAssetType, getZone, zones } from "../data/catalog";
+import { getAssetType, getZone, modelledZones, zones } from "../data/catalog";
 import { protocolLabel } from "../data/protocols";
 import type { Asset, Conduit, OtProject } from "../models/types";
 
@@ -117,10 +117,10 @@ export function TopologyOutline({ project, hidden = false }: TopologyOutlineProp
 
       {/* Zones with nothing in them are a finding of their own, and silence would read as absence
           of risk rather than absence of modelling. */}
-      {populated.length < zones.length ? (
+      {populated.length < modelledZones.length ? (
         <p>
           Not modelled:{" "}
-          {zones
+          {modelledZones
             .filter((zone) => !populated.some((entry) => entry.zone.id === zone.id))
             .map((zone) => getZone(zone.id).name)
             .join(", ")}

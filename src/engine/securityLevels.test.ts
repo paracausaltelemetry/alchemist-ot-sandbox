@@ -6,7 +6,11 @@ import { MAX_SL, assessSecurityLevels, defaultTargetSL, foundationalRequirements
 describe("assessSecurityLevels", () => {
   it("assesses every zone with target and achieved SL in range", () => {
     const result = assessSecurityLevels(sampleProject);
-    expect(result.zones).toHaveLength(zones.length);
+    // Every zone of the system under consideration — so every catalog zone but the internet, which
+    // is what the estate is exposed to rather than a part of it.
+    expect(result.zones.map((zone) => zone.zone)).toEqual(
+      zones.filter((zone) => zone.id !== "internet").map((zone) => zone.id)
+    );
 
     for (const zone of result.zones) {
       expect(zone.target).toBeGreaterThanOrEqual(1);
@@ -24,6 +28,16 @@ describe("assessSecurityLevels", () => {
         expect(zone.frLevels[fr]).toBe(zone.achieved);
       }
     }
+  });
+
+  it("says nothing about the internet, which is not a zone of the system under consideration", () => {
+    // Not an oversight to be tidied up later: including it would report the internet as an
+    // unmodelled zone on every estate, which reads as a gap the operator is supposed to close.
+    const withInternet = {
+      ...sampleProject,
+      assets: [{ ...sampleProject.assets[0], id: "edge", zone: "internet" as const }, ...sampleProject.assets]
+    };
+    expect(assessSecurityLevels(withInternet).zones.some((zone) => zone.zone === "internet")).toBe(false);
   });
 
   it("defaults control zones to a stronger target than enterprise zones", () => {

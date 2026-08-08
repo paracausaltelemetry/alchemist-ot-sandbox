@@ -1,41 +1,88 @@
 /* The converged map: one canvas from the internet edge to Level 0. */
 
-/* The preview frame at #map. A bare shell until the workspace exists; the canvas has no intrinsic
-   height of its own, so the page has to bound it or the flow collapses to nothing. */
-.map-preview {
+/* The workspace shell: sidebar, canvas, inspector, and a panel underneath spanning all three.
+   The canvas has no intrinsic height of its own, so the grid has to bound it or the flow collapses
+   to its toolbar — which it did, at 89px, before `min-height: 0` went on every track. */
+.map-workspace {
   display: flex;
   flex-direction: column;
   height: 100vh;
   min-height: 0;
 }
 
-.map-preview-main {
-  position: relative;
-  /* `flex: 1` and `min-height: 0` together: without the grow the main is content-sized and the
-     canvas collapses to its toolbar; without the min-height a flex item refuses to shrink below
-     its content, so the flow spills past the viewport instead of scrolling inside its own column. */
+.map-workspace-grid {
   flex: 1 1 auto;
-  display: grid;
-  grid-template-rows: 1fr auto auto;
   min-height: 0;
-  padding: var(--space-4);
-  gap: var(--space-3);
+  display: grid;
+  grid-template-columns: 15rem minmax(24rem, 1fr) 20rem;
+  grid-template-rows: minmax(0, 1fr) minmax(6rem, 14rem);
+  gap: 1px;
+  padding: 1px;
+  background: var(--line);
 }
 
-/* `.canvas-shell` carries `grid-column: 2` for the workbench's palette/canvas/inspector grid. Left
-   alone here it lands in an implicit second column and leaves a 456px void down the left. */
-.map-preview-main > * {
+.map-sidebar,
+.map-workspace-canvas,
+.map-inspector,
+.map-bottom {
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.map-sidebar,
+.map-inspector {
+  overflow: auto;
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+}
+
+.map-workspace-canvas {
+  position: relative;
+  display: grid;
+  min-height: 0;
+}
+
+.map-workspace-canvas > .canvas-shell {
+  /* `.canvas-shell` carries `grid-column: 2` for the workbench's palette/canvas/inspector grid.
+     Left alone in this single-column track it lands in an implicit second column and leaves a
+     several-hundred-pixel void down the left. */
   grid-column: 1;
-}
-
-.map-preview-main > .canvas-shell {
   min-height: 0;
   height: 100%;
-  border: 1px solid var(--line);
+  border: 0;
   background: var(--surface);
 }
 
-.map-preview-warnings {
+/* Spans every column: warnings and findings are about the estate, not about one panel. */
+.map-bottom {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+/* --- Panels ---------------------------------------------------------------- */
+
+.map-sidebar h3,
+.map-inspector h3 {
+  margin: 0 0 var(--space-2);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.map-source-list,
+.map-asset-list,
+.map-bottom-list {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -43,22 +90,179 @@
   gap: var(--space-2);
 }
 
-/* The canonical bordered-row motif, so a warning reads the way every other list of points does. */
-.map-preview-warnings li {
+/* The canonical bordered-row motif, so every list of points in the app reads the same. */
+.map-source-list li,
+.map-bottom-list li {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--line);
   border-left: 3px solid var(--line-strong);
+  font-size: var(--text-sm);
   color: var(--muted);
+}
+
+.map-source-list li strong,
+.map-bottom-list li strong {
+  display: block;
+  color: var(--text);
+}
+
+.map-source-list li small {
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.map-sidebar-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* The file input is the label; showing the browser's own control alongside it would be two
+   affordances for one action. */
+.map-sidebar-actions input[type="file"] {
+  display: none;
+}
+
+.map-layer-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+/* The asset list is the index for an estate the canvas cannot show at once, so it scrolls on its
+   own rather than pushing the sources and layers off the top of the sidebar. */
+.map-sidebar-assets {
+  min-height: 0;
+}
+
+.map-asset-filter {
+  width: 100%;
+  margin-bottom: var(--space-2);
+  padding: 0.3rem 0.1rem;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
   font-size: var(--text-sm);
 }
 
-.map-preview-selection {
+.map-asset-list li button {
+  width: 100%;
+  padding: 0.3rem var(--space-2);
+  border: 0;
+  border-left: 3px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.map-asset-list li button strong {
+  display: block;
+  color: var(--text);
+}
+
+.map-asset-list li button:hover,
+.map-asset-list li button.is-selected {
+  border-left-color: var(--accent);
+  background: var(--surface);
+}
+
+.map-inspector-facts {
   margin: 0;
-  color: var(--muted);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem var(--space-3);
   font-size: var(--text-sm);
 }
 
-.map-preview-selection strong {
+.map-inspector-facts dt {
+  color: var(--muted);
+}
+
+.map-inspector-facts dd {
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.map-inspector-findings {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.map-inspector-findings li {
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  color: var(--muted);
+}
+
+.map-inspector-findings li strong {
+  color: var(--text);
+  text-transform: uppercase;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+}
+
+.map-bottom-tabs {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+.map-bottom-tabs button {
+  padding: 0.15rem 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.map-bottom-tabs button.active {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
+.map-bottom-body {
+  overflow: auto;
+  padding: var(--space-3);
+}
+
+.map-bottom-affected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.map-bottom-affected button {
+  padding: 0.1rem var(--space-2);
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.66rem;
+  cursor: pointer;
+}
+
+.map-bottom-affected button:hover,
+.map-bottom-affected button.is-selected {
+  border-color: var(--accent);
   color: var(--text);
 }
 

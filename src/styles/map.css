@@ -412,3 +412,26 @@
   font: inherit;
   font-size: var(--text-sm);
 }
+
+.map-bottom-actions {
+  margin-bottom: var(--space-3);
+}
+
+/* An asset carrying access reads at a glance, because the one thing a reader scans an engagement
+   map for is how far in somebody got. Outline rather than border: the border is already carrying
+   the criticality ramp, and one channel cannot say two things. */
+.asset-node[class*="it-node-access-"] {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+/* Connect mode. The cursor says the whole canvas is a target; the chosen endpoint says which half
+   of the action is done. */
+.map-frame .asset-node.is-connectable {
+  cursor: crosshair;
+}
+
+.map-frame .asset-node.is-connect-source {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+}

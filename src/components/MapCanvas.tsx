@@ -77,6 +77,11 @@ interface MapCanvasProps {
    */
   onPlaceAsset: (id: string, position: Point, zone: MapAsset["zone"]) => void;
   onToggleInferred: () => void;
+  /** Fired when one asset's handle is dragged onto another, or two are clicked in connect mode. */
+  onConnect: (source: string, target: string) => void;
+  connectMode: boolean;
+  connectSourceId: string | null;
+  onToggleConnect: () => void;
 }
 
 type MapNodeData = {
@@ -85,6 +90,8 @@ type MapNodeData = {
   access: ItAccessState | null;
   /** Null when the active overlay has nothing to say about this asset. */
   bucket: OverlayBucket | null;
+  connectMode: boolean;
+  connectSource: boolean;
 };
 
 type MapFlowNode = Node<MapNodeData, "mapAsset">;
@@ -114,7 +121,7 @@ function describeClass(asset: MapAsset, typeLabel: string): string {
  * estate puts hundreds of cards down, and moving one rebuilds the whole node array.
  */
 const MapAssetCard = memo(function MapAssetCard({ data }: NodeProps<MapFlowNode>) {
-  const { asset, selected, access, bucket } = data;
+  const { asset, selected, access, bucket, connectMode, connectSource } = data;
   const type = getAssetType(asset.type);
   const zone = getZone(asset.zone);
   const inferred = asset.confidence < 1;
@@ -123,7 +130,9 @@ const MapAssetCard = memo(function MapAssetCard({ data }: NodeProps<MapFlowNode>
     <div
       className={`asset-node map-node criticality-${asset.criticality}${selected ? " is-selected" : ""}${
         inferred ? " is-ghost" : ""
-      }${access ? ` it-node-access-${access}` : ""}`}
+      }${access ? ` it-node-access-${access}` : ""}${connectMode ? " is-connectable" : ""}${
+        connectSource ? " is-connect-source" : ""
+      }`}
       style={{ "--zone-color": zone.color, ...(bucket ? bucketStyle(bucket) : {}) } as CSSProperties}
     >
       {/* The overlay reads as a band across the top of the card rather than as a recolour of it:
@@ -199,7 +208,11 @@ function MapCanvasInner({
   onOverlayChange,
   onSelect,
   onPlaceAsset,
-  onToggleInferred
+  onToggleInferred,
+  onConnect,
+  connectMode,
+  connectSourceId,
+  onToggleConnect
 }: MapCanvasProps) {
   const reactFlow = useReactFlow();
   const [isDragging, setIsDragging] = useState(false);
@@ -224,6 +237,7 @@ function MapCanvasInner({
       const selected = selectedId === asset.id;
       const access = map.access.get(asset.id) ?? null;
       const bucket = assetBuckets.get(asset.id) ?? null;
+      const connectSource = connectSourceId === asset.id;
       const position = laidOut.get(asset.id) ?? asset.position;
 
       const cached = cache.get(asset.id);
@@ -235,6 +249,8 @@ function MapCanvasInner({
         // Explicit, like every other field in this hit test: one left out is one that never updates
         // once a card has been drawn, so switching overlay would leave the old band in place.
         cached.flow.data.bucket === bucket &&
+        cached.flow.data.connectMode === connectMode &&
+        cached.flow.data.connectSource === connectSource &&
         cached.flow.position.x === position.x &&
         cached.flow.position.y === position.y
       ) {
@@ -252,7 +268,7 @@ function MapCanvasInner({
         width: ASSET_NODE_WIDTH,
         height: ASSET_NODE_HEIGHT,
         style: { width: ASSET_NODE_WIDTH, minHeight: ASSET_NODE_HEIGHT },
-        data: { asset, selected, access, bucket }
+        data: { asset, selected, access, bucket, connectMode, connectSource }
       };
       cache.set(asset.id, { source: asset, flow });
       return flow;
@@ -267,7 +283,7 @@ function MapCanvasInner({
       }
     }
     return next;
-  }, [assetBuckets, laidOut, map.access, map.assets, selectedId]);
+  }, [assetBuckets, connectMode, connectSourceId, laidOut, map.access, map.assets, selectedId]);
 
   // Snap x to the grid and y to the lane its centre falls in: vertical position *is* the zone here,
   // so a free y would let a card sit between two levels and mean nothing.
@@ -407,7 +423,14 @@ function MapCanvasInner({
       onNodeDragStart={() => setIsDragging(true)}
       onNodeDragStop={commitNodePosition}
       onNodeClick={onSelect}
-      onPaneClick={() => onSelect(null)}
+      onConnect={onConnect}
+      // In connect mode a pane click would clear the half-drawn link's first endpoint, which is the
+      // one click most likely to be a miss rather than an intention.
+      onPaneClick={() => {
+        if (!connectMode) {
+          onSelect(null);
+        }
+      }}
       onKeyDown={handleKeyDown}
       snapGrid={[CANVAS_GRID_X, ZONE_ROW_HEIGHT]}
       fitSignal={fitSignal}
@@ -418,7 +441,13 @@ function MapCanvasInner({
         <div className="canvas-titlebar">
           <div>
             <h2>Estate map</h2>
-            <p>{overlay.description}. Drag a card into another band to re-zone it.</p>
+            <p>
+              {connectMode
+                ? connectSourceId
+                  ? "Select the asset at the other end."
+                  : "Select the asset this connection starts from."
+                : `${overlay.description}. Drag a card into another band to re-zone it.`}
+            </p>
             <div className="canvas-stats" aria-label="Map summary">
               <span>
                 <strong>{counts.assets}</strong> assets
@@ -463,6 +492,15 @@ function MapCanvasInner({
               onClick={onToggleInferred}
             >
               {showInferred ? "Hide inferred" : "Show inferred"}
+            </button>
+            <button
+              type="button"
+              className={`text-button compact${connectMode ? " is-active" : ""}`}
+              title="Draw a connection by selecting two assets"
+              aria-pressed={connectMode}
+              onClick={onToggleConnect}
+            >
+              Connect
             </button>
             <button
               type="button"

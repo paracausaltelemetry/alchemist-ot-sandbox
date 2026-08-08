@@ -79,6 +79,24 @@ describe("projecting the estate", () => {
     expect(firewall?.type).toBeTruthy();
   });
 
+  it("marks a link touching a firewall as brokered rather than plainly routed", () => {
+    // A scan never shows the rule that allowed a packet, so `firewallRule` stays unknown. But
+    // "something mediates here" is a different claim from "nothing does", and it is the one the
+    // exposure walk turns on: without it every derived link was `routed` and the whole estate came
+    // back reachable without a broker.
+    const projected = projectMap(sampleMap());
+    const firewall = projected.assets.find((asset) => asset.type === "firewall")!;
+    const touching = projected.connections.filter(
+      (entry) => entry.source === firewall.id || entry.target === firewall.id
+    );
+
+    expect(touching.length).toBeGreaterThan(0);
+    for (const connection of touching) {
+      expect(connection.control).toBe("firewalled");
+      expect(connection.firewallRule).toBe("unknown");
+    }
+  });
+
   it("says where each asset came from", () => {
     const doc = sampleMap();
     const [asset] = projectMap(doc).assets.filter((entry) => entry.provenance === "imported" && entry.ipAddress);

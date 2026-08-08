@@ -111,6 +111,13 @@ export interface MapAsset extends Asset {
   provenance: "imported" | "authored";
   /** The network-map symbol a scan classified it as, when one did. */
   deviceKind?: ItNodeKind;
+  /**
+   * The OS a scan reported, verbatim.
+   *
+   * A field rather than a line in `notes`, because the operating-system overlay has to bucket it
+   * and parsing it back out of prose would make the overlay depend on the wording of a comment.
+   */
+  os?: string;
   ports: ImportedPort[];
   identifiers: { ips: string[]; macs: string[]; hostnames: string[] };
   /** 0..1. Below 1 means some part of this asset was reasoned rather than observed. */

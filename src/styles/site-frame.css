@@ -1,9 +1,9 @@
-/* Shared Welbourne Security site frame, mirrored from the main site (welbournesecurity.com)
+/* Shared Paracausal Telemetry site frame, mirrored from the main site (paracausaltelemetry.com)
    so the Alchemist landing opens in the same familiar shell: sticky header, radar brand,
    primary nav, and a large page-hero band. Reuses the app's existing --accent / --muted /
    --line-strong / --signal brand tokens and the .brand-mark + .theme-toggle rules. */
 .site-frame {
-  /* Match the main site's container width (welbournesecurity.com uses 1440). */
+  /* Match the main site's container width (paracausaltelemetry.com uses 1440). */
   --content-width: min(1440px, calc(100vw - 2rem));
   --header-height: 5.5rem;
   --gutter: 1rem;

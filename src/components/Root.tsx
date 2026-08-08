@@ -8,19 +8,19 @@ import { safeGetItem, safeSetItem } from "../lib/safeStorage";
 const THEME_KEY = "ot-sandbox-theme";
 
 // Shared with the main site and the ctf subdomain: the light/dark choice is
-// mirrored to a cookie scoped to .welbournesecurity.com so it carries across
+// mirrored to a cookie scoped to .paracausaltelemetry.com so it carries across
 // origins (localStorage is per-origin and can't). Cookie wins on load; the
 // legacy ot-sandbox-theme localStorage key stays as a same-origin fallback.
-const THEME_COOKIE = "ws_theme";
+const THEME_COOKIE = "pt_theme";
 
 function readThemeCookie(): "dark" | "light" | null {
-  const match = document.cookie.match(/(?:^|;\s*)ws_theme=(light|dark)/);
+  const match = document.cookie.match(/(?:^|;\s*)pt_theme=(light|dark)/);
   return match ? (match[1] as "dark" | "light") : null;
 }
 
 function writeThemeCookie(theme: "dark" | "light"): void {
-  const onSiteDomain = /(^|\.)welbournesecurity\.com$/.test(location.hostname);
-  const domain = onSiteDomain ? "; domain=.welbournesecurity.com" : "";
+  const onSiteDomain = /(^|\.)paracausaltelemetry\.com$/.test(location.hostname);
+  const domain = onSiteDomain ? "; domain=.paracausaltelemetry.com" : "";
   document.cookie = `${THEME_COOKIE}=${theme}; path=/; max-age=31536000; samesite=lax${domain}`;
 }
 

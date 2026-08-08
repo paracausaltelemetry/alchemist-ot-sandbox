@@ -1,5 +1,5 @@
 /**
- * The Welbourne Security radar brand-mark, mirrored from the main site: concentric rings, a
+ * The Paracausal Telemetry radar brand-mark, mirrored from the main site: concentric rings, a
  * crosshair, a core dot, a pulsing blip and a sweep (trails + beam) that spins on hover. Decorative,
  * so it is hidden from assistive tech. Themed and centred via the `.brand-mark` / `.brand-radar-*`
  * styles.

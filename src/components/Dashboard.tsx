@@ -334,8 +334,8 @@ export function Dashboard({ onEnter, onOpenIt, onSwitchView, theme, onToggleThem
 
       <footer className="dashboard-footer">
         <span>Browser-local · advisory only · not a substitute for a formal assessment.</span>
-        <a href="https://welbournesecurity.com" target="_blank" rel="noopener noreferrer">
-          welbournesecurity.com
+        <a href="https://paracausaltelemetry.com" target="_blank" rel="noopener noreferrer">
+          paracausaltelemetry.com
         </a>
       </footer>
     </div>

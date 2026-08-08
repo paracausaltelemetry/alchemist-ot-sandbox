@@ -4,20 +4,20 @@ import { BrandMark } from "./BrandMark";
 import { ViewSwitch } from "./ViewSwitch";
 import type { AppView } from "../lib/appView";
 
-const SITE = "https://welbournesecurity.com";
+const SITE = "https://paracausaltelemetry.com";
 
 /**
- * The shared Welbourne Security site header, mirrored from the main site so the Alchemist
+ * The shared Paracausal Telemetry site header, mirrored from the main site so the Alchemist
  * subdomain opens inside the same familiar frame: radar brand-mark, primary nav (absolute
  * links back to the main site, with Alchemist marked current), and the theme toggle.
  */
 const NAV_LINKS: Array<{ label: string; href: string; current?: boolean }> = [
   { label: "Home", href: `${SITE}/` },
+  { label: "Projects", href: `${SITE}/projects/` },
   { label: "Writeups", href: `${SITE}/writeups/` },
-  { label: "Alchemist", href: "https://alchemist.welbournesecurity.com/", current: true },
+  { label: "Alchemist", href: "https://alchemist.paracausaltelemetry.com/", current: true },
   { label: "Observer", href: `${SITE}/observer/` },
-  { label: "Blue Team", href: `${SITE}/blue-team/` },
-  { label: "Contact", href: `${SITE}/contact/` }
+  { label: "Threat Actors", href: `${SITE}/threat-actors/` }
 ];
 
 interface SiteMastheadProps {
@@ -69,10 +69,10 @@ export function SiteMasthead({ theme, onToggleTheme, isMobile, view, onSwitchVie
 
   return (
     <header className="site-header" ref={headerRef}>
-      <a className="brand" href={`${SITE}/`} aria-label="Back to Welbourne Security home">
+      <a className="brand" href={`${SITE}/`} aria-label="Back to Paracausal Telemetry home">
         <BrandMark />
         <span className="brand-copy">
-          <strong>Welbourne Security</strong>
+          <strong>Paracausal Telemetry</strong>
           <small>Alchemist</small>
         </span>
       </a>

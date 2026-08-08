@@ -17,7 +17,7 @@
 :root {
   color-scheme: dark;
 
-  /* Brand: monochrome ink/paper, matching welbournesecurity.com. --signal is the
+  /* Brand: monochrome ink/paper, matching paracausaltelemetry.com. --signal is the
      single colour, reserved for danger / live / critical states. --accent === --text
      (interactive ink). Flat (no shadows), sharp corners (no rounding). */
   --bg: #0a0b0c;

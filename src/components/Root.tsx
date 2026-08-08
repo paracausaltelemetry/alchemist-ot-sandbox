@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { App } from "../App";
 import { Dashboard, type DashboardIntent } from "./Dashboard";
 import { ItApp } from "./ItApp";
-import { MapPreview } from "./MapPreview";
+import { MapWorkspace } from "./MapWorkspace";
 import { initialView, LAST_VIEW_STORAGE_KEY, type AppView } from "../lib/appView";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
 
@@ -129,7 +129,7 @@ export function Root() {
   // exists, and so it is never what a reload lands on. Checked before the remembered view, which
   // would otherwise win over an explicit link.
   if (hash === "#map") {
-    return <MapPreview theme={theme} onToggleTheme={toggleTheme} isMobile={isMobile} />;
+    return <MapWorkspace theme={theme} onToggleTheme={toggleTheme} isMobile={isMobile} />;
   }
 
   if (view === "home") {

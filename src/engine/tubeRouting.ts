@@ -63,12 +63,23 @@ export interface CableRequest {
   to: CableEnd;
 }
 
+/** A symbol a cable must not run through. In flow coordinates, like everything else here. */
+export interface CableObstacle {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface RoutedCable {
   id: string;
   path: string;
   labelX: number;
   labelY: number;
 }
+
+/** How far a detour clears the symbol it is avoiding. */
+const OBSTACLE_CLEARANCE = 34;
 
 const isHorizontal = (a: Point, b: Point) => Math.abs(a.y - b.y) < 0.5;
 const isVertical = (a: Point, b: Point) => Math.abs(a.x - b.x) < 0.5;
@@ -89,6 +100,28 @@ interface Corridor {
   line: number;
   from: number;
   to: number;
+}
+
+/**
+ * Symbols a straight run between two points would pass through.
+ *
+ * Only the ends' own symbols are exempt — a cable is allowed to touch what it connects.
+ */
+function obstaclesOn(a: Point, b: Point, obstacles: CableObstacle[]): CableObstacle[] {
+  const holds = (box: CableObstacle, point: Point) =>
+    point.x >= box.x && point.x <= box.x + box.width && point.y >= box.y && point.y <= box.y + box.height;
+
+  return obstacles.filter((box) => {
+    if (holds(box, a) || holds(box, b)) {
+      return false;
+    }
+    if (isHorizontal(a, b)) {
+      const within = a.y >= box.y && a.y <= box.y + box.height;
+      return within && Math.min(a.x, b.x) < box.x + box.width && Math.max(a.x, b.x) > box.x;
+    }
+    const within = a.x >= box.x && a.x <= box.x + box.width;
+    return within && Math.min(a.y, b.y) < box.y + box.height && Math.max(a.y, b.y) > box.y;
+  });
 }
 
 function corridorOf(points: Point[]): Corridor | null {
@@ -152,11 +185,27 @@ function bundlesOn(members: Array<{ id: string; corridor: Corridor }>): string[]
  * - **A single dogleg** otherwise: out, across, in. Never more than two corners, because a third
  *   makes a route that has to be traced rather than read.
  */
-function polylineFor(request: CableRequest, enclosures: Map<string, MapEnclosure>): Point[] {
+function polylineFor(
+  request: CableRequest,
+  enclosures: Map<string, MapEnclosure>,
+  obstacles: CableObstacle[]
+): Point[] {
   const { from, to } = request;
 
   if (isHorizontal(from.at, to.at) || isVertical(from.at, to.at)) {
-    return [from.at, to.at];
+    const inTheWay = obstaclesOn(from.at, to.at, obstacles);
+    if (inTheWay.length === 0) {
+      return [from.at, to.at];
+    }
+    // A transit line detours around a station it does not serve. A cable along the spine that runs
+    // straight through the router between its two ends says those three are joined, which is a
+    // different claim from the one the scan made — and it buries the device it crosses.
+    if (isHorizontal(from.at, to.at)) {
+      const above = Math.min(...inTheWay.map((box) => box.y)) - OBSTACLE_CLEARANCE;
+      return [from.at, { x: from.at.x, y: above }, { x: to.at.x, y: above }, to.at];
+    }
+    const beside = Math.min(...inTheWay.map((box) => box.x)) - OBSTACLE_CLEARANCE;
+    return [from.at, { x: beside, y: from.at.y }, { x: beside, y: to.at.y }, to.at];
   }
 
   // Prefer the destination's trunk: a cable is normally arriving somewhere, and the shared part of
@@ -293,9 +342,13 @@ function labelAt(points: Point[]): Point {
   return best.at;
 }
 
-export function routeCables(requests: CableRequest[], enclosures: MapEnclosure[]): RoutedCable[] {
+export function routeCables(
+  requests: CableRequest[],
+  enclosures: MapEnclosure[],
+  obstacles: CableObstacle[] = []
+): RoutedCable[] {
   const boxes = new Map(enclosures.map((box) => [box.id, box] as const));
-  const drafted = requests.map((request) => ({ request, points: polylineFor(request, boxes) }));
+  const drafted = requests.map((request) => ({ request, points: polylineFor(request, boxes, obstacles) }));
 
   // --- Lanes ---------------------------------------------------------------
   // Cables on the same line, clustered into bundles whose runs actually overlap, then laid out

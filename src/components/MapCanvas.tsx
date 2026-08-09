@@ -20,7 +20,7 @@ import {
   onSpine,
   type MapGrouping
 } from "../data/mapLayout";
-import { symbolCentre } from "./canvas/cable";
+import { SYMBOL_CENTRE_X, SYMBOL_CENTRE_Y, SYMBOL_HALF, symbolCentre } from "./canvas/cable";
 import { routeCables, type CableRequest } from "../engine/tubeRouting";
 import { backboneOf } from "../engine/backbone";
 import { isScanEvidence, itKindLabel, type ItLinkEvidence } from "../models/itMap";
@@ -451,7 +451,16 @@ function MapCanvasInner({
       const to = anchorFor(cable.to);
       return from && to ? [{ id: cable.id, from, to }] : [];
     });
-    const routes = new Map(routeCables(requests, enclosures).map((cable) => [cable.id, cable] as const));
+    // Every symbol on the canvas, so a cable detours around a device it does not connect.
+    const obstacles = [...livePositions.values()].map((at) => ({
+      x: at.x + SYMBOL_CENTRE_X - SYMBOL_HALF,
+      y: at.y + SYMBOL_CENTRE_Y - SYMBOL_HALF,
+      width: SYMBOL_HALF * 2,
+      height: SYMBOL_HALF * 2
+    }));
+    const routes = new Map(
+      routeCables(requests, enclosures, obstacles).map((cable) => [cable.id, cable] as const)
+    );
 
     return cables.flatMap((cable) => {
       const route = routes.get(cable.id);

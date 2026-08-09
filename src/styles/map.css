@@ -50,11 +50,16 @@
 
 .map-sidebar,
 .map-inspector {
-  overflow: auto;
+  overflow-y: auto;
+  /* `auto` on both axes gave the sidebar a horizontal scrollbar it never needed, which ate a row of
+     vertical space and pushed the asset list out of alignment with the panel beside it. Nothing in
+     here is meant to scroll sideways; a long hostname ellipsises instead. */
+  overflow-x: hidden;
   padding: var(--space-3);
   display: grid;
   gap: var(--space-4);
   align-content: start;
+  scrollbar-gutter: stable;
 }
 
 .map-workspace-canvas {
@@ -129,10 +134,22 @@
   margin-bottom: var(--space-2);
 }
 
+/* Equal columns rather than a flex row. "Load sample" is twice the width of "Import", so a flex
+   row wrapped it onto two lines and left the group ragged against everything above it. */
 .map-sidebar-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
   margin-top: var(--space-2);
+}
+
+.map-sidebar-actions > * {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding-inline: 0;
+  text-align: center;
+  white-space: nowrap;
 }
 
 /* The file input is the label; showing the browser's own control alongside it would be two
@@ -181,8 +198,15 @@
   cursor: pointer;
 }
 
-.map-asset-list li button strong {
+.map-asset-list li button strong,
+.map-asset-list li button small {
   display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-asset-list li button strong {
   color: var(--text);
 }
 

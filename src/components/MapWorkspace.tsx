@@ -65,6 +65,7 @@ export function MapWorkspace({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showInferred, setShowInferred] = useState(true);
   const [showServices, setShowServices] = useState(false);
+  const [showEveryLink, setShowEveryLink] = useState(false);
   const [fitSignal, setFitSignal] = useState(0);
   const [overlayId, setOverlayId] = useState<OverlayId>("assetClass");
   const [grouping, setGrouping] = useState<MapGrouping>("topology");
@@ -394,6 +395,8 @@ export function MapWorkspace({
               showInferred={showInferred}
               showServices={showServices}
               onToggleServices={() => setShowServices((shown) => !shown)}
+              showEveryLink={showEveryLink}
+              onToggleEveryLink={() => setShowEveryLink((shown) => !shown)}
               overlayId={overlayId}
               grouping={grouping}
               onGroupingChange={setGrouping}

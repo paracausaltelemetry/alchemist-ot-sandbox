@@ -55,6 +55,16 @@ const TARGET_ROW_WIDTH = 1500;
 /** Devices that route, filter or represent the outside world sit on the spine, not in a subnet. */
 const SPINE_KINDS = new Set(["internet", "firewall", "router", "load-balancer"]);
 
+/**
+ * Whether a device belongs on the spine rather than inside a segment.
+ *
+ * Exported because the cable folding has to agree with the layout about this, and it did not: a
+ * router carries the `subnetId` of the segment it serves, so folding by address alone swallowed
+ * every gateway into its own box and then discarded the gateway-to-host cables as links within one
+ * segment. The map lost the lines it exists to draw.
+ */
+export const onSpine = (deviceKind?: string) => SPINE_KINDS.has(deviceKind ?? "");
+
 export const UNSEGMENTED_LANE = "unsegmented";
 
 export interface MapLayoutAsset {
@@ -157,7 +167,7 @@ function topologyLayout(
 
   // The spine reads across the top the way a whiteboard sketch does: the outside world and the
   // kit that joins segments together, above the segments themselves.
-  const spine = assets.filter((asset) => SPINE_KINDS.has(asset.deviceKind ?? "")).sort(byId);
+  const spine = assets.filter((asset) => onSpine(asset.deviceKind)).sort(byId);
   const spineIds = new Set(spine.map((asset) => asset.id));
 
   const grouped = new Map<string, MapLayoutAsset[]>();

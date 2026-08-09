@@ -17,7 +17,8 @@
   }
 
   /* Stage maps sit inside the timeline; scale them to the page rather than clipping them. */
-  .it-print-map svg {
+  .it-print-map svg,
+  .map-print-map svg {
     max-width: 100%;
     height: auto;
     margin: 8px 0 4px;

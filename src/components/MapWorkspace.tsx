@@ -4,6 +4,8 @@ import { parseNmapNormal } from "../import/nmapText";
 import { SAMPLE_SCAN } from "../data/sampleScan";
 import { asOtProject, projectMap } from "../engine/mapProjection";
 import { buildOverlayContext, type OverlayId } from "../engine/overlays";
+import { applyOverrideDiff, diffToOverrides } from "../engine/mapOverrides";
+import { findReachability } from "../engine/reachability";
 import {
   newCyberMap,
   newImportSource,
@@ -18,9 +20,20 @@ import { buildMapReport } from "../engine/mapReport";
 import { mapReportMarkdown } from "../engine/mapReportMarkdown";
 import { downloadMarkdown } from "../lib/exporters";
 import { loadCyberMap, saveCyberMap } from "../lib/mapStore";
-import type { Point } from "../models/types";
+import type {
+  CafPrincipleId,
+  CafStatus,
+  EngagementContext,
+  Finding,
+  OtProject,
+  Point,
+  RiskTreatment,
+  ZoneId
+} from "../models/types";
 import { ItEventDialog, type ItEventDraft } from "./ItEventDialog";
 import { ItLinkDialog } from "./ItLinkDialog";
+import { AnalysisPanel } from "./AnalysisPanel";
+import { GovernanceEditor } from "./GovernanceEditor";
 import { MapBottomPanel } from "./MapBottomPanel";
 import { MapCanvas } from "./MapCanvas";
 import { MapInspector } from "./MapInspector";
@@ -58,6 +71,12 @@ export function MapWorkspace({
   /** The pair being joined, held while the operator says what the line means. */
   const [pendingLink, setPendingLink] = useState<{ source: string; target: string } | null>(null);
   const [eventDraft, setEventDraft] = useState<{ sourceNodeId?: string; targetNodeId?: string } | null>(null);
+  const [pathSource, setPathSource] = useState("");
+  const [pathTarget, setPathTarget] = useState("");
+  const [activeFindingId, setActiveFindingId] = useState<string | null>(null);
+  const [dockHeight, setDockHeight] = useState(22);
+  const [dockOpen, setDockOpen] = useState(false);
+  const [governanceOpen, setGovernanceOpen] = useState(false);
 
   const map = useMemo(() => projectMap(doc), [doc]);
   const project = useMemo(() => asOtProject(doc, map), [doc, map]);
@@ -259,6 +278,44 @@ export function MapWorkspace({
     [commit, doc]
   );
 
+  // --- Analysis over the converged estate -----------------------------------
+
+  const reachability = useMemo(
+    () => findReachability(project, pathSource, pathTarget),
+    [project, pathSource, pathTarget]
+  );
+
+  const setGovernance = useCallback(
+    (patch: Partial<CyberMapDocument["governance"]>) =>
+      commit({ ...doc, governance: { ...doc.governance, ...patch } }),
+    [commit, doc]
+  );
+
+  /**
+   * The what-if tab hands back a whole modified project, which is the right shape for a model where
+   * every field was typed. Here it becomes a set of authored decisions instead — storing the
+   * simulation itself would mean abandoning re-derivation, which is the property the document is
+   * built around.
+   */
+  const applySimulation = useCallback(
+    (simulated: OtProject) => {
+      const diff = diffToOverrides(map, simulated);
+      commit(applyOverrideDiff(doc, diff));
+      // Named rather than dropped: a remediation that silently fails to apply is worse than one
+      // that refuses.
+      setImportError(diff.unapplied.length > 0 ? diff.unapplied.join(" ") : null);
+    },
+    [commit, doc, map]
+  );
+
+  const selectFinding = useCallback((finding: Finding) => {
+    setActiveFindingId(finding.id);
+    const [first] = finding.affectedAssetIds;
+    if (first) {
+      setSelectedId(first);
+    }
+  }, []);
+
   const exportReport = useCallback(() => {
     downloadMarkdown(`${doc.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-engagement.md`, mapReportMarkdown(buildMapReport(doc)));
   }, [doc]);
@@ -335,13 +392,61 @@ export function MapWorkspace({
 
         <MapBottomPanel
           warnings={importError ? [importError, ...map.warnings] : map.warnings}
-          findings={overlayContext.assessment.findings}
           events={doc.events}
-          selectedId={selectedId}
           nameOf={nameOf}
           onSelect={setSelectedId}
           onRecordEvent={() => setEventDraft({})}
           onDeleteEvent={deleteEvent}
+        />
+
+        {/* The twelve analysis tabs, over the converged estate rather than a separate OT document.
+            `asOtProject` is a shape adapter, not a conversion, so the panel and every engine behind
+            it run unchanged — which is the acceptance criterion the whole unification was aiming at. */}
+        <AnalysisPanel
+          project={project}
+          assessment={overlayContext.assessment}
+          reachability={reachability}
+          sourceId={pathSource}
+          targetId={pathTarget}
+          activeFindingId={activeFindingId}
+          onSourceChange={setPathSource}
+          onTargetChange={setPathTarget}
+          onHighlightPath={() => setOverlayId("exposure")}
+          onFindingSelect={selectFinding}
+          onPrintReport={() => window.print()}
+          dockHeight={dockHeight}
+          onDockResize={setDockHeight}
+          dockOpen={dockOpen}
+          onToggleDock={() => setDockOpen((open) => !open)}
+          onZoneTargetChange={(zone: ZoneId, target: number) =>
+            setGovernance({ zoneTargets: { ...doc.governance.zoneTargets, [zone]: target } })
+          }
+          onCafOverrideChange={(principle: CafPrincipleId, status: CafStatus | null) => {
+            const next = { ...doc.governance.cafOverrides };
+            if (status) {
+              next[principle] = { status };
+            } else {
+              delete next[principle];
+            }
+            setGovernance({ cafOverrides: next });
+          }}
+          onRiskTreatmentChange={(assetId: string, patch: Partial<RiskTreatment>) =>
+            setGovernance({
+              riskTreatments: {
+                ...doc.governance.riskTreatments,
+                [assetId]: {
+                  decision: "mitigate",
+                  owner: "",
+                  targetDate: "",
+                  notes: "",
+                  ...doc.governance.riskTreatments?.[assetId],
+                  ...patch
+                }
+              }
+            })
+          }
+          onEditGovernance={() => setGovernanceOpen(true)}
+          onApplyProject={applySimulation}
         />
       </main>
 
@@ -356,6 +461,16 @@ export function MapWorkspace({
           setConnectMode(false);
         }}
       />
+
+        <GovernanceEditor
+          open={governanceOpen}
+          engagement={doc.governance.engagement}
+          onClose={() => setGovernanceOpen(false)}
+          onSave={(engagement: EngagementContext) => {
+            setGovernance({ engagement });
+            setGovernanceOpen(false);
+          }}
+        />
 
         <ItEventDialog
           open={eventDraft !== null}

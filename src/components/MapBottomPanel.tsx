@@ -1,37 +1,32 @@
 import { useState } from "react";
 import { EVENT_KIND_LABELS, type ItEvent } from "../models/itEngagement";
-import type { Finding } from "../models/types";
 
 /**
- * The bottom panel: what the map is warning about, what the rules found, and what was done.
+ * How this map was assembled, and what was done to the estate.
  *
- * These had nowhere to go before. `projectMap` has always produced warnings and `assessProject`
- * findings, and on the map neither was rendered anywhere — output nobody could see, which is the
- * same as output that does not exist. A connection whose endpoints vanished used to disappear in
- * silence.
+ * Both had nowhere to go before: `projectMap` has always produced warnings and nothing rendered
+ * them, so a connection whose endpoints vanished disappeared in silence.
+ *
+ * Findings deliberately live in the analysis panel and not here. Two lists of findings that can
+ * disagree is precisely the failure this programme keeps fixing, and the assessment is the one that
+ * can say why a rule fired.
  */
 
-type BottomTab = "warnings" | "findings" | "events";
+type BottomTab = "warnings" | "events";
 
 interface MapBottomPanelProps {
   warnings: string[];
-  findings: Finding[];
   events: ItEvent[];
-  selectedId: string | null;
-  /** Findings carry asset ids, and `it:10.10.2.30` is not something a reader recognises. */
+  /** An event names an asset id, and `it:10.10.2.30` is not something a reader recognises. */
   nameOf: (assetId: string) => string;
   onSelect: (id: string) => void;
   onRecordEvent: () => void;
   onDeleteEvent: (eventId: string) => void;
 }
 
-const SEVERITY_ORDER = ["critical", "high", "medium", "low"];
-
 export function MapBottomPanel({
   warnings,
-  findings,
   events,
-  selectedId,
   nameOf,
   onSelect,
   onRecordEvent,
@@ -39,15 +34,10 @@ export function MapBottomPanel({
 }: MapBottomPanelProps) {
   // Opens on whatever has something to say. A panel that always opens on an empty tab teaches the
   // reader that it is empty, and they stop looking.
-  const [tab, setTab] = useState<BottomTab>(warnings.length > 0 ? "warnings" : "findings");
-
-  const ranked = [...findings].sort(
-    (a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity)
-  );
+  const [tab, setTab] = useState<BottomTab>(warnings.length > 0 ? "warnings" : "events");
 
   const tabs: Array<{ id: BottomTab; label: string; count: number }> = [
     { id: "warnings", label: "Warnings", count: warnings.length },
-    { id: "findings", label: "Findings", count: findings.length },
     { id: "events", label: "Events", count: events.length }
   ];
 
@@ -76,34 +66,6 @@ export function MapBottomPanel({
             <ul className="map-bottom-list">
               {warnings.map((warning) => (
                 <li key={warning}>{warning}</li>
-              ))}
-            </ul>
-          )
-        ) : null}
-
-        {tab === "findings" ? (
-          ranked.length === 0 ? (
-            <p className="muted">No rule fired. On a freshly imported estate that mostly means little is modelled yet.</p>
-          ) : (
-            <ul className="map-bottom-list">
-              {ranked.map((finding) => (
-                <li key={finding.id}>
-                  <strong>{finding.severity}</strong> {finding.title}
-                  {finding.affectedAssetIds.length > 0 ? (
-                    <span className="map-bottom-affected">
-                      {finding.affectedAssetIds.map((assetId) => (
-                        <button
-                          key={assetId}
-                          type="button"
-                          className={assetId === selectedId ? "is-selected" : ""}
-                          onClick={() => onSelect(assetId)}
-                        >
-                          {nameOf(assetId)}
-                        </button>
-                      ))}
-                    </span>
-                  ) : null}
-                </li>
               ))}
             </ul>
           )

@@ -829,11 +829,10 @@ export function App({ onGoHome, onSwitchView, initialIntent, theme, onToggleThem
             reachability={reachability}
             sourceId={reachSourceId}
             targetId={reachTargetId}
-            canvasMode={canvasMode}
             activeFindingId={activeFindingId}
             onSourceChange={setReachSourceId}
             onTargetChange={setReachTargetId}
-            onCanvasModeChange={setCanvasMode}
+            onHighlightPath={() => setCanvasMode("reachability")}
             onFindingSelect={handleFindingSelect}
             onPrintReport={() => window.print()}
             dockHeight={layout.dockHeight}

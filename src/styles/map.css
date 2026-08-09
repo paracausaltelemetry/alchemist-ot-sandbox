@@ -10,24 +10,42 @@
   min-height: 0;
 }
 
+/* Three rows: the canvas and its two sidebars, then how the map was assembled, then the analysis.
+   The analysis row is sized by the panel's own dock so the collapsed state is a strip rather than a
+   reserved gap, and `auto` lets it grow to whatever `--dock-height` the operator dragged. */
 .map-workspace-grid {
+  --dock-height: 22rem;
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
   grid-template-columns: 15rem minmax(24rem, 1fr) 20rem;
-  grid-template-rows: minmax(0, 1fr) minmax(6rem, 14rem);
+  grid-template-rows: minmax(0, 1fr) minmax(5rem, 12rem) auto;
   gap: 1px;
   padding: 1px;
   background: var(--line);
+  overflow: auto;
 }
 
 .map-sidebar,
 .map-workspace-canvas,
 .map-inspector,
-.map-bottom {
+.map-bottom,
+.map-workspace-grid > .analysis-panel {
   min-width: 0;
   min-height: 0;
   background: var(--bg);
+}
+
+/* `.analysis-panel` carries `grid-column: 2` for the workbench grid; here it spans the estate. */
+.map-workspace-grid > .analysis-panel {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  border: 0;
+  max-height: var(--dock-height);
+}
+
+.map-workspace-grid > .analysis-panel.is-collapsed {
+  max-height: none;
 }
 
 .map-sidebar,

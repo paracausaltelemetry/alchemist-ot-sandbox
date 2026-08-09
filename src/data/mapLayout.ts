@@ -1,187 +1,290 @@
-import { ASSET_MIN_GAP, ASSET_MIN_X, ASSET_NODE_HEIGHT, ASSET_NODE_WIDTH, ZONE_BAND_HEIGHT, ZONE_ROW_HEIGHT } from "./canvasLayout";
+import { ASSET_NODE_HEIGHT, ZONE_BAND_HEIGHT, ZONE_ROW_HEIGHT } from "./canvasLayout";
 import { zones } from "./catalog";
 import type { Point, Subnet, ZoneId } from "../models/types";
 
 /**
- * Where the map puts an asset.
+ * Where the map puts a device.
  *
- * One rule: the canvas reads top-down in bands, and an asset's band is decided by the active
- * grouping. Two groupings, because two people are looking at this map and they do not think alike.
+ * Two ways of arranging the same estate, because two people are looking at it.
  *
- * - **Subnet** is the default, and the one an operator enumerating a network actually holds in
- *   their head. They arrived with an address, they are working out what else is on that wire, and
- *   the question "what is next to this box" has a concrete answer that does not require anyone to
- *   have decided what the box is *for* yet.
- * - **Purdue** is a lens over the same estate. It answers a different question — how far from the
- *   process — and it is the right one at reporting time, but it demands a judgement about every
- *   asset before it can draw anything, and on a freshly imported estate those judgements are
- *   guesses.
+ * - **Topology** is the default and the one this tool is for: subnets drawn as enclosures with
+ *   their devices inside, and the routers, firewalls and the internet on a spine above them. It is
+ *   the picture somebody sketches on a whiteboard from an Nmap run, and it needs no judgement about
+ *   any device before it can draw one.
+ * - **Purdue** keeps the horizontal lanes. It answers a different question — how far from the
+ *   process — and it is the right one at reporting time, but it demands a decision about every
+ *   asset first, and on a freshly imported estate those decisions are guesses.
  *
  * Positions are not stored. Only what someone dragged is, so improving this function improves every
- * saved map, and re-importing never moves an asset a person placed.
+ * saved map, and re-importing never moves a device a person placed.
  */
 
-export type MapGrouping = "subnet" | "purdue";
+export type MapGrouping = "topology" | "purdue";
 
-/** Horizontal pitch of a lane slot, matching the OT canvas so the two read the same. */
-export const MAP_SLOT_STEP = ASSET_NODE_WIDTH + ASSET_MIN_GAP;
+/**
+ * A device is a symbol with a label under it, not a form.
+ *
+ * Small enough that a /24 is a picture rather than a scroll: the old 212x96 card fitted twelve
+ * across a screen, which is a spreadsheet with rounded corners. What a reader needs at a glance is
+ * the shape of the thing and its address; everything else is a click away in the inspector.
+ */
+export const DEVICE_WIDTH = 128;
+export const DEVICE_HEIGHT = 104;
 
-/** Assets with no subnet get their own trailing band rather than being dropped or guessed at. */
+const DEVICE_GAP_X = 20;
+
+/**
+ * Vertical room between devices, and the slack under the last row of an enclosure.
+ *
+ * Generous because the service chips are drawn *below* the declared node height when that layer is
+ * on: `DEVICE_HEIGHT` is what React Flow reserves, and the chips are the one part of a device whose
+ * size depends on what the scan found rather than on the design. Reserving the worst case in
+ * `DEVICE_HEIGHT` itself would leave a band of whitespace under every device on a map where nobody
+ * has turned services on, which is the common case.
+ */
+const DEVICE_GAP_Y = 46;
+
+/** Padding inside a subnet enclosure, and the room its label needs at the top. */
+const ENCLOSURE_PAD = 20;
+const ENCLOSURE_HEADER = 34;
+const ENCLOSURE_GAP = 44;
+
+/** Roughly a widescreen canvas at default zoom; enclosures wrap past it rather than run off. */
+const TARGET_ROW_WIDTH = 1500;
+
+/** Devices that route, filter or represent the outside world sit on the spine, not in a subnet. */
+const SPINE_KINDS = new Set(["internet", "firewall", "router", "load-balancer"]);
+
 export const UNSEGMENTED_LANE = "unsegmented";
 
 export interface MapLayoutAsset {
   id: string;
   zone: ZoneId;
   subnetId?: string;
+  /** The network-map class a scan gave it, which is what decides spine versus enclosure. */
+  deviceKind?: string;
 }
 
+/** A labelled box drawn around a subnet's devices. */
+export interface MapEnclosure {
+  id: string;
+  label: string;
+  detail: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** A full-width horizontal band, used by the Purdue arrangement only. */
 export interface MapBand {
   id: string;
   label: string;
-  /** Second line: the CIDR, or the Purdue level's name. Empty when there is nothing to add. */
   detail: string;
   y: number;
   height: number;
-  /** Only the Purdue bands carry one; a subnet has no inherent colour and inventing one is noise. */
   color?: string;
 }
 
 export interface MapLayout {
   positions: Map<string, Point>;
+  enclosures: MapEnclosure[];
   bands: MapBand[];
 }
 
-function slotX(index: number): number {
-  return ASSET_MIN_X + index * MAP_SLOT_STEP;
+const columnsFor = (count: number) => Math.max(1, Math.min(6, Math.ceil(Math.sqrt(count))));
+
+function enclosureSize(count: number): { width: number; height: number; columns: number } {
+  const columns = columnsFor(count);
+  const rows = Math.ceil(count / columns);
+  return {
+    columns,
+    width: ENCLOSURE_PAD * 2 + columns * DEVICE_WIDTH + (columns - 1) * DEVICE_GAP_X,
+    // `DEVICE_GAP_Y` rather than `ENCLOSURE_PAD` under the last row, for the same reason: the chips
+    // hang below the node and must not spill out of the box that is supposed to contain them.
+    height: ENCLOSURE_HEADER + ENCLOSURE_PAD + DEVICE_GAP_Y + rows * DEVICE_HEIGHT + (rows - 1) * DEVICE_GAP_Y
+  };
 }
 
-/**
- * The slot an authored position sits in, or null when it was dropped between slots.
- *
- * Half a step of tolerance: a node nudged one grid column off its slot is still occupying it, and
- * treating it as free would pack another asset directly underneath.
- */
-function slotFor(x: number): number | null {
-  const index = Math.round((x - ASSET_MIN_X) / MAP_SLOT_STEP);
-  if (index < 0) {
-    return null;
-  }
-  return Math.abs(slotX(index) - x) <= MAP_SLOT_STEP / 2 ? index : null;
-}
+/** Stable ordering inside a box: the projection rebuilds its asset list on every load. */
+const byId = (a: MapLayoutAsset, b: MapLayoutAsset) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
-const bandY = (index: number) => index * ZONE_ROW_HEIGHT;
-const assetY = (index: number) => bandY(index) + (ZONE_BAND_HEIGHT - ASSET_NODE_HEIGHT) / 2;
+function purdueLayout(assets: MapLayoutAsset[], authored: Record<string, Point>): MapLayout {
+  const rowOf = new Map(zones.map((zone, index) => [zone.id as string, index] as const));
+  const positions = new Map<string, Point>();
+  const byZone = new Map<string, MapLayoutAsset[]>();
 
-/**
- * The bands, in reading order, and which one each asset belongs to.
- *
- * Purdue draws every level whether or not it holds anything, because an empty level is a statement:
- * it says nobody has described that part of the estate. Subnet draws only the segments that exist,
- * because there is no canonical list of subnets an estate ought to have.
- */
-function lanesFor(
-  grouping: MapGrouping,
-  assets: MapLayoutAsset[],
-  subnets: Subnet[]
-): { order: string[]; labels: Map<string, { label: string; detail: string; color?: string }>; laneOf: (asset: MapLayoutAsset) => string } {
-  if (grouping === "purdue") {
-    return {
-      order: zones.map((zone) => zone.id),
-      labels: new Map(
-        zones.map((zone) => [zone.id, { label: zone.shortName, detail: zone.name, color: zone.color }])
-      ),
-      laneOf: (asset) => asset.zone
-    };
-  }
-
-  const byId = new Map(subnets.map((subnet) => [subnet.id, subnet]));
-  const used = new Set(assets.map((asset) => (asset.subnetId && byId.has(asset.subnetId) ? asset.subnetId : UNSEGMENTED_LANE)));
-  const order = [
-    ...subnets.filter((subnet) => used.has(subnet.id)).map((subnet) => subnet.id),
-    ...(used.has(UNSEGMENTED_LANE) ? [UNSEGMENTED_LANE] : [])
-  ];
-
-  const labels = new Map(
-    subnets.map((subnet) => [subnet.id, { label: subnet.name, detail: [subnet.cidr, subnet.vlan ? `VLAN ${subnet.vlan}` : ""].filter(Boolean).join(" · ") }])
-  );
-  labels.set(UNSEGMENTED_LANE, {
-    label: "No subnet",
-    // Named rather than silently mixed into a neighbouring band: an asset whose address nothing
-    // placed is a gap in the enumeration, and it should look like one.
-    detail: "Nothing placed these on a segment"
-  });
-
-  return { order, labels, laneOf: (asset) => (asset.subnetId && byId.has(asset.subnetId) ? asset.subnetId : UNSEGMENTED_LANE) };
-}
-
-/**
- * Positions every asset: authored ones verbatim, the rest packed into the free slots of their band.
- *
- * Ordering within a band is by id, not by insertion — the projection rebuilds its asset list from
- * scratch on every load, so anything order-dependent would shuffle the map when a source is added.
- */
-export function layoutMap(
-  assets: MapLayoutAsset[],
-  authored: Record<string, Point> = {},
-  grouping: MapGrouping = "subnet",
-  subnets: Subnet[] = []
-): MapLayout {
-  const { order, labels, laneOf } = lanesFor(grouping, assets, subnets);
-  const rowOf = new Map(order.map((id, index) => [id, index] as const));
-
-  const inLane = new Map<string, MapLayoutAsset[]>();
   for (const asset of assets) {
-    const lane = laneOf(asset);
-    inLane.set(lane, [...(inLane.get(lane) ?? []), asset]);
+    byZone.set(asset.zone, [...(byZone.get(asset.zone) ?? []), asset]);
+  }
+
+  for (const [zone, members] of byZone) {
+    const row = rowOf.get(zone) ?? 0;
+    const y = row * ZONE_ROW_HEIGHT + (ZONE_BAND_HEIGHT - DEVICE_HEIGHT) / 2;
+    let column = 0;
+    for (const asset of [...members].sort(byId)) {
+      const placed = authored[asset.id];
+      if (placed) {
+        positions.set(asset.id, placed);
+        continue;
+      }
+      positions.set(asset.id, { x: ENCLOSURE_PAD + column * (DEVICE_WIDTH + DEVICE_GAP_X), y });
+      column += 1;
+    }
+  }
+
+  return {
+    positions,
+    enclosures: [],
+    // Every level, held or not: an empty one says nobody has described that part of the estate.
+    bands: zones.map((zone, index) => ({
+      id: zone.id,
+      label: zone.shortName,
+      detail: zone.name,
+      color: zone.color,
+      y: index * ZONE_ROW_HEIGHT,
+      height: ZONE_BAND_HEIGHT
+    }))
+  };
+}
+
+function topologyLayout(
+  assets: MapLayoutAsset[],
+  authored: Record<string, Point>,
+  subnets: Subnet[]
+): MapLayout {
+  const known = new Map(subnets.map((subnet) => [subnet.id, subnet]));
+
+  // The spine reads across the top the way a whiteboard sketch does: the outside world and the
+  // kit that joins segments together, above the segments themselves.
+  const spine = assets.filter((asset) => SPINE_KINDS.has(asset.deviceKind ?? "")).sort(byId);
+  const spineIds = new Set(spine.map((asset) => asset.id));
+
+  const grouped = new Map<string, MapLayoutAsset[]>();
+  for (const asset of assets) {
+    if (spineIds.has(asset.id)) {
+      continue;
+    }
+    const lane = asset.subnetId && known.has(asset.subnetId) ? asset.subnetId : UNSEGMENTED_LANE;
+    grouped.set(lane, [...(grouped.get(lane) ?? []), asset]);
   }
 
   const positions = new Map<string, Point>();
-  for (const [lane, members] of inLane) {
-    const row = rowOf.get(lane);
-    if (row === undefined) {
-      continue;
+  const spineHeight = spine.length > 0 ? DEVICE_HEIGHT + ENCLOSURE_GAP : 0;
+
+  // --- Enclosures, wrapped into rows ---------------------------------------
+  const order = [
+    ...subnets.filter((subnet) => grouped.has(subnet.id)).map((subnet) => subnet.id),
+    ...(grouped.has(UNSEGMENTED_LANE) ? [UNSEGMENTED_LANE] : [])
+  ];
+
+  const enclosures: MapEnclosure[] = [];
+  let cursorX = 0;
+  let cursorY = spineHeight;
+  let rowHeight = 0;
+
+  for (const lane of order) {
+    const members = [...(grouped.get(lane) ?? [])].sort(byId);
+    const { width, height, columns } = enclosureSize(members.length);
+
+    if (cursorX > 0 && cursorX + width > TARGET_ROW_WIDTH) {
+      cursorX = 0;
+      cursorY += rowHeight + ENCLOSURE_GAP;
+      rowHeight = 0;
     }
 
-    const taken = new Set<number>();
-    const unplaced: MapLayoutAsset[] = [];
+    const subnet = known.get(lane);
+    enclosures.push({
+      id: lane,
+      label: subnet ? subnet.name : "No subnet",
+      detail: subnet
+        ? [subnet.cidr, subnet.vlan ? `VLAN ${subnet.vlan}` : ""].filter(Boolean).join(" · ")
+        : // Named rather than quietly mixed in with a neighbour: a device whose address nothing
+          // placed is a hole in the enumeration, and it should look like one.
+          "Nothing placed these on a segment",
+      x: cursorX,
+      y: cursorY,
+      width,
+      height
+    });
 
-    for (const asset of members) {
-      const position = authored[asset.id];
-      if (!position) {
-        unplaced.push(asset);
-        continue;
+    members.forEach((asset, index) => {
+      const placed = authored[asset.id];
+      if (placed) {
+        positions.set(asset.id, placed);
+        return;
       }
-      positions.set(asset.id, position);
-      const slot = slotFor(position.x);
-      if (slot !== null) {
-        taken.add(slot);
-      }
-    }
+      const column = index % columns;
+      const row = Math.floor(index / columns);
+      positions.set(asset.id, {
+        x: cursorX + ENCLOSURE_PAD + column * (DEVICE_WIDTH + DEVICE_GAP_X),
+        y: cursorY + ENCLOSURE_HEADER + ENCLOSURE_PAD + row * (DEVICE_HEIGHT + DEVICE_GAP_Y)
+      });
+    });
 
-    const y = assetY(row);
-    let slot = 0;
-    for (const asset of unplaced.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
-      while (taken.has(slot)) {
-        slot += 1;
-      }
-      taken.add(slot);
-      positions.set(asset.id, { x: slotX(slot), y });
-    }
+    cursorX += width + ENCLOSURE_GAP;
+    rowHeight = Math.max(rowHeight, height);
   }
 
-  const bands: MapBand[] = order.map((lane, index) => ({
-    id: lane,
-    label: labels.get(lane)?.label ?? lane,
-    detail: labels.get(lane)?.detail ?? "",
-    color: labels.get(lane)?.color,
-    y: bandY(index),
-    height: ZONE_BAND_HEIGHT
-  }));
+  // --- Spine, placed over the segment each device serves ---------------------
+  //
+  // A router addressed on 10.10.2.0/24 belongs above that box, not wherever it happened to fall in
+  // an alphabetical row. Getting this wrong is what makes an auto-drawn network diagram look
+  // auto-drawn: the lines cross for no reason and the reader stops trusting the arrangement.
+  const boxById = new Map(enclosures.map((box) => [box.id, box] as const));
+  const spineSlots = new Set<number>();
+  const unanchored: MapLayoutAsset[] = [];
 
-  return { positions, bands };
+  const claim = (preferred: number): number => {
+    let x = Math.max(0, Math.round(preferred));
+    // Nudge right until clear, so two routers on one segment sit side by side rather than stacked.
+    while ([...spineSlots].some((taken) => Math.abs(taken - x) < DEVICE_WIDTH + DEVICE_GAP_X)) {
+      x += DEVICE_WIDTH + DEVICE_GAP_X;
+    }
+    spineSlots.add(x);
+    return x;
+  };
+
+  for (const asset of spine) {
+    const placed = authored[asset.id];
+    if (placed) {
+      positions.set(asset.id, placed);
+      continue;
+    }
+    const box = asset.subnetId ? boxById.get(asset.subnetId) : undefined;
+    if (!box) {
+      unanchored.push(asset);
+      continue;
+    }
+    positions.set(asset.id, { x: claim(box.x + box.width / 2 - DEVICE_WIDTH / 2), y: 0 });
+  }
+
+  // The internet and anything else with no segment of its own: off to the left, ahead of the
+  // estate, which is where a reader looks for the outside world.
+  let edgeX = -(DEVICE_WIDTH + ENCLOSURE_GAP);
+  for (const asset of unanchored) {
+    positions.set(asset.id, { x: edgeX, y: 0 });
+    edgeX -= DEVICE_WIDTH + DEVICE_GAP_X;
+  }
+
+  return { positions, enclosures, bands: [] };
 }
 
-/** The band an authored drop landed in, so dragging between bands means something. */
+export function layoutMap(
+  assets: MapLayoutAsset[],
+  authored: Record<string, Point> = {},
+  grouping: MapGrouping = "topology",
+  subnets: Subnet[] = []
+): MapLayout {
+  return grouping === "purdue" ? purdueLayout(assets, authored) : topologyLayout(assets, authored, subnets);
+}
+
+/**
+ * The Purdue band a drop landed in.
+ *
+ * Only meaningful under that arrangement: a topology enclosure is derived from an address, and a
+ * drag into another one would be asserting an address the sources contradict on the next load.
+ */
 export function bandAt(y: number, bands: MapBand[]): MapBand | null {
   if (bands.length === 0) {
     return null;
@@ -190,7 +293,6 @@ export function bandAt(y: number, bands: MapBand[]): MapBand | null {
   return bands[index];
 }
 
-/** Where a band's assets sit, so a drop can be snapped to it. */
 export function bandAssetY(band: MapBand): number {
   return band.y + (ZONE_BAND_HEIGHT - ASSET_NODE_HEIGHT) / 2;
 }

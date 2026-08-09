@@ -1,4 +1,4 @@
-import { ASSET_NODE_HEIGHT, ASSET_NODE_WIDTH } from "../data/canvasLayout";
+import { DEVICE_HEIGHT, DEVICE_WIDTH } from "../data/mapLayout";
 import { getAssetType } from "../data/catalog";
 import { isScanEvidence, itKindLabel } from "../models/itMap";
 import type { MapStageMap } from "../engine/mapStageMaps";
@@ -33,20 +33,20 @@ export function MapSvg({ stage }: { stage: MapStageMap }) {
     .map((asset) => ({ asset, position: stage.positions.get(asset.id) ?? asset.position }))
     .filter((entry) => Boolean(entry.position));
 
-  const xs = drawn.map((entry) => entry.position.x + ASSET_NODE_WIDTH);
-  const ys = drawn.map((entry) => entry.position.y + ASSET_NODE_HEIGHT);
+  const xs = drawn.map((entry) => entry.position.x + DEVICE_WIDTH);
+  const ys = drawn.map((entry) => entry.position.y + DEVICE_HEIGHT);
   const width = Math.max(720, ...xs) + MARGIN * 2 + LABEL_GUTTER;
   const height = Math.max(320, ...ys) + MARGIN * 2 + TITLE_HEIGHT;
 
   const centre = (id: string) => {
     const entry = drawn.find((candidate) => candidate.asset.id === id);
     return entry
-      ? { x: entry.position.x + LABEL_GUTTER + ASSET_NODE_WIDTH / 2, y: entry.position.y + ASSET_NODE_HEIGHT / 2 }
+      ? { x: entry.position.x + LABEL_GUTTER + DEVICE_WIDTH / 2, y: entry.position.y + DEVICE_HEIGHT / 2 }
       : null;
   };
 
-  // Only the bands that hold something at this stage. A stage-one picture with every later
-  // segment drawn empty down it is mostly whitespace.
+  // Only the segments that hold something at this stage. A stage-one picture with every later
+  // segment drawn empty is mostly whitespace.
   const occupied = new Set(stage.assets.map((asset) => asset.subnetId ?? "unsegmented"));
 
   return (
@@ -67,23 +67,28 @@ export function MapSvg({ stage }: { stage: MapStageMap }) {
       </text>
 
       <g transform={`translate(0, ${TITLE_HEIGHT})`}>
-        {stage.bands.map((band) =>
-          occupied.has(band.id) ? (
-            <g key={band.id}>
+        {stage.enclosures.map((box) =>
+          occupied.has(box.id) ? (
+            <g key={box.id}>
               <rect
-                x={8}
-                y={band.y}
-                width={width - 16}
-                height={band.height}
-                fill={band.color ?? "#eef1f4"}
+                x={box.x + LABEL_GUTTER}
+                y={box.y}
+                width={box.width}
+                height={box.height}
+                fill="#ffffff"
                 stroke={FAINT}
-                strokeWidth={0.75}
+                strokeWidth={1}
+                strokeDasharray="4 3"
               />
-              <text x={20} y={band.y + 22} fontFamily="Inter, Arial" fontSize={11} fontWeight={700} fill={MUTED}>
-                {band.label}
-              </text>
-              <text x={20} y={band.y + 38} fontFamily="Inter, Arial" fontSize={9} fill={MUTED}>
-                {band.detail}
+              <text
+                x={box.x + LABEL_GUTTER + 14}
+                y={box.y + 22}
+                fontFamily="Inter, Arial"
+                fontSize={11}
+                fontWeight={700}
+                fill={MUTED}
+              >
+                {box.label}
               </text>
             </g>
           ) : null
@@ -132,8 +137,8 @@ export function MapSvg({ stage }: { stage: MapStageMap }) {
               opacity={lit ? 1 : 0.35}
             >
               <rect
-                width={ASSET_NODE_WIDTH}
-                height={ASSET_NODE_HEIGHT}
+                width={DEVICE_WIDTH}
+                height={DEVICE_HEIGHT}
                 fill="#ffffff"
                 stroke={inferred ? FAINT : "#334155"}
                 strokeWidth={lit && stage.emphasise ? 3 : 1.5}

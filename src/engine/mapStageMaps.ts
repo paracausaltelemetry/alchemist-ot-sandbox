@@ -1,4 +1,4 @@
-import { layoutMap, type MapBand } from "../data/mapLayout";
+import { layoutMap, type MapEnclosure } from "../data/mapLayout";
 import { accessByNode, attackLinks, orderedEvents } from "./itAccess";
 import { blankConnection, projectMap } from "./mapProjection";
 import { stageNodesBySource } from "./mapStageNodes";
@@ -34,8 +34,8 @@ export interface MapStageMap {
   assets: MapAsset[];
   connections: MapConnection[];
   positions: Map<string, Point>;
-  /** The bands the picture is drawn in, so the renderer does not have to re-derive them. */
-  bands: MapBand[];
+  /** The subnet boxes the picture is drawn in, so the renderer does not re-derive them. */
+  enclosures: MapEnclosure[];
   /** Asset ids to draw at full strength; everything else recedes. */
   emphasise?: Set<string>;
 }
@@ -46,7 +46,7 @@ export function buildMapStageMaps(doc: CyberMapDocument): MapStageMap[] {
     return [];
   }
 
-  const { positions, bands } = layoutMap(projected.assets, doc.positions, "subnet", projected.subnets);
+  const { positions, enclosures } = layoutMap(projected.assets, doc.positions, "topology", projected.subnets);
   const stageNodes = stageNodesBySource(doc);
   const events = orderedEvents(doc.events);
 
@@ -95,7 +95,7 @@ export function buildMapStageMaps(doc: CyberMapDocument): MapStageMap[] {
         )
       ],
       positions,
-      bands,
+      enclosures,
       emphasise: emphasise.size > 0 ? emphasise : undefined,
       subtitle: stage.isImport
         ? `${emphasise.size} asset${emphasise.size === 1 ? "" : "s"} first seen at this stage`

@@ -64,9 +64,10 @@ export function MapWorkspace({
   const [doc, setDoc] = useState<CyberMapDocument>(() => loadCyberMap() ?? newCyberMap("Estate"));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showInferred, setShowInferred] = useState(true);
+  const [showServices, setShowServices] = useState(false);
   const [fitSignal, setFitSignal] = useState(0);
   const [overlayId, setOverlayId] = useState<OverlayId>("assetClass");
-  const [grouping, setGrouping] = useState<MapGrouping>("subnet");
+  const [grouping, setGrouping] = useState<MapGrouping>("topology");
   /** The asset the operator is working from. Nothing defaults it — see the movement overlay. */
   const [footholdId, setFootholdId] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
@@ -373,6 +374,8 @@ export function MapWorkspace({
               positions={doc.positions}
               fitSignal={fitSignal}
               showInferred={showInferred}
+              showServices={showServices}
+              onToggleServices={() => setShowServices((shown) => !shown)}
               overlayId={overlayId}
               grouping={grouping}
               onGroupingChange={setGrouping}

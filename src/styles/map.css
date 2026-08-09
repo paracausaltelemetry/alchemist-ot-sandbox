@@ -288,23 +288,166 @@
   cursor: pointer;
 }
 
-/* An asset nothing scanned directly is drawn as an outline, matching the IT map's ghost. Its
-   position on the canvas is a claim about the estate, and an inferred one should not look like an
-   observed one. */
-.asset-node.is-ghost {
+/* --- Devices ---------------------------------------------------------------
+
+   A device is a symbol with a label under it, the way a network diagram draws one — not a form.
+   The old card carried an asset class, a Purdue chip and a criticality border, which on a map built
+   from a scan is mostly assertion, and twelve of them filled a screen. */
+.map-device {
+  position: relative;
+  width: 8rem;
+  min-height: 6.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.35rem 0.25rem;
+  border: 1px solid transparent;
+  color: var(--text);
+  text-align: center;
+}
+
+/* The symbol is the object; the plate is what makes it a thing on a diagram rather than an icon
+   floating on a grid. */
+.map-device-symbol {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 3.1rem;
+  height: 3.1rem;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.map-device-name {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.map-device-addr {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--muted);
+}
+
+.map-device-portcount {
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* Service names, not port numbers where a name is known: "smb" is recognised at a glance and 445
+   has to be decoded.
+   Absolutely positioned so a chatty host cannot make its own node taller and shove the row below it
+   down — the layout reserves a fixed device height and hangs the chips in the gap underneath. Two
+   rows of room, then clipped. */
+.map-device-services {
+  position: absolute;
+  top: 100%;
+  left: -0.5rem;
+  right: -0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: flex-start;
+  gap: 0.15rem;
+  max-height: 2.2rem;
+  overflow: hidden;
+}
+
+.map-device-services span {
+  padding: 0 0.2rem;
+  border: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 0.56rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* Nothing scanned it directly, so it is drawn as an outline: its place on the map is reasoning,
+   and an inferred device must not look like an observed one. */
+.map-device.is-ghost .map-device-symbol {
   border-style: dashed;
   background: transparent;
   color: var(--muted);
 }
 
-.asset-node.is-ghost .asset-node-icon {
-  border-style: dashed;
+.map-device.is-ghost .map-device-name {
+  color: var(--muted);
+  font-weight: 600;
 }
 
-/* Both vocabularies on one card: the network symbol sizes itself, so the icon well only has to
-   stop it from stretching the head row. */
-.map-node .asset-node-icon svg {
-  display: block;
+.map-device.is-selected .map-device-symbol {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.map-device.is-selected .map-device-name {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Access held reads at a glance, because it is the one thing somebody scans an engagement map for.
+   A corner mark rather than a border, which is already carrying selection. */
+.map-device-access {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 0.5rem;
+  height: 0.5rem;
+  background: var(--signal);
+}
+
+.map-frame .map-device.is-connectable {
+  cursor: crosshair;
+}
+
+.map-frame .map-device.is-connect-source .map-device-symbol {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+}
+
+/* --- Subnet enclosures -----------------------------------------------------
+
+   The box a network diagram draws around a segment. Dashed, because a subnet is a logical grouping
+   rather than a physical enclosure, and the same dash the map already uses for "inferred" would be
+   wrong here — so it is the label that carries the meaning, not the line weight. */
+.map-enclosure-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.map-enclosure {
+  position: absolute;
+  border: 1px dashed var(--line-strong);
+  background: color-mix(in srgb, var(--surface) 45%, transparent);
+}
+
+.map-enclosure-label {
+  position: absolute;
+  top: 0.4rem;
+  left: 0.6rem;
+  display: grid;
+  gap: 0.05rem;
+  line-height: 1.2;
+}
+
+.map-enclosure-label strong {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text);
+}
+
+.map-enclosure-label small {
+  font-size: 0.6rem;
+  color: var(--muted);
 }
 
 /* --- Overlays -------------------------------------------------------------
@@ -364,11 +507,12 @@
   box-shadow: inset 0 0 0 1px var(--text);
 }
 
-/* A band across the top of the card, not a recolour of it: the card's own wash already carries the
-   zone, and two washes fighting reads as neither. */
+/* A strip along the bottom of the symbol plate. On the plate rather than under the label so the
+   overlay reads as being about the device, and thin enough that it never competes with the symbol
+   it is annotating. */
 .map-node-overlay {
   position: absolute;
-  top: 0;
+  bottom: 0;
   left: 0;
   right: 0;
   height: 5px;

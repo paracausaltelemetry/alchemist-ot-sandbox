@@ -165,8 +165,8 @@ function topologyLayout(
 ): MapLayout {
   const known = new Map(subnets.map((subnet) => [subnet.id, subnet]));
 
-  // The spine reads across the top the way a whiteboard sketch does: the outside world and the
-  // kit that joins segments together, above the segments themselves.
+  // The kit that joins segments, and the outside world. Both sit above the segments the way a
+  // whiteboard sketch draws them, but not on the same row — see below.
   const spine = assets.filter((asset) => onSpine(asset.deviceKind)).sort(byId);
   const spineIds = new Set(spine.map((asset) => asset.id));
 
@@ -179,28 +179,39 @@ function topologyLayout(
     grouped.set(lane, [...(grouped.get(lane) ?? []), asset]);
   }
 
-  const positions = new Map<string, Point>();
-  const spineHeight = spine.length > 0 ? DEVICE_HEIGHT + ENCLOSURE_GAP : 0;
-
-  // --- Enclosures, wrapped into rows ---------------------------------------
   const order = [
     ...subnets.filter((subnet) => grouped.has(subnet.id)).map((subnet) => subnet.id),
     ...(grouped.has(UNSEGMENTED_LANE) ? [UNSEGMENTED_LANE] : [])
   ];
 
+  /**
+   * One size for every enclosure, taken from the busiest.
+   *
+   * Boxes sized to their contents made a row of three read as three unrelated shapes — 316, 316 and
+   * 168 wide on the sample scan — and the eye reads that difference as meaning something, which it
+   * does not: a segment with one host is not a smaller kind of thing than a segment with four. The
+   * count is already on the label and in the sidebar.
+   */
+  const busiest = order.reduce((most, lane) => Math.max(most, grouped.get(lane)?.length ?? 0), 0);
+  const cell = enclosureSize(busiest);
+
+  const positions = new Map<string, Point>();
+  // Two rows above the segments: the outside world on the first, the routing kit on the second.
+  const edgeRow = spine.some((asset) => !asset.subnetId || !known.has(asset.subnetId));
+  const spineY = edgeRow ? DEVICE_HEIGHT + ENCLOSURE_GAP : 0;
+  const enclosureTop = spine.length > 0 ? spineY + DEVICE_HEIGHT + ENCLOSURE_GAP : 0;
+
+  // --- Enclosures, wrapped into rows ---------------------------------------
   const enclosures: MapEnclosure[] = [];
   let cursorX = 0;
-  let cursorY = spineHeight;
-  let rowHeight = 0;
+  let cursorY = enclosureTop;
 
   for (const lane of order) {
     const members = [...(grouped.get(lane) ?? [])].sort(byId);
-    const { width, height, columns } = enclosureSize(members.length);
 
-    if (cursorX > 0 && cursorX + width > TARGET_ROW_WIDTH) {
+    if (cursorX > 0 && cursorX + cell.width > TARGET_ROW_WIDTH) {
       cursorX = 0;
-      cursorY += rowHeight + ENCLOSURE_GAP;
-      rowHeight = 0;
+      cursorY += cell.height + ENCLOSURE_GAP;
     }
 
     const subnet = known.get(lane);
@@ -214,39 +225,44 @@ function topologyLayout(
           "Nothing placed these on a segment",
       x: cursorX,
       y: cursorY,
-      width,
-      height
+      width: cell.width,
+      height: cell.height
     });
 
+    const rows = Math.ceil(members.length / cell.columns) || 1;
     members.forEach((asset, index) => {
       const placed = authored[asset.id];
       if (placed) {
         positions.set(asset.id, placed);
         return;
       }
-      const column = index % columns;
-      const row = Math.floor(index / columns);
+      const row = Math.floor(index / cell.columns);
+      // Every row centred, including a part-filled last one. Left-packing left a three-host box
+      // looking like a two-host box with something stuck under it.
+      const inRow = row === rows - 1 ? members.length - row * cell.columns : cell.columns;
+      const rowWidth = inRow * DEVICE_WIDTH + (inRow - 1) * DEVICE_GAP_X;
+      const column = index % cell.columns;
+
       positions.set(asset.id, {
-        x: cursorX + ENCLOSURE_PAD + column * (DEVICE_WIDTH + DEVICE_GAP_X),
+        x: cursorX + Math.round((cell.width - rowWidth) / 2) + column * (DEVICE_WIDTH + DEVICE_GAP_X),
         y: cursorY + ENCLOSURE_HEADER + ENCLOSURE_PAD + row * (DEVICE_HEIGHT + DEVICE_GAP_Y)
       });
     });
 
-    cursorX += width + ENCLOSURE_GAP;
-    rowHeight = Math.max(rowHeight, height);
+    cursorX += cell.width + ENCLOSURE_GAP;
   }
 
   // --- Spine, placed over the segment each device serves ---------------------
   //
-  // A router addressed on 10.10.2.0/24 belongs above that box, not wherever it happened to fall in
-  // an alphabetical row. Getting this wrong is what makes an auto-drawn network diagram look
-  // auto-drawn: the lines cross for no reason and the reader stops trusting the arrangement.
+  // A router addressed on 10.10.2.0/24 belongs above that box, not wherever it fell in an
+  // alphabetical row. Getting this wrong is what makes an auto-drawn diagram look auto-drawn: the
+  // lines cross for no reason and the reader stops trusting the arrangement.
   const boxById = new Map(enclosures.map((box) => [box.id, box] as const));
   const spineSlots = new Set<number>();
   const unanchored: MapLayoutAsset[] = [];
 
   const claim = (preferred: number): number => {
-    let x = Math.max(0, Math.round(preferred));
+    let x = Math.round(preferred);
     // Nudge right until clear, so two routers on one segment sit side by side rather than stacked.
     while ([...spineSlots].some((taken) => Math.abs(taken - x) < DEVICE_WIDTH + DEVICE_GAP_X)) {
       x += DEVICE_WIDTH + DEVICE_GAP_X;
@@ -266,16 +282,26 @@ function topologyLayout(
       unanchored.push(asset);
       continue;
     }
-    positions.set(asset.id, { x: claim(box.x + box.width / 2 - DEVICE_WIDTH / 2), y: 0 });
+    positions.set(asset.id, { x: claim(box.x + box.width / 2 - DEVICE_WIDTH / 2), y: spineY });
   }
 
-  // The internet and anything else with no segment of its own: off to the left, ahead of the
-  // estate, which is where a reader looks for the outside world.
-  let edgeX = -(DEVICE_WIDTH + ENCLOSURE_GAP);
-  for (const asset of unanchored) {
-    positions.set(asset.id, { x: edgeX, y: 0 });
-    edgeX -= DEVICE_WIDTH + DEVICE_GAP_X;
-  }
+  /**
+   * Anything with no segment of its own — the internet, chiefly — goes on its own row above,
+   * centred over the estate.
+   *
+   * It used to be parked off the left edge, which put its cable to the perimeter firewall on a
+   * horizontal run straight through every router in between. Above the spine, that cable drops
+   * rather than crosses, and the arrangement matches the convention every network diagram uses:
+   * the outside world at the top.
+   */
+  const span = enclosures.length > 0 ? enclosures[enclosures.length - 1].x + cell.width : DEVICE_WIDTH;
+  unanchored.forEach((asset, index) => {
+    const spread = unanchored.length * DEVICE_WIDTH + (unanchored.length - 1) * DEVICE_GAP_X;
+    positions.set(asset.id, {
+      x: Math.round((span - spread) / 2) + index * (DEVICE_WIDTH + DEVICE_GAP_X),
+      y: 0
+    });
+  });
 
   return { positions, enclosures, bands: [] };
 }

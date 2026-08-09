@@ -107,6 +107,51 @@ describe("the topology arrangement", () => {
     expect(enclosures.at(-1)?.id).toBe(UNSEGMENTED_LANE);
   });
 
+  it("gives every enclosure the same size, whatever it holds", () => {
+    // Boxes sized to their contents made a row read as unrelated shapes, and the eye reads that
+    // difference as meaning something. A segment with one host is not a smaller kind of thing.
+    const busy = ["a", "b", "c", "d"].map((id) => host(id, "subnet:10.10.1.0/24"));
+    const { enclosures } = layoutMap([...busy, host("lonely", "subnet:10.10.2.0/24")], {}, "topology", subnets);
+
+    expect(new Set(enclosures.map((box) => box.width)).size).toBe(1);
+    expect(new Set(enclosures.map((box) => box.height)).size).toBe(1);
+  });
+
+  it("centres each row of devices, including a part-filled last one", () => {
+    // Left-packing left a three-host box looking like a two-host box with something stuck under it.
+    const members = ["a", "b", "c"].map((id) => host(id, "subnet:10.10.1.0/24"));
+    const { enclosures, positions } = layoutMap(members, {}, "topology", subnets);
+    const box = enclosures[0];
+
+    const rows = new Map<number, number[]>();
+    for (const member of members) {
+      const at = positions.get(member.id)!;
+      rows.set(at.y, [...(rows.get(at.y) ?? []), at.x]);
+    }
+
+    for (const xs of rows.values()) {
+      const left = Math.min(...xs) - box.x;
+      const right = box.x + box.width - (Math.max(...xs) + DEVICE_WIDTH);
+      expect(Math.abs(left - right)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("puts the outside world on its own row above the routing kit", () => {
+    // Parked off the left edge, the internet's cable to the perimeter ran horizontally through
+    // every router in between. Above the spine it drops instead of crossing.
+    const { positions, enclosures } = layoutMap(
+      [host("wan", undefined, "internet"), host("gw", "subnet:10.10.1.0/24", "router"), host("a", "subnet:10.10.1.0/24")],
+      {},
+      "topology",
+      subnets
+    );
+
+    expect(positions.get("wan")!.y).toBeLessThan(positions.get("gw")!.y);
+    expect(positions.get("gw")!.y).toBeLessThan(enclosures[0].y);
+    // Centred over the estate rather than off to one side.
+    expect(positions.get("wan")!.x).toBeGreaterThanOrEqual(0);
+  });
+
   it("keeps a device a person dragged exactly where they put it", () => {
     const { positions } = layoutMap(
       [host("a", "subnet:10.10.1.0/24"), host("b", "subnet:10.10.1.0/24")],

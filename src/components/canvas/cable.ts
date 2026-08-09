@@ -19,6 +19,9 @@ export const SYMBOL_CENTRE_Y = 31;
 /** Half the plate, plus a little air so the line stops short of the border rather than touching. */
 const SYMBOL_RADIUS = 29;
 
+/** Half the plate itself, for anything that needs the symbol's footprint rather than its edge. */
+export const SYMBOL_HALF = 25;
+
 export const symbolCentre = (position: Point): Point => ({
   x: position.x + SYMBOL_CENTRE_X,
   y: position.y + SYMBOL_CENTRE_Y

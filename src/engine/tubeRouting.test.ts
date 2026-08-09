@@ -229,6 +229,42 @@ describe("routing in the transit idiom", () => {
     expect(backwards.find((r) => r.id === "a")!.path).toBe(forwards.find((r) => r.id === "a")!.path);
   });
 
+  it("detours around a symbol it does not connect", () => {
+    // A transit line goes around a station it does not serve. A cable running straight through the
+    // router between its two ends says those three are joined, which is not what the scan said —
+    // and it buries the device it crosses.
+    const between = { x: 380, y: 80, width: 50, height: 50 };
+    const [route] = routeCables([cable("a", [100, 100], [700, 100])], [], [between]);
+    const visited = points(route.path);
+
+    expect(visited.length).toBeGreaterThan(2);
+    for (const point of visited) {
+      const inside =
+        point.x > between.x &&
+        point.x < between.x + between.width &&
+        point.y > between.y &&
+        point.y < between.y + between.height;
+      expect(inside).toBe(false);
+    }
+  });
+
+  it("still runs straight when the symbol is not in the way", () => {
+    const elsewhere = { x: 380, y: 600, width: 50, height: 50 };
+    const [route] = routeCables([cable("a", [100, 100], [700, 100])], [], [elsewhere]);
+    expect(points(route.path)).toHaveLength(2);
+  });
+
+  it("does not detour around the symbols it is joining", () => {
+    // A cable is allowed to touch what it connects; treating its own ends as obstacles would send
+    // every cable on a pointless loop out of its own device.
+    const ends = [
+      { x: 80, y: 80, width: 50, height: 50 },
+      { x: 680, y: 80, width: 50, height: 50 }
+    ];
+    const [route] = routeCables([cable("a", [100, 100], [700, 100])], [], ends);
+    expect(points(route.path)).toHaveLength(2);
+  });
+
   it("routes nothing into nothing without throwing", () => {
     expect(routeCables([], [])).toEqual([]);
   });

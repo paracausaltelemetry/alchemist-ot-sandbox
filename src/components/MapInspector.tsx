@@ -32,6 +32,9 @@ interface MapInspectorProps {
   onClearOverride: (assetId: string) => void;
   onConnectionOverride: (connectionId: string, patch: ConnectionOverride) => void;
   onClearConnectionOverride: (connectionId: string) => void;
+  /** The asset the operator is working from, if they have named one. */
+  foothold: string | null;
+  onSetFoothold: (assetId: string | null) => void;
 }
 
 /** The conduit properties an assessment turns on that a scan can never report. */
@@ -62,7 +65,9 @@ export function MapInspector({
   onOverride,
   onClearOverride,
   onConnectionOverride,
-  onClearConnectionOverride
+  onClearConnectionOverride,
+  foothold,
+  onSetFoothold
 }: MapInspectorProps) {
   if (!asset && !connection) {
     return (
@@ -217,6 +222,16 @@ export function MapInspector({
         <span>{asset!.name}</span>
         <small>{asset!.provenance === "authored" ? "Yours" : "Imported"}</small>
       </div>
+
+      <button
+        type="button"
+        className={`text-button compact${foothold === asset!.id ? " is-active" : ""}`}
+        aria-pressed={foothold === asset!.id}
+        onClick={() => onSetFoothold(foothold === asset!.id ? null : asset!.id)}
+        title="Read the map from this asset: what it reaches, and how far"
+      >
+        {foothold === asset!.id ? "Stop working from here" : "Work from here"}
+      </button>
 
       <section>
         <h3>What the sources said</h3>

@@ -27,9 +27,28 @@ const { map, context } = sampleEstate();
 const subjects: Array<MapAsset | MapConnection> = [...map.assets, ...map.connections];
 
 describe("the overlay registry", () => {
-  it("offers the nine overlays the canvas switches between", () => {
-    expect(overlays).toHaveLength(9);
-    expect(new Set(overlays.map((overlay) => overlay.id)).size).toBe(9);
+  it("gives every overlay a distinct id, since the picker and the canvas key on it", () => {
+    expect(new Set(overlays.map((overlay) => overlay.id)).size).toBe(overlays.length);
+  });
+
+  it("says nothing under the movement overlay until a foothold is named", () => {
+    // Distance from nowhere is not a reading. Defaulting to some asset would put an operator on a
+    // box they never claimed to be on.
+    const movement = getOverlay("movement");
+    for (const asset of map.assets) {
+      expect(movement.bucketFor(asset, context)).toBeNull();
+    }
+  });
+
+  it("reads distance from the foothold once one is named", () => {
+    const from = map.assets[0];
+    const withFoothold = buildOverlayContext(map, asOtProject(sampleEstate().doc, map), from.id);
+    const movement = getOverlay("movement");
+
+    expect(movement.bucketFor(from, withFoothold)?.id).toBe("foothold");
+    const adjacent = withFoothold.movement.hops.find((hop) => hop.distance === 1)!;
+    const asset = map.assets.find((entry) => entry.id === adjacent.assetId)!;
+    expect(movement.bucketFor(asset, withFoothold)?.id).toBe("adjacent");
   });
 
   it("can only return a bucket it publishes, so the legend cannot drift from the canvas", () => {

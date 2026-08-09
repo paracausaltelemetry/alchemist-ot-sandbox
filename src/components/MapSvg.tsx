@@ -1,5 +1,5 @@
-import { ASSET_NODE_HEIGHT, ASSET_NODE_WIDTH, ZONE_BAND_HEIGHT, ZONE_BAND_Y_OFFSET, ZONE_ROW_HEIGHT } from "../data/canvasLayout";
-import { getAssetType, zones } from "../data/catalog";
+import { ASSET_NODE_HEIGHT, ASSET_NODE_WIDTH } from "../data/canvasLayout";
+import { getAssetType } from "../data/catalog";
 import { isScanEvidence, itKindLabel } from "../models/itMap";
 import type { MapStageMap } from "../engine/mapStageMaps";
 
@@ -45,9 +45,9 @@ export function MapSvg({ stage }: { stage: MapStageMap }) {
       : null;
   };
 
-  // Only the bands that hold something. A stage-one picture with six empty lanes down it is mostly
-  // whitespace, and the empty levels are already named in the report's own section.
-  const occupied = new Set(stage.assets.map((asset) => asset.zone));
+  // Only the bands that hold something at this stage. A stage-one picture with every later
+  // segment drawn empty down it is mostly whitespace.
+  const occupied = new Set(stage.assets.map((asset) => asset.subnetId ?? "unsegmented"));
 
   return (
     <svg
@@ -67,36 +67,23 @@ export function MapSvg({ stage }: { stage: MapStageMap }) {
       </text>
 
       <g transform={`translate(0, ${TITLE_HEIGHT})`}>
-        {zones.map((zone, index) =>
-          occupied.has(zone.id) ? (
-            <g key={zone.id}>
+        {stage.bands.map((band) =>
+          occupied.has(band.id) ? (
+            <g key={band.id}>
               <rect
                 x={8}
-                y={index * ZONE_ROW_HEIGHT + ZONE_BAND_Y_OFFSET}
+                y={band.y}
                 width={width - 16}
-                height={ZONE_BAND_HEIGHT}
-                fill={zone.color}
+                height={band.height}
+                fill={band.color ?? "#eef1f4"}
                 stroke={FAINT}
                 strokeWidth={0.75}
               />
-              <text
-                x={20}
-                y={index * ZONE_ROW_HEIGHT + ZONE_BAND_Y_OFFSET + 22}
-                fontFamily="Inter, Arial"
-                fontSize={11}
-                fontWeight={700}
-                fill={MUTED}
-              >
-                {zone.shortName}
+              <text x={20} y={band.y + 22} fontFamily="Inter, Arial" fontSize={11} fontWeight={700} fill={MUTED}>
+                {band.label}
               </text>
-              <text
-                x={20}
-                y={index * ZONE_ROW_HEIGHT + ZONE_BAND_Y_OFFSET + 38}
-                fontFamily="Inter, Arial"
-                fontSize={9}
-                fill={MUTED}
-              >
-                {zone.name}
+              <text x={20} y={band.y + 38} fontFamily="Inter, Arial" fontSize={9} fill={MUTED}>
+                {band.detail}
               </text>
             </g>
           ) : null

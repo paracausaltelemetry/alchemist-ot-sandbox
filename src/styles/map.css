@@ -467,3 +467,36 @@
   align-items: center;
   gap: 0.4rem;
 }
+
+/* Evidence on a movement hop. Weight and case, not colour: the route being a guess is information,
+   not a warning, and `--signal` means danger. */
+.map-hop-evidence {
+  padding: 0.1rem var(--space-2);
+  border: 1px solid var(--line);
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.map-hop-evidence[data-evidence="observed"] {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.map-hop-evidence[data-evidence="inferred"] {
+  border-style: dashed;
+}
+
+.map-hop-access {
+  padding: 0.1rem var(--space-2);
+  border: 1px solid var(--signal);
+  font-size: 0.62rem;
+  color: var(--text);
+}
+
+/* Same-subnet sits between observed and inferred: a structural fact about addressing rather than
+   our reasoning, so it is neither solid nor dashed. */
+.map-hop-evidence[data-evidence="same-subnet"] {
+  border-style: dotted;
+}

@@ -12,15 +12,12 @@ import {
   ASSET_NODE_HEIGHT,
   ASSET_NODE_WIDTH,
   CANVAS_GRID_X,
-  ZONE_BAND_HEIGHT,
   ZONE_BAND_Y_OFFSET,
   ZONE_ROW_HEIGHT,
-  assetYForZone,
-  inferZoneFromY,
   snapX
 } from "../data/canvasLayout";
-import { getAssetType, getZone, zones } from "../data/catalog";
-import { layoutMapAssets } from "../data/mapLayout";
+import { getAssetType, getZone } from "../data/catalog";
+import { bandAssetY, bandAt, layoutMap, type MapGrouping } from "../data/mapLayout";
 import { routeOrthogonalConduit } from "../engine/conduitRouting";
 import { isScanEvidence, itKindLabel, type ItLinkEvidence } from "../models/itMap";
 import { ACCESS_LABELS, type ItAccessState } from "../models/itEngagement";
@@ -61,8 +58,16 @@ interface MapCanvasProps {
   fitSignal: number;
   /** Hides the links inferred from addressing, leaving what a scan actually observed. */
   showInferred: boolean;
-  /** Which overlay recolours the map. There is no "no overlay" — Purdue level is the plain read. */
+  /** Which overlay recolours the map. There is no "no overlay" — asset type is the plain read. */
   overlayId: OverlayId;
+  /**
+   * What the horizontal bands mean: subnets, or Purdue levels.
+   *
+   * Subnet is the default. It is what somebody enumerating a network holds in their head, and it
+   * needs no judgement about any asset before it can draw one.
+   */
+  grouping: MapGrouping;
+  onGroupingChange: (grouping: MapGrouping) => void;
   /** Everything the overlays need, built once by the owner so switching is not a re-assessment. */
   overlayContext: OverlayContext;
   onOverlayChange: (id: OverlayId) => void;
@@ -70,12 +75,16 @@ interface MapCanvasProps {
   /**
    * Where an asset was put, and the zone that lane means — always together.
    *
-   * One callback rather than a move and a re-zone, because they are one act here: the lane *is*
-   * the zone. Two callbacks meant two state updates from one handler, the second built from the
-   * document the first had already replaced, so the position was silently discarded and the card
-   * sprang back to the packer's slot.
+   * One callback rather than a move and a re-zone, because under Purdue grouping they are one act:
+   * the band *is* the zone. Two callbacks meant two state updates from one handler, the second
+   * built from the document the first had already replaced, so the position was silently discarded
+   * and the card sprang back to the packer's slot.
+   *
+   * `zone` is absent under subnet grouping. A subnet band is derived from an asset's address, and
+   * dragging a card into another one would be asserting a different address — a claim the drag
+   * does not carry and the sources would contradict on the next load.
    */
-  onPlaceAsset: (id: string, position: Point, zone: MapAsset["zone"]) => void;
+  onPlaceAsset: (id: string, position: Point, zone?: MapAsset["zone"]) => void;
   onToggleInferred: () => void;
   /** Fired when one asset's handle is dragged onto another, or two are clicked in connect mode. */
   onConnect: (source: string, target: string) => void;
@@ -204,6 +213,8 @@ function MapCanvasInner({
   fitSignal,
   showInferred,
   overlayId,
+  grouping,
+  onGroupingChange,
   overlayContext,
   onOverlayChange,
   onSelect,
@@ -227,7 +238,10 @@ function MapCanvasInner({
     [map.connections, overlay, overlayContext]
   );
 
-  const laidOut = useMemo(() => layoutMapAssets(map.assets, positions), [map.assets, positions]);
+  const { positions: laidOut, bands } = useMemo(
+    () => layoutMap(map.assets, positions, grouping, map.subnets),
+    [grouping, map.assets, map.subnets, positions]
+  );
 
   const flowCache = useRef(new Map<string, { source: MapAsset; flow: MapFlowNode }>());
 
@@ -285,11 +299,15 @@ function MapCanvasInner({
     return next;
   }, [assetBuckets, connectMode, connectSourceId, laidOut, map.access, map.assets, selectedId]);
 
-  // Snap x to the grid and y to the lane its centre falls in: vertical position *is* the zone here,
-  // so a free y would let a card sit between two levels and mean nothing.
-  const snapToLane = useCallback((point: Point): Point => {
-    return { x: snapX(point.x), y: assetYForZone(inferZoneFromY(point.y + ASSET_NODE_HEIGHT / 2)) };
-  }, []);
+  // Snap x to the grid and y to the band its centre falls in: vertical position *is* the grouping
+  // here, so a free y would let a card sit between two bands and mean nothing.
+  const snapToLane = useCallback(
+    (point: Point): Point => {
+      const band = bandAt(point.y + ASSET_NODE_HEIGHT / 2, bands);
+      return { x: snapX(point.x), y: band ? bandAssetY(band) : point.y };
+    },
+    [bands]
+  );
 
   // Returns the node itself when snapping is a no-op — spreading unconditionally would hand React
   // Flow a new object for every node on every change and undo the memo on the card.
@@ -363,15 +381,30 @@ function MapCanvasInner({
     });
   }, [connectionBuckets, livePositions, map.connections, selectedId, showInferred]);
 
+  /**
+   * The zone a drop landed in, and only when the bands are Purdue.
+   *
+   * Under subnet grouping a drag says nothing about an asset's level, and inferring one from the
+   * band would silently re-zone every card an operator tidied up.
+   */
+  const zoneDroppedInto = useCallback(
+    (position: Point): MapAsset["zone"] | undefined => {
+      if (grouping !== "purdue") {
+        return undefined;
+      }
+      const band = bandAt(position.y + ASSET_NODE_HEIGHT / 2, bands);
+      return (band?.id as MapAsset["zone"]) ?? undefined;
+    },
+    [bands, grouping]
+  );
+
   const commitNodePosition = useCallback<OnNodeDrag<MapFlowNode>>(
     (_, node) => {
       setIsDragging(false);
       const position = snapToLane(node.position);
-      // Dropping a card in another lane is how you re-zone an asset here — the lane is the zone, so
-      // recording the position without the zone would put the card somewhere its data denies.
-      onPlaceAsset(node.id, position, inferZoneFromY(position.y + ASSET_NODE_HEIGHT / 2));
+      onPlaceAsset(node.id, position, zoneDroppedInto(position));
     },
-    [onPlaceAsset, snapToLane]
+    [onPlaceAsset, snapToLane, zoneDroppedInto]
   );
 
   const handleKeyDown = useCallback(
@@ -398,22 +431,21 @@ function MapCanvasInner({
       if (!current) return;
       const position = snapToLane({ x: current.x + move[0], y: current.y + move[1] });
       handleNodesChange([{ id, type: "position", position, dragging: false }]);
-      onPlaceAsset(id, position, inferZoneFromY(position.y + ASSET_NODE_HEIGHT / 2));
+      onPlaceAsset(id, position, zoneDroppedInto(position));
     },
-    [handleNodesChange, livePositions, onPlaceAsset, onSelect, snapToLane]
+    [handleNodesChange, livePositions, onPlaceAsset, onSelect, snapToLane, zoneDroppedInto]
   );
 
   const minimapNodeColor = useCallback(() => "#8e979c", []);
 
   const counts = useMemo(() => {
-    const zonesUsed = new Set(map.assets.map((asset) => asset.zone));
     return {
       assets: map.assets.length,
-      zones: zonesUsed.size,
+      subnets: map.subnets.length,
       crossings: map.connections.filter((connection) => connection.trustBoundary).length,
       inferred: map.assets.filter((asset) => asset.confidence < 1).length
     };
-  }, [map.assets, map.connections]);
+  }, [map.assets, map.connections, map.subnets]);
 
   return (
     <FlowFrame<MapFlowNode>
@@ -446,17 +478,19 @@ function MapCanvasInner({
                 ? connectSourceId
                   ? "Select the asset at the other end."
                   : "Select the asset this connection starts from."
-                : `${overlay.description}. Drag a card into another band to re-zone it.`}
+                : grouping === "purdue"
+                  ? `${overlay.description}. Drag a card into another band to re-level it.`
+                  : `${overlay.description}. Bands are subnets, as the scan found them.`}
             </p>
             <div className="canvas-stats" aria-label="Map summary">
               <span>
                 <strong>{counts.assets}</strong> assets
               </span>
               <span>
-                <strong>{counts.zones}</strong> levels in use
+                <strong>{counts.subnets}</strong> subnets
               </span>
               <span>
-                <strong>{counts.crossings}</strong> boundary crossings
+                <strong>{counts.crossings}</strong> segment crossings
               </span>
               {counts.inferred > 0 ? (
                 <span>
@@ -468,6 +502,16 @@ function MapCanvasInner({
           <div className="canvas-actions" aria-label="Map controls">
             {/* A select rather than a segmented control: nine buttons is a second toolbar, and the
                 overlays are one choice from a list, which is what a select already means. */}
+            <div className="map-overlay-picker">
+              <select
+                aria-label="Group bands by"
+                value={grouping}
+                onChange={(event) => onGroupingChange(event.target.value as MapGrouping)}
+              >
+                <option value="subnet">Bands: subnets</option>
+                <option value="purdue">Bands: Purdue levels</option>
+              </select>
+            </div>
             {/* `aria-label` rather than a wrapping `<label>`: a label element's accessible name is
                 its whole text content, and a select's options are inside it — so the wrapped
                 version announced "Overlay" followed by all nine option labels. */}
@@ -520,22 +564,22 @@ function MapCanvasInner({
         aria-hidden="true"
         style={{ "--zone-band-width": `${contentExtent.bandWidth}px` } as CSSProperties}
       >
-        {zones.map((zone, index) => (
+        {bands.map((band) => (
           <div
             className="zone-band-node"
-            key={zone.id}
+            key={band.id}
             style={
               {
-                "--zone-band-y": `${index * ZONE_ROW_HEIGHT + ZONE_BAND_Y_OFFSET}px`,
-                "--zone-band-height": `${ZONE_BAND_HEIGHT}px`,
-                "--zone-band-color": zone.color
+                "--zone-band-y": `${band.y + ZONE_BAND_Y_OFFSET}px`,
+                "--zone-band-height": `${band.height}px`,
+                // A subnet has no inherent colour and inventing one would be noise; the band still
+                // reads because it is bounded and labelled.
+                ...(band.color ? { "--zone-band-color": band.color } : {})
               } as CSSProperties
             }
           >
-            <strong>
-              {zone.levelLabel} - {zone.shortName}
-            </strong>
-            <span>{zone.name}</span>
+            <strong>{band.label}</strong>
+            <span>{band.detail}</span>
           </div>
         ))}
       </div>

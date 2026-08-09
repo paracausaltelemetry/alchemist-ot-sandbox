@@ -18,10 +18,12 @@ import {
   layoutMap,
   type MapGrouping
 } from "../data/mapLayout";
-import { cableBetween } from "./canvas/cable";
+import { symbolCentre } from "./canvas/cable";
+import { routeCables, type CableRequest } from "../engine/tubeRouting";
 import { isScanEvidence, itKindLabel, type ItLinkEvidence } from "../models/itMap";
 import { ACCESS_LABELS, type ItAccessState } from "../models/itEngagement";
 import { bucketsFor, overlays, type Overlay, type OverlayBucket, type OverlayContext, type OverlayId } from "../engine/overlays";
+import type { ImportedPort } from "../import/types";
 import type { MapAsset, MapConnection, ProjectedMap } from "../models/cyberMap";
 import type { Point } from "../models/types";
 import { AssetGlyph } from "./AssetGlyph";
@@ -114,12 +116,26 @@ type MapFlowNode = Node<MapNodeData, "mapAsset">;
 /**
  * The services worth putting under a symbol before it stops being a symbol.
  *
- * Three, then a count. The point of showing ports on the canvas is recognising a box at a glance —
+ * Four, then a count. The point of showing ports on the canvas is recognising a box at a glance —
  * "that is the SMB one" — not reading its scan output, which is what the inspector is for.
  */
-const SERVICE_CHIP_LIMIT = 3;
+const SERVICE_CHIP_LIMIT = 4;
 
-const serviceLabel = (port: { port: number; service?: string }) => port.service || String(port.port);
+/**
+ * The name where the scan resolved one, the number where it did not.
+ *
+ * `microsoft-ds` is recognised at a glance and `445` has to be decoded, so the name wins — but a
+ * bare number is a real answer and printing "unknown" for it would be worse than useless.
+ */
+const serviceLabel = (port: ImportedPort) => port.service || String(port.port);
+
+/** Everything the scan found, for the tooltip: the canvas shows four, the truth is all of them. */
+const serviceSummary = (ports: ImportedPort[]) =>
+  ports.length === 0
+    ? "No open services recorded"
+    : ports
+        .map((port) => `${port.port}/${port.transport ?? "tcp"} ${port.service ?? ""}`.trim())
+        .join("\n");
 
 /**
  * One device, drawn the way a network diagram draws one: a symbol with a label under it.
@@ -145,7 +161,9 @@ const MapDeviceNode = memo(function MapDeviceNode({ data }: NodeProps<MapFlowNod
         access ? ` has-access` : ""
       }${connectMode ? " is-connectable" : ""}${connectSource ? " is-connect-source" : ""}`}
       style={bucket ? bucketStyle(bucket) : undefined}
-      title={asset.rationale || asset.name}
+      title={`${asset.rationale || asset.name}
+
+${serviceSummary(asset.ports)}`}
     >
       <Handle id="in" type="target" position={Position.Left} className="flow-handle" />
       <Handle id="out" type="source" position={Position.Right} className="flow-handle" />
@@ -168,18 +186,25 @@ const MapDeviceNode = memo(function MapDeviceNode({ data }: NodeProps<MapFlowNod
       <strong className="map-device-name">{asset.name}</strong>
       <span className="map-device-addr">{asset.ipAddress || (inferred ? "inferred" : "no address")}</span>
 
+      {/* Always something, because "how exposed is this box" is the question the map is asked most
+          and an empty space under a device answers it ambiguously: nothing found, or nothing
+          shown? The count reads at any zoom; the names need the layer on. */}
       {showServices && services.length > 0 ? (
         <span className="map-device-services">
           {services.map((port) => (
-            <span key={`${port.port}-${port.transport ?? "tcp"}`}>{serviceLabel(port)}</span>
+            <span key={`${port.port}-${port.transport ?? "tcp"}`} data-transport={port.transport ?? "tcp"}>
+              {serviceLabel(port)}
+            </span>
           ))}
-          {asset.ports.length > services.length ? <span>+{asset.ports.length - services.length}</span> : null}
+          {asset.ports.length > services.length ? (
+            <span className="is-more">+{asset.ports.length - services.length}</span>
+          ) : null}
         </span>
-      ) : asset.ports.length > 0 ? (
-        <span className="map-device-portcount" title={`${asset.ports.length} open services`}>
-          {asset.ports.length} open
+      ) : (
+        <span className="map-device-portcount" data-open={asset.ports.length > 0 ? "yes" : "no"}>
+          {asset.ports.length > 0 ? `${asset.ports.length} open` : "none found"}
         </span>
-      ) : null}
+      )}
     </div>
   );
 });
@@ -330,17 +355,29 @@ function MapCanvasInner({
   );
 
   const linkItems = useMemo<LinkOverlayItem[]>(() => {
-    return map.connections.flatMap((connection: MapConnection) => {
-      if (!showInferred && connection.evidence === "inferred") {
-        return [];
-      }
-      const source = livePositions.get(connection.source);
-      const target = livePositions.get(connection.target);
-      if (!source || !target) {
+    const enclosureOf = new Map(map.assets.map((asset) => [asset.id, asset.subnetId] as const));
+
+    const drawn = map.connections.filter(
+      (connection) =>
+        (showInferred || connection.evidence !== "inferred") &&
+        livePositions.has(connection.source) &&
+        livePositions.has(connection.target)
+    );
+
+    // Routed as a set, not one at a time: lanes exist because cables know about each other.
+    const requests: CableRequest[] = drawn.map((connection) => ({
+      id: connection.id,
+      from: { at: symbolCentre(livePositions.get(connection.source)!), enclosureId: enclosureOf.get(connection.source) },
+      to: { at: symbolCentre(livePositions.get(connection.target)!), enclosureId: enclosureOf.get(connection.target) }
+    }));
+    const routes = new Map(routeCables(requests, enclosures).map((cable) => [cable.id, cable] as const));
+
+    return drawn.flatMap((connection: MapConnection) => {
+      const route = routes.get(connection.id);
+      if (!route) {
         return [];
       }
 
-      const route = cableBetween(source, target);
       const observed = isScanEvidence(connection.evidence);
       const asserted = connection.evidence === "asserted" || connection.evidence === "attack";
       const bucket = connectionBuckets.get(connection.id) ?? null;
@@ -370,7 +407,7 @@ function MapCanvasInner({
         }
       ];
     });
-  }, [connectionBuckets, livePositions, map.connections, selectedId, showInferred]);
+  }, [connectionBuckets, enclosures, livePositions, map.assets, map.connections, selectedId, showInferred]);
 
   /**
    * The zone a drop landed in, and only when the bands are Purdue.

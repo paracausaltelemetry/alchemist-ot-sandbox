@@ -1,4 +1,5 @@
 import { DEVICE_HEIGHT, DEVICE_WIDTH } from "../data/mapLayout";
+import { SYMBOL_CENTRE_X, SYMBOL_CENTRE_Y } from "./canvas/cable";
 import { getAssetType } from "../data/catalog";
 import { isScanEvidence, itKindLabel } from "../models/itMap";
 import type { MapStageMap } from "../engine/mapStageMaps";
@@ -41,7 +42,9 @@ export function MapSvg({ stage }: { stage: MapStageMap }) {
   const centre = (id: string) => {
     const entry = drawn.find((candidate) => candidate.asset.id === id);
     return entry
-      ? { x: entry.position.x + LABEL_GUTTER + DEVICE_WIDTH / 2, y: entry.position.y + DEVICE_HEIGHT / 2 }
+      ? // The symbol, not the node: a node is mostly label, and a cable landing in the hostname
+        // reads as a mistake in a document going to a client.
+        { x: entry.position.x + LABEL_GUTTER + SYMBOL_CENTRE_X, y: entry.position.y + SYMBOL_CENTRE_Y }
       : null;
   };
 

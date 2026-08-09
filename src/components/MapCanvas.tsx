@@ -18,7 +18,7 @@ import {
   layoutMap,
   type MapGrouping
 } from "../data/mapLayout";
-import { routeOrthogonalConduit } from "../engine/conduitRouting";
+import { cableBetween } from "./canvas/cable";
 import { isScanEvidence, itKindLabel, type ItLinkEvidence } from "../models/itMap";
 import { ACCESS_LABELS, type ItAccessState } from "../models/itEngagement";
 import { bucketsFor, overlays, type Overlay, type OverlayBucket, type OverlayContext, type OverlayId } from "../engine/overlays";
@@ -327,24 +327,17 @@ function MapCanvasInner({
   );
 
   const linkItems = useMemo<LinkOverlayItem[]>(() => {
-    const box = (id: string) => {
-      const position = livePositions.get(id);
-      return position
-        ? { x: position.x, y: position.y, width: DEVICE_WIDTH, height: DEVICE_HEIGHT }
-        : null;
-    };
-
     return map.connections.flatMap((connection: MapConnection) => {
       if (!showInferred && connection.evidence === "inferred") {
         return [];
       }
-      const source = box(connection.source);
-      const target = box(connection.target);
+      const source = livePositions.get(connection.source);
+      const target = livePositions.get(connection.target);
       if (!source || !target) {
         return [];
       }
 
-      const route = routeOrthogonalConduit(source, target, 0);
+      const route = cableBetween(source, target);
       const observed = isScanEvidence(connection.evidence);
       const asserted = connection.evidence === "asserted" || connection.evidence === "attack";
       const bucket = connectionBuckets.get(connection.id) ?? null;

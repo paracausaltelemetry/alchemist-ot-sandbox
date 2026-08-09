@@ -2,7 +2,17 @@ import type { ImportFormat, ImportedPort, ParsedImport } from "../import/types";
 import type { ScanTime } from "../import/scanTime";
 import type { ItAccessState, ItEvent, ItVantage } from "./itEngagement";
 import type { ItLinkEvidence, ItNodeKind } from "./itMap";
-import type { Asset, Conduit, Point, Subnet } from "./types";
+import type {
+  Asset,
+  CafOverride,
+  CafPrincipleId,
+  Conduit,
+  EngagementContext,
+  Point,
+  RiskTreatment,
+  Subnet,
+  ZoneId
+} from "./types";
 
 /**
  * The converged document: one estate, from the internet edge to Purdue Level 0.
@@ -71,6 +81,51 @@ export interface AssetOverride {
   criticalProcessTag?: string;
 }
 
+/**
+ * What a person decided about a connection, over whatever the evidence implied.
+ *
+ * The symmetric twin of `AssetOverride`, and needed for the same reason. A scan shows that two
+ * hosts can reach each other; it never shows the firewall rule that allowed it, whether the flow is
+ * inspected, or who owns the exception. Those are the fields an assessment turns on, and before
+ * this the only way to record one was to redraw the connection by hand — which threw away the
+ * evidence grading that made it trustworthy in the first place.
+ */
+export interface ConnectionOverride {
+  name?: string;
+  protocol?: string;
+  port?: string;
+  protocolFamily?: Conduit["protocolFamily"];
+  direction?: Conduit["direction"];
+  control?: Conduit["control"];
+  firewallRule?: Conduit["firewallRule"];
+  inspected?: boolean;
+  logged?: boolean;
+  encrypted?: boolean;
+  jumpHostRequired?: boolean;
+  ruleOwner?: string;
+  businessJustification?: string;
+  reviewDate?: string;
+  expiryDate?: string;
+  temporaryAccess?: boolean;
+  businessCritical?: boolean;
+  notes?: string;
+}
+
+/**
+ * The engagement's governance context and the assessor's standing judgements.
+ *
+ * Carried on the document rather than recomputed because none of it is derivable: who commissioned
+ * the work, what SL-T a zone was assigned after a risk assessment, which CAF principle the assessor
+ * overrode and why, and what treatment each risk was given. `OtProject` already held these, and the
+ * converged document has to hold them too or the analysis suite loses half of what it reports.
+ */
+export interface MapGovernance {
+  engagement?: EngagementContext;
+  zoneTargets?: Partial<Record<ZoneId, number>>;
+  cafOverrides?: Partial<Record<CafPrincipleId, CafOverride>>;
+  riskTreatments?: Record<string, RiskTreatment>;
+}
+
 /** A connection a person drew, as opposed to one the evidence implies. */
 export interface UserConnection {
   id: string;
@@ -95,10 +150,13 @@ export interface CyberMapDocument {
   /** Authored metadata, keyed by the id `resolveIdentities` mints. */
   assetOverrides: Record<AssetId, AssetOverride>;
   connections: UserConnection[];
+  /** Authored metadata over a *derived* connection, keyed by the id the projection mints. */
+  connectionOverrides: Record<string, ConnectionOverride>;
   /** What the operator did. Access and attack edges are folded from this and never stored. */
   events: ItEvent[];
   positions: Record<AssetId, Point>;
   subnetOverrides: Record<string, { name?: string; vlan?: string }>;
+  governance: MapGovernance;
 }
 
 /**
@@ -153,9 +211,11 @@ export function newCyberMap(name = "Untitled map"): CyberMapDocument {
     sources: [],
     assetOverrides: {},
     connections: [],
+    connectionOverrides: {},
     events: [],
     positions: {},
-    subnetOverrides: {}
+    subnetOverrides: {},
+    governance: {}
   };
 }
 

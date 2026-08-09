@@ -10,6 +10,7 @@ import {
   newUserConnection,
   nextMapSequence,
   type AssetOverride,
+  type ConnectionOverride,
   type CyberMapDocument
 } from "../models/cyberMap";
 import { newItEvent } from "../models/itEngagement";
@@ -153,6 +154,26 @@ export function MapWorkspace({
     (assetId: string) => {
       const { [assetId]: _removed, ...rest } = doc.assetOverrides;
       commit({ ...doc, assetOverrides: rest });
+    },
+    [commit, doc]
+  );
+
+  const overrideConnection = useCallback(
+    (connectionId: string, patch: ConnectionOverride) =>
+      commit({
+        ...doc,
+        connectionOverrides: {
+          ...doc.connectionOverrides,
+          [connectionId]: { ...doc.connectionOverrides[connectionId], ...patch }
+        }
+      }),
+    [commit, doc]
+  );
+
+  const clearConnectionOverride = useCallback(
+    (connectionId: string) => {
+      const { [connectionId]: _removed, ...rest } = doc.connectionOverrides;
+      commit({ ...doc, connectionOverrides: rest });
     },
     [commit, doc]
   );
@@ -308,6 +329,8 @@ export function MapWorkspace({
           nameOf={nameOf}
           onOverride={override}
           onClearOverride={clearOverride}
+          onConnectionOverride={overrideConnection}
+          onClearConnectionOverride={clearConnectionOverride}
         />
 
         <MapBottomPanel

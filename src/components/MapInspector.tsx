@@ -1,7 +1,13 @@
 import { assetTypes, getAssetType, zones } from "../data/catalog";
 import { itKindLabel } from "../models/itMap";
-import type { AssetOverride, CyberMapDocument, MapAsset, MapConnection } from "../models/cyberMap";
-import type { Asset, Finding } from "../models/types";
+import type {
+  AssetOverride,
+  ConnectionOverride,
+  CyberMapDocument,
+  MapAsset,
+  MapConnection
+} from "../models/cyberMap";
+import type { Asset, Conduit, Finding } from "../models/types";
 
 /**
  * The right sidebar: everything known about one asset or one connection, and what a person decided
@@ -24,10 +30,21 @@ interface MapInspectorProps {
   nameOf: (assetId: string) => string;
   onOverride: (assetId: string, patch: AssetOverride) => void;
   onClearOverride: (assetId: string) => void;
+  onConnectionOverride: (connectionId: string, patch: ConnectionOverride) => void;
+  onClearConnectionOverride: (connectionId: string) => void;
 }
 
+/** The conduit properties an assessment turns on that a scan can never report. */
+const CONDUIT_FLAGS: Array<[keyof ConnectionOverride & keyof MapConnection, string]> = [
+  ["encrypted", "Encrypted"],
+  ["inspected", "Inspected"],
+  ["logged", "Logged"],
+  ["temporaryAccess", "Temporary"],
+  ["businessCritical", "Business critical"]
+];
+
 /** The overridden fields, so the panel can say what was decided rather than only showing values. */
-function overriddenKeys(override: AssetOverride | undefined): string[] {
+function overriddenKeys(override: AssetOverride | ConnectionOverride | undefined): string[] {
   if (!override) {
     return [];
   }
@@ -36,7 +53,17 @@ function overriddenKeys(override: AssetOverride | undefined): string[] {
     .map(([key]) => key);
 }
 
-export function MapInspector({ doc, asset, connection, findings, nameOf, onOverride, onClearOverride }: MapInspectorProps) {
+export function MapInspector({
+  doc,
+  asset,
+  connection,
+  findings,
+  nameOf,
+  onOverride,
+  onClearOverride,
+  onConnectionOverride,
+  onClearConnectionOverride
+}: MapInspectorProps) {
   if (!asset && !connection) {
     return (
       <aside className="map-inspector" aria-label="Inspector">
@@ -53,32 +80,127 @@ export function MapInspector({ doc, asset, connection, findings, nameOf, onOverr
   }
 
   if (connection) {
+    const decided = doc.connectionOverrides[connection.id];
+    const decidedCount = overriddenKeys(decided).length;
+    const setConduit = (patch: ConnectionOverride) => onConnectionOverride(connection.id, patch);
+    const mine = (key: keyof ConnectionOverride) => (decided?.[key] !== undefined ? " (yours)" : "");
+
     return (
       <aside className="map-inspector" aria-label="Inspector">
         <div className="panel-heading">
           <span>Connection</span>
           <small>{connection.provenance === "authored" ? "You drew this" : "From a source"}</small>
         </div>
-        <dl className="map-inspector-facts">
-          <dt>Evidence</dt>
-          <dd>{connection.evidence}</dd>
-          <dt>From</dt>
-          <dd>{nameOf(connection.source)}</dd>
-          <dt>To</dt>
-          <dd>{nameOf(connection.target)}</dd>
-          <dt>Crosses a zone</dt>
-          <dd>{connection.trustBoundary ? "Yes" : "No"}</dd>
-          <dt>Permit rule</dt>
-          <dd>{connection.firewallRule}</dd>
-          <dt>Mediation</dt>
-          <dd>{connection.control}</dd>
-        </dl>
-        {connection.provenance === "imported" ? (
+
+        <section>
+          <h3>What the evidence shows</h3>
+          <dl className="map-inspector-facts">
+            <dt>Evidence</dt>
+            <dd>{connection.evidence}</dd>
+            <dt>From</dt>
+            <dd>{nameOf(connection.source)}</dd>
+            <dt>To</dt>
+            <dd>{nameOf(connection.target)}</dd>
+            <dt>Crosses a level</dt>
+            <dd>{connection.trustBoundary ? "Yes" : "No"}</dd>
+          </dl>
+          {/* The evidence grade is the one thing an override cannot touch, and saying so is the
+              point: a decision about a conduit does not change who observed it. */}
           <p className="muted">
-            This connection is evidence, not a decision — it is re-derived from the sources every load, so it cannot be
-            edited here. Draw your own alongside it if the sources are wrong.
+            A scan shows that two hosts can reach each other. It never shows the rule that allowed it, so everything
+            below is a judgement rather than an observation.
           </p>
-        ) : null}
+        </section>
+
+        <section>
+          <h3>
+            What you decided{" "}
+            {decidedCount > 0 ? (
+              <button
+                type="button"
+                className="text-button compact"
+                onClick={() => onClearConnectionOverride(connection.id)}
+              >
+                Clear {decidedCount}
+              </button>
+            ) : null}
+          </h3>
+
+          <label className="field">
+            <span>Permit rule{mine("firewallRule")}</span>
+            <select
+              value={connection.firewallRule}
+              onChange={(event) => setConduit({ firewallRule: event.target.value as Conduit["firewallRule"] })}
+            >
+              <option value="unknown">Not documented</option>
+              <option value="explicit">Explicit source, destination and service</option>
+              <option value="any-any">Any-any / broad</option>
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Mediation{mine("control")}</span>
+            <select
+              value={connection.control}
+              onChange={(event) => setConduit({ control: event.target.value as Conduit["control"] })}
+            >
+              <option value="routed">Routed — nothing mediates</option>
+              <option value="firewalled">Firewalled</option>
+              <option value="jump-host">Brokered by a jump host</option>
+              <option value="data-diode">Data diode</option>
+            </select>
+          </label>
+
+          <label className="field">
+            <span>Direction{mine("direction")}</span>
+            <select
+              value={connection.direction}
+              onChange={(event) => setConduit({ direction: event.target.value as Conduit["direction"] })}
+            >
+              <option value="bidirectional">Both ways</option>
+              <option value="source-to-target">
+                {nameOf(connection.source)} to {nameOf(connection.target)}
+              </option>
+              <option value="target-to-source">
+                {nameOf(connection.target)} to {nameOf(connection.source)}
+              </option>
+            </select>
+          </label>
+
+          <div className="map-inspector-checks">
+            {CONDUIT_FLAGS.map(([key, label]) => (
+              <label key={key}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(connection[key])}
+                  onChange={(event) => setConduit({ [key]: event.target.checked } as ConnectionOverride)}
+                />
+                <span>
+                  {label}
+                  {mine(key)}
+                </span>
+              </label>
+            ))}
+          </div>
+
+          <label className="field">
+            <span>Rule owner{mine("ruleOwner")}</span>
+            <input value={connection.ruleOwner} onChange={(event) => setConduit({ ruleOwner: event.target.value })} />
+          </label>
+
+          <label className="field">
+            <span>Why it exists{mine("businessJustification")}</span>
+            <textarea
+              value={connection.businessJustification}
+              onChange={(event) => setConduit({ businessJustification: event.target.value })}
+            />
+          </label>
+
+          <p className="muted">
+            Stored separately from the evidence, so re-importing the scan that produced this connection keeps every
+            decision on it.
+          </p>
+        </section>
       </aside>
     );
   }

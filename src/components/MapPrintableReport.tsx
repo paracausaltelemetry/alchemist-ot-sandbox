@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import { buildMapReport } from "../engine/mapReport";
+import { buildMapStageMaps } from "../engine/mapStageMaps";
 import { MAX_SL } from "../engine/securityLevels";
 import { ACCESS_LABELS } from "../models/itEngagement";
+import { MapSvg } from "./MapSvg";
 import type { CyberMapDocument } from "../models/cyberMap";
 
 /**
@@ -17,6 +19,7 @@ import type { CyberMapDocument } from "../models/cyberMap";
  */
 export function MapPrintableReport({ doc }: { doc: CyberMapDocument }) {
   const report = useMemo(() => buildMapReport(doc), [doc]);
+  const stageMaps = useMemo(() => buildMapStageMaps(doc), [doc]);
 
   if (doc.sources.length === 0) {
     return null;
@@ -55,20 +58,28 @@ export function MapPrintableReport({ doc }: { doc: CyberMapDocument }) {
 
       <section>
         <h2>Timeline</h2>
-        {report.stages.map((stage) => (
-          <div className="map-print-stage" key={`${stage.sequence}-${stage.title}`}>
-            <h3>
-              Stage {stage.sequence} — {stage.title}
-            </h3>
-            <p className="map-print-when">{stage.when}</p>
-            <ul>
-              {stage.detail.map((detail) => (
-                <li key={detail}>{detail}</li>
-              ))}
-              {stage.revealed.length > 0 ? <li>First seen here: {stage.revealed.join(", ")}</li> : null}
-            </ul>
-          </div>
-        ))}
+        {report.stages.map((stage) => {
+          const picture = stageMaps.find((entry) => entry.sequence === stage.sequence);
+          return (
+            <div className="map-print-stage" key={`${stage.sequence}-${stage.title}`}>
+              <h3>
+                Stage {stage.sequence} — {stage.title}
+              </h3>
+              <p className="map-print-when">{stage.when}</p>
+              <ul>
+                {stage.detail.map((detail) => (
+                  <li key={detail}>{detail}</li>
+                ))}
+                {stage.revealed.length > 0 ? <li>First seen here: {stage.revealed.join(", ")}</li> : null}
+              </ul>
+              {picture ? (
+                <div className="map-print-map">
+                  <MapSvg stage={picture} />
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
       </section>
 
       <section>

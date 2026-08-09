@@ -11,6 +11,7 @@ import {
 } from "../models/itEngagement";
 import { accessByNode, accessRank, longestAttackChain, orderedEvents } from "./itAccess";
 import { asOtProject, projectMap } from "./mapProjection";
+import { stageNodesBySource } from "./mapStageNodes";
 import { assessSecurityLevels } from "./securityLevels";
 import { assessProject } from "./scoring";
 import { exposureFromUntrusted } from "./reachability";
@@ -137,41 +138,6 @@ function eventDetail(event: ItEvent, nameOf: (id?: string) => string): string[] 
   return detail;
 }
 
-/**
- * Which assets each import put on the map for the first time.
- *
- * Re-projects the document once per prefix of its sources, the same shape as `stageNodesByScan`,
- * and for the same reason: counting `parsed.hosts` disagrees with what is drawn, because a
- * traceroute names routers that are never host records. A stage claiming "8 newly revealed" beside
- * a summary saying 10 assets is an arithmetic hole a careful reader spots immediately, in the one
- * document where every number is supposed to reconcile.
- *
- * Only imported assets count. Re-projecting also materialises inferred gateways, and crediting an
- * import with finding a device that was reasoned about would undercut the document's whole claim.
- */
-function revealedBySource(doc: CyberMapDocument): Map<number, string[]> {
-  const ordered = [...doc.sources].sort((a, b) => a.sequence - b.sequence);
-  const bySequence = new Map<number, string[]>();
-  let seen = new Set<string>();
-
-  for (const source of ordered) {
-    const upTo: CyberMapDocument = {
-      ...doc,
-      sources: ordered.filter((entry) => entry.sequence <= source.sequence),
-      events: []
-    };
-    const observed = new Set(
-      projectMap(upTo)
-        .assets.filter((asset) => asset.sourceIds.length > 0)
-        .map((asset) => asset.id)
-    );
-    bySequence.set(source.sequence, [...observed].filter((id) => !seen.has(id)));
-    seen = observed;
-  }
-
-  return bySequence;
-}
-
 export function buildMapReport(doc: CyberMapDocument): MapReport {
   const map: ProjectedMap = projectMap(doc);
   const project = asOtProject(doc, map);
@@ -189,11 +155,11 @@ export function buildMapReport(doc: CyberMapDocument): MapReport {
   const zoneNameOf = (id?: string): string => (id && assets.get(id) ? getZone(assets.get(id)!.zone).name : "—");
 
   // --- Stages, imports and events interleaved by the sequence they share ------
-  const revealed = revealedBySource(doc);
+  const stageNodes = stageNodesBySource(doc);
   const stages: MapReportStage[] = [];
 
   for (const source of sources) {
-    const first = revealed.get(source.sequence) ?? [];
+    const first = [...(stageNodes.get(source.sequence)?.revealed ?? [])];
     stages.push({
       sequence: source.sequence,
       kind: "source",

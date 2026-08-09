@@ -128,6 +128,41 @@ function applyOverride(asset: MapAsset, override: AssetOverride | undefined): Ma
   } as MapAsset;
 }
 
+
+/**
+ * A connection with nothing asserted about it.
+ *
+ * Exported because the stage maps mint attack edges of their own and need the same neutral base:
+ * a copy of some other connection would carry that one's firewall rule and boundary flag onto an
+ * arrow that has neither.
+ */
+export const blankConnection = (id: string, source: AssetId, target: AssetId): Conduit => ({
+  id,
+  source,
+  target,
+  name: "",
+  protocol: "",
+  port: "",
+  protocolFamily: "auto",
+  direction: "bidirectional",
+  control: "routed",
+  firewallRule: "unknown",
+  trustBoundary: false,
+  inspected: false,
+  logged: false,
+  encrypted: false,
+  jumpHostRequired: false,
+  ruleOwner: "",
+  businessJustification: "",
+  reviewDate: "",
+  expiryDate: "",
+  monitoringSource: "",
+  inspectionPoint: "",
+  temporaryAccess: false,
+  businessCritical: false,
+  notes: ""
+});
+
 export function projectMap(doc: CyberMapDocument): ProjectedMap {
   const parsed = mergedSourceParse(doc);
   if (!parsed) {
@@ -182,32 +217,6 @@ export function projectMap(doc: CyberMapDocument): ProjectedMap {
   const assetIds = new Set(assets.map((asset) => asset.id));
 
   // --- Connections --------------------------------------------------------
-  const conduitDefaults = (id: string, source: AssetId, target: AssetId): Conduit => ({
-    id,
-    source,
-    target,
-    name: "",
-    protocol: "",
-    port: "",
-    protocolFamily: "auto",
-    direction: "bidirectional",
-    control: "routed",
-    firewallRule: "unknown",
-    trustBoundary: false,
-    inspected: false,
-    logged: false,
-    encrypted: false,
-    jumpHostRequired: false,
-    ruleOwner: "",
-    businessJustification: "",
-    reviewDate: "",
-    expiryDate: "",
-    monitoringSource: "",
-    inspectionPoint: "",
-    temporaryAccess: false,
-    businessCritical: false,
-    notes: ""
-  });
 
   const zoneOf = new Map(assets.map((asset) => [asset.id, asset.zone] as const));
 
@@ -232,7 +241,7 @@ export function projectMap(doc: CyberMapDocument): ProjectedMap {
   const brokeredBy = (id: string) => typeOf.get(id) === "firewall" || typeOf.get(id) === "jump-host";
 
   const derived: MapConnection[] = synthesised.links.map((link) => ({
-    ...conduitDefaults(link.id, link.source, link.target),
+    ...blankConnection(link.id, link.source, link.target),
     name: link.label ?? "",
     control: brokeredBy(link.source) || brokeredBy(link.target) ? "firewalled" : "routed",
     // A scan shows reachability, never the rule that allowed it.
@@ -249,7 +258,7 @@ export function projectMap(doc: CyberMapDocument): ProjectedMap {
       continue;
     }
     authored.push({
-      ...conduitDefaults(connection.id, connection.source, connection.target),
+      ...blankConnection(connection.id, connection.source, connection.target),
       name: connection.label ?? "",
       protocol: connection.protocol ?? "",
       port: connection.port ?? "",
@@ -275,7 +284,7 @@ export function projectMap(doc: CyberMapDocument): ProjectedMap {
   // Attack edges are derived from the journal for the same reason access is: storing them would
   // give one arrow two sources of truth, and deleting an event would leave its line behind.
   const attack: MapConnection[] = attackLinks(doc.events, assetIds).map((link) => ({
-    ...conduitDefaults(link.id, link.source, link.target),
+    ...blankConnection(link.id, link.source, link.target),
     name: link.label ?? "",
     provenance: "authored",
     evidence: "attack"

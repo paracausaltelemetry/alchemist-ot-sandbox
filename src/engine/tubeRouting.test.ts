@@ -24,12 +24,24 @@ const trunkY = (path: string) =>
     .map((point) => point.y)
     .reduce((closest, y) => (Math.abs(y - (box.y - 22)) < Math.abs(closest - (box.y - 22)) ? y : closest), Infinity);
 
-/** Every point the path visits, arcs included, so segment angles can be checked. */
-const points = (path: string) =>
-  [...path.matchAll(/[-\d.]+ [-\d.]+/g)].map((match) => {
-    const [x, y] = match[0].split(" ").map(Number);
-    return { x, y };
-  });
+/**
+ * Every point the path lands on.
+ *
+ * A real parse rather than "grab every pair of numbers": an `A` command carries its radii and flags
+ * before the endpoint, and reading those as coordinates invents segments that were never drawn.
+ */
+const points = (path: string) => {
+  const visited: Array<{ x: number; y: number }> = [];
+  for (const match of path.matchAll(/([MLA])([^MLAQ]*)/g)) {
+    const numbers = (match[2].trim().match(/-?[\d.]+/g) ?? []).map(Number);
+    // M and L are the endpoint; A is `rx ry rotation large-arc sweep x y`.
+    const [x, y] = match[1] === "A" ? numbers.slice(5) : numbers;
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      visited.push({ x, y });
+    }
+  }
+  return visited;
+};
 
 const angles = (path: string) => {
   const all = points(path);
@@ -115,9 +127,37 @@ describe("routing in the transit idiom", () => {
     expect(again.find((route) => route.id === "a")!.path).toBe(first.find((route) => route.id === "a")!.path);
   });
 
-  it("rounds its corners rather than mitring them", () => {
+  it("turns every corner on the same circle rather than mitring it", () => {
+    // A quadratic through the corner is not a circular arc, so two corners of the same nominal
+    // radius end up with visibly different curvature. Asking for an arc asks for a circle, which is
+    // what makes every corner on the map look like every other one.
     const [route] = routeCables([cable("a", [300, 100], [80, 460], box.id)], [box]);
-    expect(route.path).toContain("Q");
+    const radii = [...route.path.matchAll(/A (\d+(?:\.\d+)?) (\d+(?:\.\d+)?)/g)].map((match) => [
+      Number(match[1]),
+      Number(match[2])
+    ]);
+
+    expect(radii.length).toBeGreaterThan(0);
+    for (const [rx, ry] of radii) {
+      expect(rx).toBe(ry);
+      expect(rx).toBe(radii[0][0]);
+    }
+  });
+
+  it("lands every coordinate on a whole unit", () => {
+    // A stroke on a half-unit boundary is spread across two device pixels by the rasteriser, which
+    // is most of what "fuzzy" means for a line drawing.
+    const routes = routeCables(
+      [cable("a", [300, 100], [80, 460], box.id), cable("b", [301, 100], [231, 461], box.id)],
+      [box]
+    );
+
+    for (const route of routes) {
+      for (const point of points(route.path)) {
+        expect(Number.isInteger(point.x)).toBe(true);
+        expect(Number.isInteger(point.y)).toBe(true);
+      }
+    }
   });
 
   it("stops short of both symbols", () => {

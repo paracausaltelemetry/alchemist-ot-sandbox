@@ -142,6 +142,19 @@ const RISKY_PORTS: Record<number, RiskDefinition> = {
   5986: { internal: "low", reason: "WinRM (HTTPS): remote management" }
 };
 
+/**
+ * What the risk table says about one port, for callers that only want the grading.
+ *
+ * The map marks a risky service on the device symbol, and duplicating the table there would be two
+ * lists to keep in step — the second one always the one nobody updates. `internal` is the grading
+ * on a private address; anything on a public one is worse, and the analysis handles that where it
+ * knows the address.
+ */
+export function portRisk(port: number): { severity: ItSeverity; reason: string } | null {
+  const found = RISKY_PORTS[port];
+  return found ? { severity: found.internal, reason: found.reason } : null;
+}
+
 const PRIVATE_V4 = [
   /^10\./,
   /^127\./,

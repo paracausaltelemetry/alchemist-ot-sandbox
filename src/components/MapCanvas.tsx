@@ -10,6 +10,7 @@ import {
 import { memo, useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
 import { CANVAS_GRID_X, ZONE_BAND_Y_OFFSET, ZONE_ROW_HEIGHT, snapX } from "../data/canvasLayout";
 import { getAssetType } from "../data/catalog";
+import { portRisk } from "../engine/itAnalysis";
 import {
   DEVICE_HEIGHT,
   DEVICE_WIDTH,
@@ -129,6 +130,15 @@ const SERVICE_CHIP_LIMIT = 4;
  */
 const serviceLabel = (port: ImportedPort) => port.service || String(port.port);
 
+/**
+ * The order a reader expects: by port number, ascending.
+ *
+ * Scan order is arrival order, which differs between two runs of the same scan and between two
+ * hosts running the same services. Sorted, the same stack of services makes the same shape on every
+ * device, and a reader recognises "that is a Windows box" without reading a word.
+ */
+const orderedServices = (ports: ImportedPort[]) => [...ports].sort((a, b) => a.port - b.port);
+
 /** Everything the scan found, for the tooltip: the canvas shows four, the truth is all of them. */
 const serviceSummary = (ports: ImportedPort[]) =>
   ports.length === 0
@@ -153,7 +163,11 @@ const MapDeviceNode = memo(function MapDeviceNode({ data }: NodeProps<MapFlowNod
   const { asset, selected, access, bucket, connectMode, connectSource, showServices } = data;
   const type = getAssetType(asset.type);
   const inferred = asset.confidence < 1;
-  const services = asset.ports.slice(0, SERVICE_CHIP_LIMIT);
+  const ordered = orderedServices(asset.ports);
+  const services = ordered.slice(0, SERVICE_CHIP_LIMIT);
+  // The count that matters to someone enumerating: not how many ports answered, but how many are
+  // worth their time. Kept to the table the analysis already uses rather than a second opinion.
+  const risky = ordered.filter((port) => portRisk(port.port)).length;
 
   return (
     <div
@@ -192,17 +206,28 @@ ${serviceSummary(asset.ports)}`}
       {showServices && services.length > 0 ? (
         <span className="map-device-services">
           {services.map((port) => (
-            <span key={`${port.port}-${port.transport ?? "tcp"}`} data-transport={port.transport ?? "tcp"}>
+            <span
+              key={`${port.port}-${port.transport ?? "tcp"}`}
+              data-transport={port.transport ?? "tcp"}
+              data-risk={portRisk(port.port)?.severity}
+            >
               {serviceLabel(port)}
             </span>
           ))}
-          {asset.ports.length > services.length ? (
-            <span className="is-more">+{asset.ports.length - services.length}</span>
+          {ordered.length > services.length ? (
+            <span className="is-more">+{ordered.length - services.length}</span>
           ) : null}
         </span>
       ) : (
         <span className="map-device-portcount" data-open={asset.ports.length > 0 ? "yes" : "no"}>
-          {asset.ports.length > 0 ? `${asset.ports.length} open` : "none found"}
+          {asset.ports.length === 0 ? (
+            "none found"
+          ) : (
+            <>
+              {asset.ports.length} open
+              {risky > 0 ? <b data-risk="yes"> · {risky} notable</b> : null}
+            </>
+          )}
         </span>
       )}
     </div>
@@ -211,14 +236,22 @@ ${serviceSummary(asset.ports)}`}
 
 const nodeTypes = { mapAsset: MapDeviceNode };
 
-/** Links are drawn from their evidence: observed solid, reasoning dashed. Shared with the IT map. */
+/**
+ * Links are drawn from their evidence: observed solid, reasoning dashed.
+ *
+ * Dashes, not dots. The old `1 5` drew a 1-unit mark that rendered as a bead rather than a dash,
+ * and a line of beads reads as a soft grey smear from any distance — which was most of what looked
+ * fuzzy about the map. Every mark here is long enough to be seen as a mark, and the gaps are wide
+ * enough to be seen as gaps.
+ */
 const EVIDENCE_DASH: Record<ItLinkEvidence, string | undefined> = {
   traceroute: undefined,
   "observed-flow": undefined,
-  attack: "12 4",
+  attack: "14 5",
   asserted: undefined,
-  "same-subnet": "1 5",
-  inferred: "8 6"
+  // A structural assumption about addressing: the finest dash on the map, but still a dash.
+  "same-subnet": "4 5",
+  inferred: "9 7"
 };
 
 /** Must clear `.conduit-overlay-path`'s own `stroke-width: 5.4`, or the drawn link is the thinnest. */
@@ -389,14 +422,30 @@ function MapCanvasInner({
         {
           id: connection.id,
           path: route.path,
+          evidence: connection.evidence,
+          // Cased so a crossing reads as one cable passing behind another. Attack edges are not: an
+          // action is drawn over the network it was taken against, not tucked behind it.
+          cased: connection.evidence !== "attack",
           labelX: route.labelX,
           labelY: route.labelY,
           label: connection.name,
           labelVisible: observed || asserted,
-          color: bucket?.signal ? "var(--signal)" : observed || asserted ? "var(--text)" : "var(--muted)",
-          // Under a connection overlay the ramp carries the reading, so weight sets the opacity and
-          // the faintest bucket still stays legible rather than disappearing.
-          opacity: bucket ? 0.35 + bucket.weight * 0.6 : observed || asserted ? 0.9 : 0.55,
+          /**
+           * Emphasis by ink, never by opacity.
+           *
+           * A translucent stroke over a dotted background lets the grid show through and softens
+           * the line — most of what read as fuzz. `color-mix` produces a genuinely lighter colour
+           * that still rasterises as a solid edge, so the faintest cable is quiet and sharp rather
+           * than loud and blurred.
+           */
+          color: bucket?.signal
+            ? "var(--signal)"
+            : bucket
+              ? `color-mix(in srgb, var(--text) ${Math.round(35 + bucket.weight * 60)}%, var(--bg))`
+              : observed || asserted
+                ? "var(--text)"
+                : "var(--muted)",
+          opacity: 1,
           markerEnd: true,
           dash: EVIDENCE_DASH[connection.evidence],
           strokeWidth: asserted ? ASSERTED_STROKE_WIDTH : undefined,

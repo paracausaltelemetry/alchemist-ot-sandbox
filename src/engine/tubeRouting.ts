@@ -33,8 +33,14 @@ const LANE_PITCH = 7;
 /** How far above an enclosure its trunk line runs. */
 const TRUNK_OFFSET = 22;
 
-/** Corner rounding, in the transit-diagram idiom: a consistent arc, never a mitre. */
-const CORNER = 9;
+/**
+ * Corner radius. One value, everywhere.
+ *
+ * Uniformity is the point: a diagram whose corners vary looks hand-drawn, and the reader starts
+ * reading meaning into the variation. Only clamped when a segment is genuinely too short to hold
+ * the arc, which the layout's spacing makes rare.
+ */
+const CORNER = 10;
 
 export interface CableEnd {
   /** Centre of the device's symbol. */
@@ -152,13 +158,29 @@ function toLane(points: Point[], offset: number): Point[] {
   return [start, { x, y: start.y }, { x, y: end.y }, end];
 }
 
-/** Rounds a corner between three points, in the transit idiom. */
+/**
+ * Coordinates land on whole units.
+ *
+ * A stroke on a half-unit boundary is spread across two device pixels by the rasteriser, which is
+ * most of what "fuzzy" means for a line drawing. The trims and lane offsets produce fractions, so
+ * they are rounded out here rather than left for the renderer to smear.
+ */
+const snap = (value: number) => Math.round(value);
+
+/**
+ * A true quarter-circle corner.
+ *
+ * `Q` was wrong for this: a quadratic through the corner point is not a circular arc, so two
+ * corners of the same nominal radius have visibly different curvature depending on how the control
+ * point falls. `A` asks the renderer for a circle, which is what a transit diagram draws and what
+ * makes every corner on the map look like every other one.
+ */
 function corner(previous: Point, at: Point, next: Point): string {
-  const into = Math.min(CORNER, Math.hypot(at.x - previous.x, at.y - previous.y) / 2);
-  const outOf = Math.min(CORNER, Math.hypot(next.x - at.x, next.y - at.y) / 2);
-  const radius = Math.min(into, outOf);
+  const into = Math.hypot(at.x - previous.x, at.y - previous.y);
+  const outOf = Math.hypot(next.x - at.x, next.y - at.y);
+  const radius = Math.min(CORNER, into / 2, outOf / 2);
   if (radius < 1) {
-    return `L ${at.x} ${at.y}`;
+    return `L ${snap(at.x)} ${snap(at.y)}`;
   }
 
   const towards = (a: Point, b: Point, distance: number): Point => {
@@ -168,16 +190,21 @@ function corner(previous: Point, at: Point, next: Point): string {
 
   const start = towards(at, previous, radius);
   const finish = towards(at, next, radius);
-  return `L ${start.x} ${start.y} Q ${at.x} ${at.y} ${finish.x} ${finish.y}`;
+  // Which way the corner turns decides the sweep; get it wrong and the arc bulges outward into a
+  // loop rather than cutting the corner.
+  const cross = (at.x - previous.x) * (next.y - at.y) - (at.y - previous.y) * (next.x - at.x);
+  const sweep = cross > 0 ? 1 : 0;
+
+  return `L ${snap(start.x)} ${snap(start.y)} A ${radius} ${radius} 0 0 ${sweep} ${snap(finish.x)} ${snap(finish.y)}`;
 }
 
 function toPath(points: Point[]): string {
   const [head, ...rest] = points;
-  let path = `M ${head.x} ${head.y}`;
+  let path = `M ${snap(head.x)} ${snap(head.y)}`;
   for (let index = 0; index < rest.length; index += 1) {
     const at = rest[index];
     const next = rest[index + 1];
-    path += next ? ` ${corner(points[index], at, next)}` : ` L ${at.x} ${at.y}`;
+    path += next ? ` ${corner(points[index], at, next)}` : ` L ${snap(at.x)} ${snap(at.y)}`;
   }
   return path;
 }

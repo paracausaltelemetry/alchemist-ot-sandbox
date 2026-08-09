@@ -13,6 +13,9 @@ import {
   type CyberMapDocument
 } from "../models/cyberMap";
 import { newItEvent } from "../models/itEngagement";
+import { buildMapReport } from "../engine/mapReport";
+import { mapReportMarkdown } from "../engine/mapReportMarkdown";
+import { downloadMarkdown } from "../lib/exporters";
 import { loadCyberMap, saveCyberMap } from "../lib/mapStore";
 import type { Point } from "../models/types";
 import { ItEventDialog, type ItEventDraft } from "./ItEventDialog";
@@ -20,6 +23,7 @@ import { ItLinkDialog } from "./ItLinkDialog";
 import { MapBottomPanel } from "./MapBottomPanel";
 import { MapCanvas } from "./MapCanvas";
 import { MapInspector } from "./MapInspector";
+import { MapPrintableReport } from "./MapPrintableReport";
 import { MapSidebar } from "./MapSidebar";
 import { SiteMasthead } from "./SiteMasthead";
 
@@ -234,6 +238,10 @@ export function MapWorkspace({
     [commit, doc]
   );
 
+  const exportReport = useCallback(() => {
+    downloadMarkdown(`${doc.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-engagement.md`, mapReportMarkdown(buildMapReport(doc)));
+  }, [doc]);
+
   const selectedAsset = selectedId ? map.assets.find((asset) => asset.id === selectedId) : undefined;
   const selectedConnection = selectedId ? map.connections.find((entry) => entry.id === selectedId) : undefined;
   const selectedFindings = selectedId ? (overlayContext.findingsByAsset.get(selectedId) ?? []) : [];
@@ -244,7 +252,8 @@ export function MapWorkspace({
   );
 
   return (
-    <div className="site-frame map-workspace">
+    <>
+      <div className="site-frame map-workspace">
       <SiteMasthead theme={theme} onToggleTheme={onToggleTheme} isMobile={isMobile} />
       <main className="map-workspace-grid">
         <MapSidebar
@@ -258,6 +267,7 @@ export function MapWorkspace({
           onLoadSample={loadSample}
           onImportFile={importFile}
           onRemoveSource={removeSource}
+          onExportReport={doc.sources.length > 0 ? exportReport : undefined}
         />
 
         <div className="map-workspace-canvas">
@@ -324,13 +334,23 @@ export function MapWorkspace({
         }}
       />
 
-      <ItEventDialog
-        open={eventDraft !== null}
-        nodes={map.assets}
-        initial={eventDraft ?? undefined}
-        onConfirm={recordEvent}
-        onCancel={() => setEventDraft(null)}
-      />
-    </div>
+        <ItEventDialog
+          open={eventDraft !== null}
+          nodes={map.assets}
+          initial={eventDraft ?? undefined}
+          onConfirm={recordEvent}
+          onCancel={() => setEventDraft(null)}
+        />
+      </div>
+
+      {/*
+        Outside `.map-workspace`, not merely after it.
+        The print rule hides `.map-workspace` so the running UI does not print above the report;
+        anywhere inside that element — including "after the main, still in the div" — the report is
+        hidden by the very rule that exists to make it printable, and Ctrl+P yields a blank page.
+        The IT report shipped with exactly this bug once already.
+      */}
+      <MapPrintableReport doc={doc} />
+    </>
   );
 }

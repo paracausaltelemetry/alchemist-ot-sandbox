@@ -11,7 +11,8 @@
    * toolbar, canvas, panels and all.
    */
   .app-shell,
-  .it-app {
+  .it-app,
+  .map-workspace {
     display: none;
   }
 
@@ -22,12 +23,14 @@
     margin: 8px 0 4px;
   }
 
-  .it-print-stage {
+  .it-print-stage,
+  .map-print-stage {
     page-break-inside: avoid;
     margin-bottom: 18px;
   }
 
-  .it-print-when {
+  .it-print-when,
+  .map-print-when {
     margin: 0 0 6px;
     font-size: 9pt;
     font-style: italic;

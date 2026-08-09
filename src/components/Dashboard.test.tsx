@@ -2,6 +2,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { Dashboard } from "./Dashboard";
+import { serializeCyberMap } from "../engine/mapSerialization";
+import { newCyberMap, newImportSource, nextMapSequence } from "../models/cyberMap";
+import { parseNmapNormal } from "../import/nmapText";
+import { SAMPLE_SCAN } from "../data/sampleScan";
+
+function estateWithSample() {
+  const base = newCyberMap("Sample estate");
+  return {
+    ...base,
+    sources: [
+      newImportSource(parseNmapNormal(SAMPLE_SCAN), "sample.txt", nextMapSequence(base), {
+        kind: "external" as const,
+        label: "External"
+      })
+    ]
+  };
+}
 
 vi.mock("../lib/heroDither", () => ({ initHeroDither: () => {} }));
 
@@ -10,24 +27,29 @@ afterEach(() => vi.restoreAllMocks());
 
 const noop = () => {};
 
-describe("Dashboard (desktop)", () => {
-  it("renders the posture overview and model-size stats", () => {
+describe("Dashboard", () => {
+  it("offers a way in and nothing to read when no estate has been imported", () => {
+    // The posture tiles over an empty estate would report a clean bill of health for a map with
+    // nothing on it, which is the failure mode this codebase has fixed repeatedly.
     render(<Dashboard onEnter={noop} theme="dark" onToggleTheme={noop} isMobile={false} />);
-    expect(screen.getByText(/current assessment/i)).toBeInTheDocument();
-    // Model-size aside lists Assets / Conduits / Findings.
-    expect(screen.getByText("Assets")).toBeInTheDocument();
-    expect(screen.getByText("Findings")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /saved assessments/i })).toBeInTheDocument();
-    // The workbench CTA is available on desktop (hero + command list).
-    expect(screen.getAllByRole("button", { name: /open workbench/i }).length).toBeGreaterThan(0);
+
+    expect(screen.queryByText(/current estate/i)).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /start a map/i }).length).toBeGreaterThan(0);
   });
 
-  it("renders the full dashboard on mobile with a desktop-editing note", () => {
+  it("reads the converged document, so the front door and the map cannot disagree", () => {
+    window.localStorage.setItem("alchemist-cyber-map", serializeCyberMap(estateWithSample()));
+
+    render(<Dashboard onEnter={noop} theme="dark" onToggleTheme={noop} isMobile={false} />);
+
+    expect(screen.getByText(/current estate/i)).toBeInTheDocument();
+    expect(screen.getByText("Assets")).toBeInTheDocument();
+    expect(screen.getByText("Findings")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /open the map/i }).length).toBeGreaterThan(0);
+  });
+
+  it("says the canvas is desktop-only rather than hiding the assessment on mobile", () => {
     render(<Dashboard onEnter={noop} theme="dark" onToggleTheme={noop} isMobile />);
-    // The posture overview is available on mobile (read-only), not gated away.
-    expect(screen.getByRole("heading", { name: /saved assessments/i })).toBeInTheDocument();
-    expect(screen.getByText(/topology editing is desktop-only/i)).toBeInTheDocument();
-    // CTA reads "Open assessment" on mobile rather than "Open workbench".
-    expect(screen.getAllByRole("button", { name: /open assessment/i }).length).toBeGreaterThan(0);
+    expect(screen.getByText(/canvas is desktop-only/i)).toBeInTheDocument();
   });
 });

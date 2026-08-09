@@ -1,14 +1,20 @@
-import type { CanvasMode, OtProject, ReachabilityResult } from "../../models/types";
+import type { OtProject, ReachabilityResult } from "../../models/types";
 
 interface ReachabilityTabProps {
   project: OtProject;
   reachability: ReachabilityResult;
   sourceId: string;
   targetId: string;
-  canvasMode: CanvasMode;
   onSourceChange: (id: string) => void;
   onTargetChange: (id: string) => void;
-  onCanvasModeChange: (mode: CanvasMode) => void;
+  /**
+   * Draws the analysed path on whatever canvas is showing.
+   *
+   * Was `onCanvasModeChange("reachability")`, which named a mode of the OT canvas — a vocabulary
+   * this tab has no business knowing, and one that stopped existing when overlays replaced the mode
+   * unions. The tab asks for the path to be shown; where it lands is the canvas's problem.
+   */
+  onHighlightPath: () => void;
 }
 
 export function ReachabilityTab({
@@ -16,10 +22,9 @@ export function ReachabilityTab({
   reachability,
   sourceId,
   targetId,
-  canvasMode,
   onSourceChange,
   onTargetChange,
-  onCanvasModeChange
+  onHighlightPath
 }: ReachabilityTabProps) {
   const assetName = (id: string) => project.assets.find((asset) => asset.id === id)?.name ?? id;
 
@@ -50,10 +55,9 @@ export function ReachabilityTab({
           <strong>{reachability.reachable ? "Reachable" : "Blocked"}</strong>
           <p>{reachability.explanation}</p>
         </div>
-        <button type="button" className="text-button" onClick={() => onCanvasModeChange("reachability")}>
+        <button type="button" className="text-button" onClick={onHighlightPath}>
           Show attacker path
         </button>
-        <small className="mode-note">Canvas mode: {canvasMode}</small>
       </div>
       <div className="path-box">
         <h3>Path</h3>

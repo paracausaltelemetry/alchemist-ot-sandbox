@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   CafPrincipleId,
   CafStatus,
-  CanvasMode,
   Finding,
   OtProject,
   ReachabilityResult,
@@ -19,7 +18,7 @@ import { analyzeAttackPath, suggestEntry, suggestTarget } from "../engine/attack
 import { diffAssessments } from "../engine/baselineDiff";
 import { assessProject } from "../engine/scoring";
 import { applyRemediations } from "../engine/remediations";
-import { clearBaseline, getBaseline, setBaseline } from "../lib/projectStore";
+import { clearBaseline, getBaseline, setBaseline } from "../lib/baselineStore";
 import { TAB_GROUPS, TABS, type TabId } from "./analysis/perspectives";
 import { AttackMatrixTab } from "./analysis/AttackMatrixTab";
 import { AttackPathTab } from "./analysis/AttackPathTab";
@@ -41,11 +40,11 @@ interface AnalysisPanelProps {
   reachability: ReachabilityResult;
   sourceId: string;
   targetId: string;
-  canvasMode: CanvasMode;
   activeFindingId: string | null;
   onSourceChange: (id: string) => void;
   onTargetChange: (id: string) => void;
-  onCanvasModeChange: (mode: CanvasMode) => void;
+  /** Draws the analysed path on whatever canvas is showing. */
+  onHighlightPath: () => void;
   onFindingSelect: (finding: Finding) => void;
   onPrintReport: () => void;
   dockHeight: number;
@@ -68,11 +67,10 @@ export function AnalysisPanel({
   reachability,
   sourceId,
   targetId,
-  canvasMode,
   activeFindingId,
   onSourceChange,
   onTargetChange,
-  onCanvasModeChange,
+  onHighlightPath,
   onFindingSelect,
   onPrintReport,
   dockHeight,
@@ -95,12 +93,12 @@ export function AnalysisPanel({
   });
   const [attackEntryOverride, setAttackEntryOverride] = useState<string | null>(null);
   const [attackTargetOverride, setAttackTargetOverride] = useState<string | null>(null);
-  const [baselineProject, setBaselineProject] = useState(() => getBaseline());
+  const [baselineProject, setBaselineProject] = useState(() => getBaseline(project.id));
   const [activeRemediations, setActiveRemediations] = useState<Set<string>>(() => new Set());
 
   // Re-read the baseline when the active assessment changes (e.g. switching projects).
   useEffect(() => {
-    setBaselineProject(getBaseline());
+    setBaselineProject(getBaseline(project.id));
   }, [project.id]);
   const visibleFindings = assessment.findings.filter(
     (finding) => (includeDocs || finding.category !== "documentation") && severityOn[finding.severity]
@@ -125,11 +123,11 @@ export function AnalysisPanel({
   );
 
   const captureBaseline = () => {
-    setBaseline(project);
-    setBaselineProject(getBaseline());
+    setBaseline(project.id, project);
+    setBaselineProject(getBaseline(project.id));
   };
   const dropBaseline = () => {
-    clearBaseline();
+    clearBaseline(project.id);
     setBaselineProject(null);
   };
   const baselineDiff = baselineProject && activeTab === "baseline" ? diffAssessments(baselineProject, project) : null;
@@ -158,7 +156,7 @@ export function AnalysisPanel({
   const showAttackOnCanvas = () => {
     onSourceChange(attackEntryId);
     onTargetChange(attackTargetId);
-    onCanvasModeChange("reachability");
+    onHighlightPath();
   };
   const resizeState = useRef<{ startY: number; startHeight: number } | null>(null);
 
@@ -295,10 +293,9 @@ export function AnalysisPanel({
               reachability={reachability}
               sourceId={sourceId}
               targetId={targetId}
-              canvasMode={canvasMode}
               onSourceChange={onSourceChange}
               onTargetChange={onTargetChange}
-              onCanvasModeChange={onCanvasModeChange}
+              onHighlightPath={onHighlightPath}
             />
           ) : null}
 

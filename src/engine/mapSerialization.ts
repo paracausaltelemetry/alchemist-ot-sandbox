@@ -1,13 +1,15 @@
 import {
   CYBER_MAP_SCHEMA_VERSION,
   type AssetOverride,
+  type ConnectionOverride,
   type CyberMapDocument,
+  type MapGovernance,
   type ImportSource,
   type UserConnection
 } from "../models/cyberMap";
 import { DEFAULT_VANTAGE, IT_ACCESS_LADDER, IT_EVENT_KINDS, type ItEvent, type ItVantage } from "../models/itEngagement";
 import type { ScanTime } from "../import/scanTime";
-import type { Point } from "../models/types";
+import type { CafPrincipleId, CafStatus, Point, RiskTreatment, ZoneId } from "../models/types";
 
 export type CyberMapParse = { ok: true; doc: CyberMapDocument } | { ok: false; errors: string[] };
 
@@ -133,6 +135,82 @@ function readOverrides(value: unknown): Record<string, AssetOverride> {
   return overrides;
 }
 
+/**
+ * Authored metadata over derived subjects, read leniently and by shape only.
+ *
+ * The same rule as `readOverrides`: an override references something the projection mints, so a
+ * dangling key is the ordinary result of removing a source. Rejecting the document over one would
+ * make source removal unrecoverable.
+ */
+function readConnectionOverrides(value: unknown): Record<string, ConnectionOverride> {
+  if (!isObject(value)) {
+    return {};
+  }
+  const overrides: Record<string, ConnectionOverride> = {};
+  for (const [id, override] of Object.entries(value)) {
+    if (isObject(override)) {
+      overrides[id] = override as ConnectionOverride;
+    }
+  }
+  return overrides;
+}
+
+const CAF_STATUSES: CafStatus[] = ["achieved", "partial", "not-achieved", "not-assessed"];
+
+/**
+ * The governance slice, read strictly.
+ *
+ * Stricter than the override layers on purpose. A malformed SL-T or CAF status does not degrade a
+ * report, it changes what the report *claims* — a zone target of `"3"` read as a number, or a
+ * status string nothing recognises, produces a compliance table that looks authoritative and is
+ * wrong. Dropping the unreadable entry and keeping the rest is the honest failure here.
+ */
+function readGovernance(value: unknown): MapGovernance {
+  if (!isObject(value)) {
+    return {};
+  }
+  const governance: MapGovernance = {};
+
+  if (isObject(value.engagement)) {
+    governance.engagement = value.engagement as unknown as MapGovernance["engagement"];
+  }
+
+  if (isObject(value.zoneTargets)) {
+    const targets: Partial<Record<ZoneId, number>> = {};
+    for (const [zone, target] of Object.entries(value.zoneTargets)) {
+      if (typeof target === "number" && Number.isFinite(target)) {
+        targets[zone as ZoneId] = target;
+      }
+    }
+    governance.zoneTargets = targets;
+  }
+
+  if (isObject(value.cafOverrides)) {
+    const overrides: MapGovernance["cafOverrides"] = {};
+    for (const [principle, override] of Object.entries(value.cafOverrides)) {
+      if (isObject(override) && CAF_STATUSES.includes(override.status as CafStatus)) {
+        overrides[principle as CafPrincipleId] = {
+          status: override.status as CafStatus,
+          ...(isString(override.note) ? { note: override.note } : {})
+        };
+      }
+    }
+    governance.cafOverrides = overrides;
+  }
+
+  if (isObject(value.riskTreatments)) {
+    const treatments: Record<string, RiskTreatment> = {};
+    for (const [assetId, treatment] of Object.entries(value.riskTreatments)) {
+      if (isObject(treatment)) {
+        treatments[assetId] = treatment as unknown as RiskTreatment;
+      }
+    }
+    governance.riskTreatments = treatments;
+  }
+
+  return governance;
+}
+
 export function parseCyberMapJson(raw: string): CyberMapParse {
   let value: unknown;
   try {
@@ -190,11 +268,13 @@ export function parseCyberMapJson(raw: string): CyberMapParse {
       })),
       assetOverrides: readOverrides(value.assetOverrides),
       connections: readConnections(value.connections),
+      connectionOverrides: readConnectionOverrides(value.connectionOverrides),
       events: readEvents(value.events),
       positions,
       subnetOverrides: isObject(value.subnetOverrides)
         ? (value.subnetOverrides as Record<string, { name?: string; vlan?: string }>)
-        : {}
+        : {},
+      governance: readGovernance(value.governance)
     }
   };
 }

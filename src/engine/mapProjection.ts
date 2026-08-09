@@ -9,6 +9,7 @@ import type { ItNode } from "../models/itMap";
 import type {
   AssetId,
   AssetOverride,
+  ConnectionOverride,
   CyberMapDocument,
   MapAsset,
   MapConnection,
@@ -116,16 +117,50 @@ function zoneFor(node: ItNode, type: AssetTypeId): ZoneId {
   return derived;
 }
 
+/**
+ * Applies an authored override, dropping keys the author never set.
+ *
+ * `undefined` has to mean "not decided" rather than "decided to be nothing", or a partially filled
+ * override would blank the derived values it does not mention. Shared by both layers because
+ * getting it wrong in one place and right in the other is exactly the kind of asymmetry nobody
+ * finds until a field mysteriously empties.
+ */
+function withOverride<T extends object, O extends object>(base: T, override: O | undefined, protect: string[] = []): T {
+  if (!override) {
+    return base;
+  }
+  return {
+    ...base,
+    ...Object.fromEntries(
+      Object.entries(override).filter(([key, value]) => value !== undefined && !protect.includes(key))
+    )
+  };
+}
+
+/**
+ * Fields no authored layer may write, however the document arrives.
+ *
+ * `provenance` and `evidence` say where a line came from. A decision about a conduit is a judgement
+ * about what it *is*, and no judgement turns an inference into a traceroute. The `ConnectionOverride`
+ * type already omits them, but a saved document is validated by shape and never by key, so a
+ * hand-edited file could otherwise promote its own guess to observed fact — and the evidence grade
+ * is the single thing the rest of the model's trustworthiness rests on.
+ */
+const PROTECTED_CONNECTION_FIELDS = ["provenance", "evidence", "id", "source", "target"];
+
+const PROTECTED_ASSET_FIELDS = ["provenance", "sourceIds", "confidence", "rationale", "id", "identifiers", "ports"];
+
+/** Controls merge rather than replace; everything else follows the shared rule. */
 function applyOverride(asset: MapAsset, override: AssetOverride | undefined): MapAsset {
   if (!override) {
     return asset;
   }
   const { controls, ...rest } = override;
   return {
-    ...asset,
-    ...Object.fromEntries(Object.entries(rest).filter(([, value]) => value !== undefined)),
+    // Same protection as a connection: an override says what an asset *is*, never who saw it.
+    ...withOverride<MapAsset, Omit<AssetOverride, "controls">>(asset, rest, PROTECTED_ASSET_FIELDS),
     controls: { ...asset.controls, ...controls }
-  } as MapAsset;
+  };
 }
 
 
@@ -240,15 +275,24 @@ export function projectMap(doc: CyberMapDocument): ProjectedMap {
    */
   const brokeredBy = (id: string) => typeOf.get(id) === "firewall" || typeOf.get(id) === "jump-host";
 
-  const derived: MapConnection[] = synthesised.links.map((link) => ({
-    ...blankConnection(link.id, link.source, link.target),
-    name: link.label ?? "",
-    control: brokeredBy(link.source) || brokeredBy(link.target) ? "firewalled" : "routed",
-    // A scan shows reachability, never the rule that allowed it.
-    trustBoundary: zoneOf.get(link.source) !== zoneOf.get(link.target),
-    provenance: "imported",
-    evidence: link.evidence
-  }));
+  const derived: MapConnection[] = synthesised.links.map((link) =>
+    // The override lands last, so a documented permit rule beats the `unknown` a scan can only ever
+    // report. `evidence` and `provenance` are deliberately outside the override's reach: those say
+    // where the line came from, and a decision about a conduit does not change who observed it.
+    withOverride<MapConnection, ConnectionOverride>(
+      {
+        ...blankConnection(link.id, link.source, link.target),
+        name: link.label ?? "",
+        control: brokeredBy(link.source) || brokeredBy(link.target) ? "firewalled" : "routed",
+        // A scan shows reachability, never the rule that allowed it.
+        trustBoundary: zoneOf.get(link.source) !== zoneOf.get(link.target),
+        provenance: "imported",
+        evidence: link.evidence
+      },
+      doc.connectionOverrides[link.id],
+      PROTECTED_CONNECTION_FIELDS
+    )
+  );
 
   let dangling = 0;
   const authored: MapConnection[] = [];
@@ -257,19 +301,25 @@ export function projectMap(doc: CyberMapDocument): ProjectedMap {
       dangling += 1;
       continue;
     }
-    authored.push({
-      ...blankConnection(connection.id, connection.source, connection.target),
-      name: connection.label ?? "",
-      protocol: connection.protocol ?? "",
-      port: connection.port ?? "",
-      encrypted: connection.encrypted ?? false,
-      direction: connection.direction ?? "bidirectional",
-      firewallRule: connection.firewallRule ?? "unknown",
-      trustBoundary: zoneOf.get(connection.source) !== zoneOf.get(connection.target),
-      notes: connection.note ?? "",
-      provenance: "authored",
-      evidence: "asserted"
-    });
+    authored.push(
+      withOverride<MapConnection, ConnectionOverride>(
+        {
+          ...blankConnection(connection.id, connection.source, connection.target),
+          name: connection.label ?? "",
+          protocol: connection.protocol ?? "",
+          port: connection.port ?? "",
+          encrypted: connection.encrypted ?? false,
+          direction: connection.direction ?? "bidirectional",
+          firewallRule: connection.firewallRule ?? "unknown",
+          trustBoundary: zoneOf.get(connection.source) !== zoneOf.get(connection.target),
+          notes: connection.note ?? "",
+          provenance: "authored",
+          evidence: "asserted"
+        },
+        doc.connectionOverrides[connection.id],
+        PROTECTED_CONNECTION_FIELDS
+      )
+    );
   }
   if (dangling > 0) {
     // Warned, not rejected. Removing a source takes its assets with it, and a connection that
@@ -318,6 +368,13 @@ export function asOtProject(doc: CyberMapDocument, projected: ProjectedMap): OtP
     updatedAt: doc.updatedAt,
     assets: projected.assets,
     conduits: projected.connections,
-    subnets: projected.subnets
+    subnets: projected.subnets,
+    // The governance slice is authored, never derived, so it passes straight through. Without it
+    // the assessment engines silently fall back to suggested SL-Ts and unoverridden CAF statuses,
+    // and the analysis would report the defaults as though they were the assessor's judgement.
+    ...(doc.governance.engagement ? { engagement: doc.governance.engagement } : {}),
+    ...(doc.governance.zoneTargets ? { zoneTargets: doc.governance.zoneTargets } : {}),
+    ...(doc.governance.cafOverrides ? { cafOverrides: doc.governance.cafOverrides } : {}),
+    ...(doc.governance.riskTreatments ? { riskTreatments: doc.governance.riskTreatments } : {})
   };
 }

@@ -413,6 +413,24 @@
   color: var(--muted);
 }
 
+/* A service the risk table has an opinion about. `--signal` is the brand's one colour and it means
+   danger, which is exactly what "cleartext remote administration" is — this is the reading somebody
+   enumerating a network is here for, and burying it in a uniform grey list would waste the glance.
+   The border carries it, not the text: a red word among black ones is louder than the finding. */
+.map-device-services span[data-risk="high"] {
+  border-color: var(--signal);
+  box-shadow: inset 0 -2px 0 var(--signal);
+}
+
+.map-device-services span[data-risk="medium"] {
+  border-color: var(--signal);
+}
+
+.map-device-portcount b[data-risk="yes"] {
+  color: var(--signal);
+  font-weight: 600;
+}
+
 /* The overflow count is not a service, so it does not get a service's box. */
 .map-device-services span.is-more {
   border-color: transparent;
@@ -720,4 +738,58 @@
 .map-device.is-selected .flow-handle,
 .map-frame.is-wiring .flow-handle {
   opacity: 1;
+}
+
+/* --- Cables -----------------------------------------------------------------
+
+   Sharp lines, in the transit idiom. The shared overlay is tuned for the OT canvas's conduits;
+   on this map it produced a soft, beaded look, from four causes at once:
+
+     - `stroke-width: 5.4` renders across two device pixels at any zoom. A whole number does not.
+     - `stroke-linecap: round` on a 1-unit dash draws a dot, not a dash. Every evidence pattern
+       became a string of beads, which is most of what read as fuzz.
+     - Per-cable `opacity` put a translucent line over a dotted background, so the grid showed
+       through the stroke and softened it.
+     - The animated "packet flow" cut moving gaps into selected lines, which is motion on a diagram
+       that is supposed to hold still while it is read.
+
+   The fix is one weight, butt caps, full opacity, and colour carrying the emphasis instead. */
+.map-frame .conduit-overlay {
+  shape-rendering: geometricPrecision;
+}
+
+.map-frame .conduit-overlay-path {
+  stroke-width: 4;
+  stroke-linecap: butt;
+  stroke-linejoin: round;
+  opacity: 1;
+}
+
+/* Weight, not translucency: an inferred cable is thinner and muted rather than faded, so it stays
+   a crisp line that happens to be quieter. */
+/* Whole numbers only: 2.5 straddles a device-pixel boundary at every zoom the canvas offers. */
+.map-frame .conduit-overlay-edge[data-evidence="inferred"] .conduit-overlay-path,
+.map-frame .conduit-overlay-edge[data-evidence="same-subnet"] .conduit-overlay-path {
+  stroke-width: 3;
+}
+
+/* A halo of page colour, so a cable crossing another reads as passing behind it rather than
+   merging into a junction. Tube maps do the same thing at every crossing that is not a station. */
+.map-frame .conduit-overlay-casing {
+  fill: none;
+  stroke: var(--bg);
+  stroke-width: 9;
+  stroke-linecap: butt;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.map-frame .conduit-overlay-underlay {
+  stroke-width: 11;
+  opacity: 0.22;
+}
+
+/* Motion belongs on something being watched, not on a diagram being read. */
+.map-frame .conduit-overlay-flow {
+  display: none;
 }

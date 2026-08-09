@@ -26,6 +26,16 @@ export interface LinkOverlayItem {
   labelVisible?: boolean;
   /** Small circles marking where the link crosses a trust boundary. */
   markers?: Point[];
+  /**
+   * How the link came to be drawn, exposed to CSS.
+   *
+   * The map styles weight by evidence rather than fading it, so the stylesheet needs to know. The
+   * OT canvas never set it and its rules do not read it.
+   */
+  evidence?: string;
+  /** Draws a background-coloured casing under the stroke, so crossings read as one line passing
+   *  behind another rather than as a junction. */
+  cased?: boolean;
 }
 
 interface LinkOverlayProps {
@@ -57,8 +67,10 @@ export function LinkOverlay({ items, width, height, onSelect }: LinkOverlayProps
           className={`conduit-overlay-edge ${item.labelVisible ? "label-visible" : ""} ${item.selected ? "is-selected" : ""} ${
             item.highlighted ? "is-highlighted" : ""
           }`}
+          data-evidence={item.evidence}
           key={item.id}
         >
+          {item.cased ? <path className="conduit-overlay-casing" d={item.path} /> : null}
           {item.highlighted || item.selected ? (
             <path
               className="conduit-overlay-underlay"

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { EVENT_KIND_LABELS, type ItEvent } from "../models/itEngagement";
+import { ACCESS_LABELS, EVENT_KIND_LABELS, type ItEvent } from "../models/itEngagement";
+import type { MovementView } from "../engine/movement";
 
 /**
  * How this map was assembled, and what was done to the estate.
@@ -12,10 +13,13 @@ import { EVENT_KIND_LABELS, type ItEvent } from "../models/itEngagement";
  * can say why a rule fired.
  */
 
-type BottomTab = "warnings" | "events";
+type BottomTab = "movement" | "warnings" | "events";
 
 interface MapBottomPanelProps {
   warnings: string[];
+  /** What the named foothold reaches. `fromId` is null until the operator names one. */
+  movement: MovementView;
+  footholdName: string | null;
   events: ItEvent[];
   /** An event names an asset id, and `it:10.10.2.30` is not something a reader recognises. */
   nameOf: (assetId: string) => string;
@@ -26,6 +30,8 @@ interface MapBottomPanelProps {
 
 export function MapBottomPanel({
   warnings,
+  movement,
+  footholdName,
   events,
   nameOf,
   onSelect,
@@ -34,9 +40,10 @@ export function MapBottomPanel({
 }: MapBottomPanelProps) {
   // Opens on whatever has something to say. A panel that always opens on an empty tab teaches the
   // reader that it is empty, and they stop looking.
-  const [tab, setTab] = useState<BottomTab>(warnings.length > 0 ? "warnings" : "events");
+  const [tab, setTab] = useState<BottomTab>("movement");
 
   const tabs: Array<{ id: BottomTab; label: string; count: number }> = [
+    { id: "movement", label: "Movement", count: movement.hops.length },
     { id: "warnings", label: "Warnings", count: warnings.length },
     { id: "events", label: "Events", count: events.length }
   ];
@@ -59,6 +66,42 @@ export function MapBottomPanel({
       </div>
 
       <div className="map-bottom-body">
+        {tab === "movement" ? (
+          movement.fromId === null ? (
+            <p className="muted">
+              Pick an asset and choose <strong>Work from here</strong> to see what it reaches.
+            </p>
+          ) : (
+            <>
+              <p className="muted">
+                From <strong>{footholdName}</strong>: {movement.hops.length} reachable,{" "}
+                {movement.unreachable.length} not.
+              </p>
+              <ul className="map-bottom-list">
+                {movement.hops.map((hop) => (
+                  <li key={hop.assetId}>
+                    <strong>{nameOf(hop.assetId)}</strong>
+                    <span className="map-bottom-affected">
+                      <button type="button" onClick={() => onSelect(hop.assetId)}>
+                        {hop.distance === 1 ? "adjacent" : `${hop.distance} hops`}
+                      </button>
+                      {/* The route's weakest link, not the nearest one. An inferred hop is a guess
+                          about addressing, and a list that hid that would be worth acting on right
+                          up until it was wrong. */}
+                      <span className="map-hop-evidence" data-evidence={hop.weakestEvidence}>
+                        {hop.weakestEvidence}
+                      </span>
+                      {hop.access !== "none" ? (
+                        <span className="map-hop-access">{ACCESS_LABELS[hop.access]}</span>
+                      ) : null}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )
+        ) : null}
+
         {tab === "warnings" ? (
           warnings.length === 0 ? (
             <p className="muted">Nothing to report about how this map was assembled.</p>

@@ -4,6 +4,7 @@ import { parseNmapNormal } from "../import/nmapText";
 import { SAMPLE_SCAN } from "../data/sampleScan";
 import { asOtProject, projectMap } from "../engine/mapProjection";
 import { buildOverlayContext, type OverlayId } from "../engine/overlays";
+import type { MapGrouping } from "../data/mapLayout";
 import { applyOverrideDiff, diffToOverrides } from "../engine/mapOverrides";
 import { findReachability } from "../engine/reachability";
 import {
@@ -64,7 +65,10 @@ export function MapWorkspace({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showInferred, setShowInferred] = useState(true);
   const [fitSignal, setFitSignal] = useState(0);
-  const [overlayId, setOverlayId] = useState<OverlayId>("purdue");
+  const [overlayId, setOverlayId] = useState<OverlayId>("assetClass");
+  const [grouping, setGrouping] = useState<MapGrouping>("subnet");
+  /** The asset the operator is working from. Nothing defaults it — see the movement overlay. */
+  const [footholdId, setFootholdId] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
   const [connectMode, setConnectMode] = useState(false);
@@ -83,7 +87,10 @@ export function MapWorkspace({
   const project = useMemo(() => asOtProject(doc, map), [doc, map]);
   // Built once per document, not per overlay switch: three overlays want assessment output and two
   // want a graph walk, so rebuilding on click would put a full `assessProject` on every change.
-  const overlayContext = useMemo(() => buildOverlayContext(map, project), [map, project]);
+  const overlayContext = useMemo(
+    () => buildOverlayContext(map, project, footholdId, doc.events),
+    [doc.events, footholdId, map, project]
+  );
 
   const commit = useCallback((next: CyberMapDocument) => {
     setDoc(next);
@@ -367,6 +374,8 @@ export function MapWorkspace({
               fitSignal={fitSignal}
               showInferred={showInferred}
               overlayId={overlayId}
+              grouping={grouping}
+              onGroupingChange={setGrouping}
               overlayContext={overlayContext}
               onOverlayChange={setOverlayId}
               onSelect={selectOnCanvas}
@@ -389,6 +398,15 @@ export function MapWorkspace({
           connection={selectedConnection}
           findings={selectedFindings}
           nameOf={nameOf}
+          foothold={footholdId}
+          onSetFoothold={(id) => {
+            setFootholdId(id);
+            // Switching to the movement overlay on the same click, because naming a foothold and
+            // then not seeing it is a step nobody would choose to take separately.
+            if (id) {
+              setOverlayId("movement");
+            }
+          }}
           onOverride={override}
           onClearOverride={clearOverride}
           onConnectionOverride={overrideConnection}
@@ -410,6 +428,8 @@ export function MapWorkspace({
           onSelect={setSelectedId}
           onRecordEvent={() => setEventDraft({})}
           onDeleteEvent={deleteEvent}
+          movement={overlayContext.movement}
+          footholdName={footholdId ? nameOf(footholdId) : null}
         />
 
         {/* The twelve analysis tabs, over the converged estate rather than a separate OT document.

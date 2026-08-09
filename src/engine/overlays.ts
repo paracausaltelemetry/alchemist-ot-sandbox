@@ -4,6 +4,8 @@ import { exposureFromUntrusted } from "./reachability";
 import { assessProject } from "./scoring";
 import type { MapAsset, MapConnection, ProjectedMap } from "../models/cyberMap";
 import type { Finding, OtProject, SecurityAssessment, Severity } from "../models/types";
+import { movementFrom, type MovementView } from "./movement";
+import type { ItEvent } from "../models/itEngagement";
 import type { SecurityLevelAssessment } from "./securityLevels";
 
 /**
@@ -40,7 +42,8 @@ export type OverlayId =
   | "attack"
   | "sl62443"
   | "os"
-  | "assetClass";
+  | "assetClass"
+  | "movement";
 
 /**
  * How a categorical bucket is drawn. Repeatable fills rather than hues, so a reader who cannot
@@ -61,6 +64,8 @@ export interface OverlayBucket {
 
 export interface OverlayContext {
   map: ProjectedMap;
+  /** What the selected foothold reaches. Empty until an operator picks one. */
+  movement: MovementView;
   project: OtProject;
   assessment: SecurityAssessment;
   securityLevels: SecurityLevelAssessment;
@@ -336,6 +341,34 @@ export const overlays: Overlay[] = [
     }
   },
   {
+    id: "movement",
+    label: "Movement from here",
+    description: "What the selected asset can reach",
+    appliesTo: "asset",
+    // No signal band. Distance from a foothold is not danger, and painting the next hop red would
+    // be the map telling an operator where to go.
+    buckets: ramp([
+      ["unreachable", "Not reachable from here"],
+      ["far", "3 or more hops"],
+      ["near", "2 hops"],
+      ["adjacent", "Adjacent"],
+      ["foothold", "Where you are"]
+    ]),
+    bucketFor(subject, context) {
+      if (!isAsset(subject) || !context.movement.fromId) {
+        return null;
+      }
+      if (subject.id === context.movement.fromId) {
+        return byId(this.buckets, "foothold");
+      }
+      const hop = context.movement.hops.find((entry) => entry.assetId === subject.id);
+      if (!hop) {
+        return byId(this.buckets, "unreachable");
+      }
+      return byId(this.buckets, hop.distance === 1 ? "adjacent" : hop.distance === 2 ? "near" : "far");
+    }
+  },
+  {
     id: "assetClass",
     label: "Asset type",
     description: "What each asset does",
@@ -372,7 +405,13 @@ export function getOverlay(id: OverlayId): Overlay {
  * graph walk, and recomputing those per overlay switch would put a full `assessProject` on the
  * click. The whole context is derived, so it is rebuilt whenever the map is and cached nowhere.
  */
-export function buildOverlayContext(map: ProjectedMap, project: OtProject): OverlayContext {
+export function buildOverlayContext(
+  map: ProjectedMap,
+  project: OtProject,
+  /** The asset the operator is working from, if they have named one. */
+  footholdId: string | null = null,
+  events: ItEvent[] = []
+): OverlayContext {
   const assessment = assessProject(project);
   const findingsByAsset = new Map<string, Finding[]>();
   for (const finding of assessment.findings) {
@@ -383,6 +422,7 @@ export function buildOverlayContext(map: ProjectedMap, project: OtProject): Over
 
   return {
     map,
+    movement: movementFrom(map, footholdId, events),
     project,
     assessment,
     securityLevels: assessSecurityLevels(project, project.zoneTargets),

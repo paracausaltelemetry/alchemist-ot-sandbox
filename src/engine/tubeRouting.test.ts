@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { routeCables, type CableRequest } from "./tubeRouting";
+import { LANE_PITCH, routeCables, type CableRequest } from "./tubeRouting";
 import type { MapEnclosure } from "../data/mapLayout";
 
 const box: MapEnclosure = {
@@ -191,6 +191,42 @@ describe("routing in the transit idiom", () => {
     for (const y of ys) {
       expect(Math.abs(y - 100)).toBeLessThan(25);
     }
+  });
+
+  it("bundles per enclosure rather than across every box at the same height", () => {
+    // Two boxes side by side share a trunk height by construction. Keying the lane group on the
+    // height alone interleaved both sets of cables across the full width of both, so each bundle
+    // was spread twice as wide as it needed to be and neither read as a bundle.
+    const right: MapEnclosure = { ...box, id: "subnet:10.1.0.0/24", x: 900 };
+    const routes = routeCables(
+      [
+        cable("a1", [100, 100], [40, 460], box.id),
+        cable("a2", [100, 100], [200, 460], box.id),
+        cable("b1", [1000, 100], [940, 460], right.id),
+        cable("b2", [1000, 100], [1100, 460], right.id)
+      ],
+      [box, right]
+    );
+
+    const at = (id: string) => trunkY(routes.find((route) => route.id === id)!.path);
+    // Each pair straddles the trunk by half a pitch. Interleaved, the four would have spread over
+    // three pitches instead.
+    expect(Math.abs(at("a1") - at("a2"))).toBeCloseTo(LANE_PITCH, 5);
+    expect(Math.abs(at("b1") - at("b2"))).toBeCloseTo(LANE_PITCH, 5);
+    expect(new Set([at("a1"), at("b1")]).size).toBe(1);
+  });
+
+  it("keeps a bundle's lanes stable however the caller orders the cables", () => {
+    const forwards = routeCables(
+      [cable("a", [100, 100], [40, 460], box.id), cable("b", [100, 100], [200, 460], box.id)],
+      [box]
+    );
+    const backwards = routeCables(
+      [cable("b", [100, 100], [200, 460], box.id), cable("a", [100, 100], [40, 460], box.id)],
+      [box]
+    );
+
+    expect(backwards.find((r) => r.id === "a")!.path).toBe(forwards.find((r) => r.id === "a")!.path);
   });
 
   it("routes nothing into nothing without throwing", () => {

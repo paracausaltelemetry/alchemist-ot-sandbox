@@ -17,15 +17,17 @@ import {
   bandAssetY,
   bandAt,
   layoutMap,
+  onSpine,
   type MapGrouping
 } from "../data/mapLayout";
 import { symbolCentre } from "./canvas/cable";
 import { routeCables, type CableRequest } from "../engine/tubeRouting";
+import { backboneOf } from "../engine/backbone";
 import { isScanEvidence, itKindLabel, type ItLinkEvidence } from "../models/itMap";
 import { ACCESS_LABELS, type ItAccessState } from "../models/itEngagement";
 import { bucketsFor, overlays, type Overlay, type OverlayBucket, type OverlayContext, type OverlayId } from "../engine/overlays";
 import type { ImportedPort } from "../import/types";
-import type { MapAsset, MapConnection, ProjectedMap } from "../models/cyberMap";
+import type { MapAsset, ProjectedMap } from "../models/cyberMap";
 import type { Point } from "../models/types";
 import { AssetGlyph } from "./AssetGlyph";
 import { MapLegend } from "./MapLegend";
@@ -66,6 +68,14 @@ interface MapCanvasProps {
   /** Prints the top open services under each symbol instead of a bare count. */
   showServices: boolean;
   onToggleServices: () => void;
+  /**
+   * Draws a cable per connection instead of one per segment pair.
+   *
+   * Off by default. A scan of a /24 gives a cable per host, and all of them together say one thing
+   * — everything in a subnet reaches its gateway — as many times as there are hosts.
+   */
+  showEveryLink: boolean;
+  onToggleEveryLink: () => void;
   /** Which overlay recolours the map. There is no "no overlay" — asset type is the plain read. */
   overlayId: OverlayId;
   /**
@@ -266,6 +276,8 @@ function MapCanvasInner({
   showInferred,
   showServices,
   onToggleServices,
+  showEveryLink,
+  onToggleEveryLink,
   overlayId,
   grouping,
   onGroupingChange,
@@ -388,48 +400,87 @@ function MapCanvasInner({
   );
 
   const linkItems = useMemo<LinkOverlayItem[]>(() => {
-    const enclosureOf = new Map(map.assets.map((asset) => [asset.id, asset.subnetId] as const));
+    // Agreeing with the layout about what is on the spine, not just with the addressing: a router
+    // is addressed on the segment it serves, and treating that as membership folds it into its own
+    // box and deletes the cables it exists to carry.
+    const subnetOf = new Map(
+      map.assets.map((asset) => [asset.id, onSpine(asset.deviceKind) ? undefined : asset.subnetId] as const)
+    );
+    const boxes = new Map(enclosures.map((box) => [box.id, box] as const));
 
-    const drawn = map.connections.filter(
+    const visible = map.connections.filter(
       (connection) =>
         (showInferred || connection.evidence !== "inferred") &&
         livePositions.has(connection.source) &&
         livePositions.has(connection.target)
     );
 
+    /**
+     * A cable's endpoint: the symbol for a device on the spine, the top edge of the box for
+     * anything inside a segment.
+     *
+     * Terminating at the box rather than at the host is the point of folding. It also puts the
+     * cable's end on the border instead of running it through the enclosure to reach a device in
+     * the middle, which is what had lines crossing the subnet labels.
+     */
+    const anchorFor = (end: string): { at: Point; enclosureId?: string } | null => {
+      if (end.startsWith("subnet:")) {
+        const box = boxes.get(end.slice("subnet:".length));
+        return box ? { at: { x: box.x + box.width / 2, y: box.y }, enclosureId: box.id } : null;
+      }
+      const at = livePositions.get(end);
+      return at ? { at: symbolCentre(at), enclosureId: subnetOf.get(end) } : null;
+    };
+
+    // Folded to segment level unless the operator asked for every link. A cable per host repeats
+    // one fact — everything in a subnet reaches its gateway — as many times as there are hosts.
+    const cables = showEveryLink
+      ? visible.map((connection) => ({
+          id: connection.id,
+          from: connection.source,
+          to: connection.target,
+          members: [connection],
+          evidence: connection.evidence,
+          trustBoundary: connection.trustBoundary
+        }))
+      : backboneOf(visible, (assetId) => subnetOf.get(assetId) ?? undefined);
+
     // Routed as a set, not one at a time: lanes exist because cables know about each other.
-    const requests: CableRequest[] = drawn.map((connection) => ({
-      id: connection.id,
-      from: { at: symbolCentre(livePositions.get(connection.source)!), enclosureId: enclosureOf.get(connection.source) },
-      to: { at: symbolCentre(livePositions.get(connection.target)!), enclosureId: enclosureOf.get(connection.target) }
-    }));
+    const requests: CableRequest[] = cables.flatMap((cable) => {
+      const from = anchorFor(cable.from);
+      const to = anchorFor(cable.to);
+      return from && to ? [{ id: cable.id, from, to }] : [];
+    });
     const routes = new Map(routeCables(requests, enclosures).map((cable) => [cable.id, cable] as const));
 
-    return drawn.flatMap((connection: MapConnection) => {
-      const route = routes.get(connection.id);
+    return cables.flatMap((cable) => {
+      const route = routes.get(cable.id);
       if (!route) {
         return [];
       }
+      const connection = cable.members[0];
 
-      const observed = isScanEvidence(connection.evidence);
-      const asserted = connection.evidence === "asserted" || connection.evidence === "attack";
-      const bucket = connectionBuckets.get(connection.id) ?? null;
+      const observed = isScanEvidence(cable.evidence);
+      const asserted = cable.evidence === "asserted" || cable.evidence === "attack";
+      const bucket = connectionBuckets.get(cable.id) ?? null;
 
       // Dash stays evidence and only evidence. An overlay says what a line *means*; the dash says
       // where it came from, and letting an overlay take that channel would make a scanned link and
       // a guessed one indistinguishable the moment anyone changed overlay.
       return [
         {
-          id: connection.id,
+          id: cable.id,
           path: route.path,
-          evidence: connection.evidence,
+          evidence: cable.evidence,
           // Cased so a crossing reads as one cable passing behind another. Attack edges are not: an
           // action is drawn over the network it was taken against, not tucked behind it.
-          cased: connection.evidence !== "attack",
+          cased: cable.evidence !== "attack",
           labelX: route.labelX,
           labelY: route.labelY,
-          label: connection.name,
-          labelVisible: observed || asserted,
+          // What the fold stands for. One link keeps its own name; several say how many, because
+          // "3 links" is the fact that would otherwise be lost along with the extra lines.
+          label: cable.members.length > 1 ? `${cable.members.length} links` : connection.name,
+          labelVisible: cable.members.length > 1 || observed || asserted,
           /**
            * Emphasis by ink, never by opacity.
            *
@@ -449,14 +500,23 @@ function MapCanvasInner({
           markerEnd: true,
           dash: EVIDENCE_DASH[connection.evidence],
           strokeWidth: asserted ? ASSERTED_STROKE_WIDTH : undefined,
-          selected: selectedId === connection.id,
+          selected: cable.members.some((member) => member.id === selectedId),
           // A conduit that leaves its zone is the thing an assessment is most often about, so the
           // canvas says so without being asked to switch to a boundary view.
-          highlighted: connection.trustBoundary
+          highlighted: cable.trustBoundary
         }
       ];
     });
-  }, [connectionBuckets, enclosures, livePositions, map.assets, map.connections, selectedId, showInferred]);
+  }, [
+    connectionBuckets,
+    enclosures,
+    livePositions,
+    map.assets,
+    map.connections,
+    selectedId,
+    showEveryLink,
+    showInferred
+  ]);
 
   /**
    * The zone a drop landed in, and only when the bands are Purdue.
@@ -605,6 +665,15 @@ function MapCanvasInner({
                 ))}
               </select>
             </div>
+            <button
+              type="button"
+              className={`text-button compact${showEveryLink ? " is-active" : ""}`}
+              aria-pressed={showEveryLink}
+              title="Draw a cable per connection instead of one per segment"
+              onClick={onToggleEveryLink}
+            >
+              Every link
+            </button>
             <button
               type="button"
               className={`text-button compact${showServices ? " is-active" : ""}`}

@@ -28,7 +28,7 @@ import type { Point } from "../models/types";
  */
 
 /** Pitch between cables sharing a corridor. Wide enough to read at the default zoom. */
-const LANE_PITCH = 7;
+export const LANE_PITCH = 7;
 
 /** How far above an enclosure its trunk line runs. */
 const TRUNK_OFFSET = 22;
@@ -66,13 +66,24 @@ const isHorizontal = (a: Point, b: Point) => Math.abs(a.y - b.y) < 0.5;
 const isVertical = (a: Point, b: Point) => Math.abs(a.x - b.x) < 0.5;
 
 /**
- * The corridor a cable occupies, as a key.
+ * The stretch of line a cable occupies: which axis, where on it, and how far along it runs.
  *
- * Two cables share a lane group when they run along the same trunk — the same horizontal line, or
- * the same vertical drop. Rounded to the pitch so that two routes computed a fraction apart still
- * count as the same corridor; without the rounding, bundling silently never happens.
+ * The span is the part that took a second attempt. Keying on the line alone put every cable at a
+ * given height into one lane group, so two subnet enclosures sitting side by side — which share a
+ * trunk height by construction — had their cables interleaved across the full width of both. Each
+ * box's bundle was spread twice as wide as it needed to be and neither read as a bundle.
+ *
+ * Two cables share a corridor only if their runs actually overlap.
  */
-function corridorOf(points: Point[]): string | null {
+interface Corridor {
+  axis: "h" | "v";
+  /** The line itself, rounded to the pitch so routes a fraction apart still count as the same one. */
+  line: number;
+  from: number;
+  to: number;
+}
+
+function corridorOf(points: Point[]): Corridor | null {
   // A straight run is all corridor. Three cables between four devices on one spine lie exactly on
   // top of each other otherwise, which is the Circle and Hammersmith & City problem in its purest
   // form: the picture shows one line where there are three.
@@ -82,12 +93,43 @@ function corridorOf(points: Point[]): string | null {
   }
   const [a, b] = trunk;
   if (isHorizontal(a, b)) {
-    return `h:${Math.round(a.y / LANE_PITCH)}`;
+    return { axis: "h", line: Math.round(a.y / LANE_PITCH), from: Math.min(a.x, b.x), to: Math.max(a.x, b.x) };
   }
   if (isVertical(a, b)) {
-    return `v:${Math.round(a.x / LANE_PITCH)}`;
+    return { axis: "v", line: Math.round(a.x / LANE_PITCH), from: Math.min(a.y, b.y), to: Math.max(a.y, b.y) };
   }
   return null;
+}
+
+/**
+ * Cables on one line, clustered into bundles that genuinely overlap.
+ *
+ * A sweep in run order: each cable either extends the open bundle or starts a new one. Ordering is
+ * by start then by id, so a cable's lane never depends on the order the caller happened to hand
+ * them over — otherwise the diagram reshuffles on every import.
+ */
+function bundlesOn(members: Array<{ id: string; corridor: Corridor }>): string[][] {
+  const ordered = [...members].sort((a, b) => a.corridor.from - b.corridor.from || a.id.localeCompare(b.id));
+  const bundles: string[][] = [];
+  let open: string[] = [];
+  let reach = -Infinity;
+
+  for (const member of ordered) {
+    if (open.length > 0 && member.corridor.from <= reach) {
+      open.push(member.id);
+      reach = Math.max(reach, member.corridor.to);
+      continue;
+    }
+    if (open.length > 0) {
+      bundles.push(open);
+    }
+    open = [member.id];
+    reach = member.corridor.to;
+  }
+  if (open.length > 0) {
+    bundles.push(open);
+  }
+  return bundles;
 }
 
 /**
@@ -244,22 +286,28 @@ export function routeCables(requests: CableRequest[], enclosures: MapEnclosure[]
   const drafted = requests.map((request) => ({ request, points: polylineFor(request, boxes) }));
 
   // --- Lanes ---------------------------------------------------------------
-  // Grouped by corridor, then ordered within the group so the assignment is stable: a cable must
-  // not change lane because an unrelated one was added, or the whole diagram reshuffles on import.
-  const byCorridor = new Map<string, string[]>();
+  // Cables on the same line, clustered into bundles whose runs actually overlap, then laid out
+  // within each bundle.
+  const onLine = new Map<string, Array<{ id: string; corridor: Corridor }>>();
   for (const { request, points } of drafted) {
     const corridor = corridorOf(points);
     if (corridor) {
-      byCorridor.set(corridor, [...(byCorridor.get(corridor) ?? []), request.id]);
+      const key = `${corridor.axis}:${corridor.line}`;
+      onLine.set(key, [...(onLine.get(key) ?? []), { id: request.id, corridor }]);
     }
   }
-  for (const [corridor, ids] of byCorridor) {
-    byCorridor.set(corridor, [...ids].sort());
+
+  const bundleOf = new Map<string, string[]>();
+  for (const members of onLine.values()) {
+    for (const bundle of bundlesOn(members)) {
+      for (const id of bundle) {
+        bundleOf.set(id, bundle);
+      }
+    }
   }
 
   return drafted.map(({ request, points }) => {
-    const corridor = corridorOf(points);
-    const lane = corridor ? byCorridor.get(corridor)! : [];
+    const lane = bundleOf.get(request.id) ?? [];
     const index = lane.indexOf(request.id);
     // Centred on the corridor, so a single cable sits exactly where it would have without lanes and
     // adding a second pushes both apart rather than shunting the first sideways.

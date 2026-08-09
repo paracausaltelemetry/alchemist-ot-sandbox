@@ -134,21 +134,20 @@
   margin-bottom: var(--space-2);
 }
 
-/* Equal columns rather than a flex row. "Load sample" is twice the width of "Import", so a flex
-   row wrapped it onto two lines and left the group ragged against everything above it. */
+/* Sized to their labels, wrapping when they must.
+   Equal thirds were worse than the flex row they replaced: "Load sample" needs 71px and the third
+   of a 240px sidebar it was given is 63, so it overflowed its cell and sat on top of "Report".
+   A button whose text does not fit is not a narrower button, it is a broken one. */
 .map-sidebar-actions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
   margin-top: var(--space-2);
 }
 
 .map-sidebar-actions > * {
-  display: grid;
+  display: inline-grid;
   place-items: center;
-  min-width: 0;
-  padding-inline: 0;
-  text-align: center;
   white-space: nowrap;
 }
 

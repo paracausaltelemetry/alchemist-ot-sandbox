@@ -423,10 +423,10 @@ function MapCanvasInner({
      * cable's end on the border instead of running it through the enclosure to reach a device in
      * the middle, which is what had lines crossing the subnet labels.
      */
-    const anchorFor = (end: string): { at: Point; enclosureId?: string } | null => {
+    const anchorFor = (end: string): { at: Point; enclosureId?: string; onBorder?: boolean } | null => {
       if (end.startsWith("subnet:")) {
         const box = boxes.get(end.slice("subnet:".length));
-        return box ? { at: { x: box.x + box.width / 2, y: box.y }, enclosureId: box.id } : null;
+        return box ? { at: { x: box.x + box.width / 2, y: box.y }, enclosureId: box.id, onBorder: true } : null;
       }
       const at = livePositions.get(end);
       return at ? { at: symbolCentre(at), enclosureId: subnetOf.get(end) } : null;

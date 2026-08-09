@@ -24,6 +24,8 @@ interface MapSidebarProps {
   onLoadSample: () => void;
   onImportFile: (file: File) => void;
   onRemoveSource: (sourceId: string) => void;
+  /** Absent until something has been imported — an engagement report over nothing is not a document. */
+  onExportReport?: () => void;
 }
 
 export function MapSidebar({
@@ -36,7 +38,8 @@ export function MapSidebar({
   onToggleInferred,
   onLoadSample,
   onImportFile,
-  onRemoveSource
+  onRemoveSource,
+  onExportReport
 }: MapSidebarProps) {
   const [filter, setFilter] = useState("");
 
@@ -102,6 +105,11 @@ export function MapSidebar({
           <button type="button" className="text-button compact" onClick={onLoadSample}>
             Load sample
           </button>
+          {onExportReport ? (
+            <button type="button" className="text-button compact" onClick={onExportReport} title="Download the engagement record as Markdown">
+              Report
+            </button>
+          ) : null}
         </div>
       </section>
 

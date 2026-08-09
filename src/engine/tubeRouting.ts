@@ -43,10 +43,18 @@ const TRUNK_OFFSET = 22;
 const CORNER = 10;
 
 export interface CableEnd {
-  /** Centre of the device's symbol. */
+  /** Centre of the device's symbol, or a point on an enclosure's border. */
   at: Point;
   /** The enclosure it sits in, when it sits in one. */
   enclosureId?: string;
+  /**
+   * True when `at` is a point on an enclosure's border rather than a symbol's centre.
+   *
+   * It decides whether the end gets trimmed. A symbol needs the cable pulled back to its plate so
+   * the line stops beside the icon; a border is already the exact place the cable should meet, and
+   * trimming it left every backbone cable floating 29 units short of the box it was drawn to.
+   */
+  onBorder?: boolean;
 }
 
 export interface CableRequest {
@@ -252,18 +260,22 @@ function toPath(points: Point[]): string {
 }
 
 /**
- * Pulls both ends back to the edge of their symbol plate.
+ * Pulls a symbol end back to the edge of its plate, and leaves a border end where it is.
  *
  * Done after lanes rather than before, because the lane offset changes the direction the cable
  * leaves by — trim first and the endpoint sits at the wrong point on the plate.
  */
-function trimEnds(points: Point[]): Point[] {
+function trimEnds(points: Point[], request: CableRequest): Point[] {
   if (points.length < 2) {
     return points;
   }
   const next = [...points];
-  next[0] = trimToPlate(next[0], next[1]);
-  next[next.length - 1] = trimToPlate(next[next.length - 1], next[next.length - 2]);
+  if (!request.from.onBorder) {
+    next[0] = trimToPlate(next[0], next[1]);
+  }
+  if (!request.to.onBorder) {
+    next[next.length - 1] = trimToPlate(next[next.length - 1], next[next.length - 2]);
+  }
   return next;
 }
 
@@ -312,7 +324,7 @@ export function routeCables(requests: CableRequest[], enclosures: MapEnclosure[]
     // Centred on the corridor, so a single cable sits exactly where it would have without lanes and
     // adding a second pushes both apart rather than shunting the first sideways.
     const offset = index < 0 ? 0 : (index - (lane.length - 1) / 2) * LANE_PITCH;
-    const laid = trimEnds(toLane(points, offset));
+    const laid = trimEnds(toLane(points, offset), request);
 
     const label = labelAt(laid);
     return { id: request.id, path: toPath(laid), labelX: label.x, labelY: label.y };

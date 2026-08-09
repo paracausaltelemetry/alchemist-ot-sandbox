@@ -288,6 +288,23 @@
   cursor: pointer;
 }
 
+/* --- Stacking ---------------------------------------------------------------
+
+   Devices above cables, always.
+
+   React Flow renders the viewport portal — where the enclosures and the cable overlay live — as the
+   last child of the viewport, so it paints over the node layer. Every cable ran across the symbols
+   it connected, and on a map with a trunk passing a row of devices the icons were the thing being
+   obscured by their own wiring. A diagram is read device-first: the cables say how they relate, and
+   they cannot do that while covering the things being related. */
+.map-frame .react-flow__viewport-portal {
+  z-index: 0;
+}
+
+.map-frame .react-flow__nodes {
+  z-index: 1;
+}
+
 /* --- Devices ---------------------------------------------------------------
 
    A device is a symbol with a label under it, the way a network diagram draws one — not a form.
@@ -309,6 +326,8 @@
 
 /* The symbol is the object; the plate is what makes it a thing on a diagram rather than an icon
    floating on a grid. */
+/* Fully opaque, not a wash: a cable running behind the plate must be hidden by it rather than
+   showing through, or the symbol reads as being drawn on top of a line instead of terminating it. */
 .map-device-symbol {
   position: relative;
   display: grid;
@@ -316,8 +335,17 @@
   width: 3.1rem;
   height: 3.1rem;
   border: 1px solid var(--line-strong);
-  background: var(--surface);
+  background: var(--bg);
   color: var(--text);
+}
+
+/* The label sits on the page, not on the wiring. A cable passing under a hostname makes it
+   unreadable, and the hostname is the field a reader is actually scanning for. */
+.map-device-name,
+.map-device-addr,
+.map-device-portcount {
+  padding: 0 0.15rem;
+  background: var(--bg);
 }
 
 .map-device-name {

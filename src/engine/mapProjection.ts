@@ -213,7 +213,9 @@ export function projectMap(doc: CyberMapDocument): ProjectedMap {
     const host = hostFor(node);
     const type = assetTypeFor(node, host);
     const zone = zoneFor(node, type);
-    const base = createAsset(type, doc.positions[node.id] ?? node.position, zone);
+    // The projection has no arrangement, so it keeps the synthesis position. Where a device is
+    // actually drawn is the canvas's business and depends on which arrangement is showing.
+    const base = createAsset(type, node.position, zone);
     const protocols = protocolsForHost(host);
 
     const asset: MapAsset = {

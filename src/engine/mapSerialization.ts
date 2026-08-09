@@ -244,13 +244,29 @@ export function parseCyberMapJson(raw: string): CyberMapParse {
     return { ok: false, errors };
   }
 
-  const positions: Record<string, Point> = {};
-  if (isObject(value.positions)) {
-    for (const [id, point] of Object.entries(value.positions)) {
-      if (isPoint(point)) {
-        positions[id] = { x: point.x, y: point.y };
+  const readPoints = (from: unknown): Record<string, Point> => {
+    const points: Record<string, Point> = {};
+    if (isObject(from)) {
+      for (const [id, point] of Object.entries(from)) {
+        if (isPoint(point)) {
+          points[id] = { x: point.x, y: point.y };
+        }
       }
     }
+    return points;
+  };
+
+  const layouts: Record<string, Record<string, Point>> = {};
+  if (isObject(value.layouts)) {
+    for (const [arrangement, points] of Object.entries(value.layouts)) {
+      layouts[arrangement] = readPoints(points);
+    }
+  }
+  // Documents saved before positions were kept per arrangement. What they hold was dragged in the
+  // Purdue lanes, which is the only arrangement that existed, so that is where it goes — putting it
+  // in the topology slot instead would strand every dragged device outside its subnet box.
+  if (isObject(value.positions) && !isObject(value.layouts)) {
+    layouts.purdue = readPoints(value.positions);
   }
 
   return {
@@ -270,7 +286,7 @@ export function parseCyberMapJson(raw: string): CyberMapParse {
       connections: readConnections(value.connections),
       connectionOverrides: readConnectionOverrides(value.connectionOverrides),
       events: readEvents(value.events),
-      positions,
+      layouts,
       subnetOverrides: isObject(value.subnetOverrides)
         ? (value.subnetOverrides as Record<string, { name?: string; vlan?: string }>)
         : {},

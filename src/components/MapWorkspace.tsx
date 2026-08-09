@@ -164,14 +164,31 @@ export function MapWorkspace({
   );
 
   const placeAsset = useCallback(
-    (id: string, position: Point, zone: AssetOverride["zone"]) =>
+    (id: string, position: Point, zone?: AssetOverride["zone"]) =>
       commit({
         ...doc,
-        positions: { ...doc.positions, [id]: position },
-        assetOverrides: { ...doc.assetOverrides, [id]: { ...doc.assetOverrides[id], zone } }
+        // Recorded against the arrangement it was dragged in. The same device has a sensible place
+        // in a topology diagram and a different sensible place in a Purdue lane, and one slot
+        // cannot hold both without one of them being wrong.
+        layouts: { ...doc.layouts, [grouping]: { ...doc.layouts[grouping], [id]: position } },
+        // Only the Purdue arrangement's bands mean a zone; a topology drag says nothing about one.
+        ...(zone ? { assetOverrides: { ...doc.assetOverrides, [id]: { ...doc.assetOverrides[id], zone } } } : {})
       }),
-    [commit, doc]
+    [commit, doc, grouping]
   );
+
+  /**
+   * Throws away what was dragged in this arrangement and lets the layout decide again.
+   *
+   * The recovery path, and the reason it is needed: a device dragged somewhere that later stops
+   * making sense — because a re-import moved its subnet, or because the arrangement changed under
+   * it — is otherwise stuck there with no way back.
+   */
+  const rearrange = useCallback(() => {
+    const { [grouping]: _dropped, ...rest } = doc.layouts;
+    commit({ ...doc, layouts: rest });
+    setFitSignal((signal) => signal + 1);
+  }, [commit, doc, grouping]);
 
   const override = useCallback(
     (assetId: string, patch: AssetOverride) =>
@@ -371,7 +388,8 @@ export function MapWorkspace({
             <MapCanvas
               map={map}
               selectedId={selectedId}
-              positions={doc.positions}
+              positions={doc.layouts[grouping] ?? {}}
+              onRearrange={rearrange}
               fitSignal={fitSignal}
               showInferred={showInferred}
               showServices={showServices}

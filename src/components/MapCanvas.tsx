@@ -53,8 +53,10 @@ import { useFlowNodes } from "./canvas/useFlowNodes";
 interface MapCanvasProps {
   map: ProjectedMap;
   selectedId: string | null;
-  /** Only what a person dragged. Everything else is derived every load. */
+  /** Only what a person dragged, in this arrangement. Everything else is derived every load. */
   positions: Record<string, Point>;
+  /** Discards this arrangement's dragged positions and lets the layout decide again. */
+  onRearrange: () => void;
   fitSignal: number;
   /** Hides the links inferred from addressing, leaving what a scan actually observed. */
   showInferred: boolean;
@@ -201,6 +203,7 @@ function MapCanvasInner({
   map,
   selectedId,
   positions,
+  onRearrange,
   fitSignal,
   showInferred,
   showServices,
@@ -456,7 +459,7 @@ function MapCanvasInner({
       fitSignal={fitSignal}
       minimapNodeColor={minimapNodeColor}
       sectionLabel="Estate map"
-      frameClassName={`map-frame ${isDragging ? "is-dragging" : ""}`}
+      frameClassName={`map-frame ${isDragging ? "is-dragging" : ""}${connectMode ? " is-wiring" : ""}`}
       toolbar={
         <div className="canvas-titlebar">
           <div>
@@ -542,6 +545,14 @@ function MapCanvasInner({
               onClick={onToggleConnect}
             >
               Connect
+            </button>
+            <button
+              type="button"
+              className="text-button compact"
+              title="Discard what you dragged in this layout and let it arrange itself"
+              onClick={onRearrange}
+            >
+              Arrange
             </button>
             <button
               type="button"

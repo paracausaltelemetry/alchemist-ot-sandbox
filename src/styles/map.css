@@ -644,3 +644,30 @@
 .map-hop-evidence[data-evidence="same-subnet"] {
   border-style: dotted;
 }
+
+/* Connection handles belong on the symbol, not on the node's edge.
+   React Flow places them against the node box, which here is 128px wide around a ~50px plate — so
+   they floated in the whitespace either side, reading as debris on the diagram rather than as
+   something you can drag from. */
+.map-device .flow-handle {
+  top: 31px;
+  opacity: 0;
+  transition: opacity 90ms linear;
+}
+
+.map-device .flow-handle[data-handleid="in"] {
+  left: calc(50% - 1.55rem);
+}
+
+.map-device .flow-handle[data-handleid="out"] {
+  left: auto;
+  right: calc(50% - 1.55rem);
+}
+
+/* Shown on approach or while wiring. A permanently visible handle on every device is forty dots on
+   a /24, and the map is meant to be read far more often than it is edited. */
+.map-device:hover .flow-handle,
+.map-device.is-selected .flow-handle,
+.map-frame.is-wiring .flow-handle {
+  opacity: 1;
+}

@@ -46,7 +46,7 @@ export function buildMapStageMaps(doc: CyberMapDocument): MapStageMap[] {
     return [];
   }
 
-  const { positions, enclosures } = layoutMap(projected.assets, doc.positions, "topology", projected.subnets);
+  const { positions, enclosures } = layoutMap(projected.assets, doc.layouts.topology ?? {}, "topology", projected.subnets);
   const stageNodes = stageNodesBySource(doc);
   const events = orderedEvents(doc.events);
 

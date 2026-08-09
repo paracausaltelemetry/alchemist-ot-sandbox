@@ -154,7 +154,15 @@ export interface CyberMapDocument {
   connectionOverrides: Record<string, ConnectionOverride>;
   /** What the operator did. Access and attack edges are folded from this and never stored. */
   events: ItEvent[];
-  positions: Record<AssetId, Point>;
+  /**
+   * Dragged positions, kept per arrangement.
+   *
+   * One flat map was wrong, and visibly so: a position authored while looking at Purdue lanes says
+   * nothing about where a device belongs in a topology diagram, and honouring it there stranded
+   * every dragged device in a row above the subnet boxes that were supposed to contain them.
+   * Keyed by arrangement, each one starts clean and keeps what was arranged in it.
+   */
+  layouts: Record<string, Record<AssetId, Point>>;
   subnetOverrides: Record<string, { name?: string; vlan?: string }>;
   governance: MapGovernance;
 }
@@ -213,7 +221,7 @@ export function newCyberMap(name = "Untitled map"): CyberMapDocument {
     connections: [],
     connectionOverrides: {},
     events: [],
-    positions: {},
+    layouts: {},
     subnetOverrides: {},
     governance: {}
   };

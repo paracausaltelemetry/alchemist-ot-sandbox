@@ -14,6 +14,7 @@ import {
   type CyberMapDocument
 } from "../models/cyberMap";
 import { newItEvent } from "../models/itEngagement";
+import { layoutMap } from "../data/mapLayout";
 import type { ParsedImport } from "../import/types";
 
 function mapWith(...parses: ParsedImport[]): CyberMapDocument {
@@ -313,7 +314,7 @@ describe("feeding the assessment engines", () => {
 
 describe("saving and reloading", () => {
   it("round-trips to the same estate", () => {
-    const doc = { ...sampleMap(), positions: { "it:10.10.1.1": { x: 42, y: 84 } } };
+    const doc = { ...sampleMap(), layouts: { topology: { "it:10.10.1.1": { x: 42, y: 84 } } } };
     const parsed = parseCyberMapJson(serializeCyberMap(doc));
 
     expect(parsed.ok).toBe(true);
@@ -321,7 +322,7 @@ describe("saving and reloading", () => {
       expect(projectMap(parsed.doc).assets.map((asset) => asset.id)).toEqual(
         projectMap(doc).assets.map((asset) => asset.id)
       );
-      expect(parsed.doc.positions["it:10.10.1.1"]).toEqual({ x: 42, y: 84 });
+      expect(parsed.doc.layouts.topology["it:10.10.1.1"]).toEqual({ x: 42, y: 84 });
     }
   });
 
@@ -363,12 +364,20 @@ describe("saving and reloading", () => {
     }
   });
 
-  it("puts an asset back where it was left", () => {
+  it("puts an asset back where it was left, under the arrangement it was left in", () => {
+    // The projection has no arrangement of its own, so the position it carries is the synthesis
+    // one. Where a device is actually drawn is `layoutMap`'s answer, and it depends on which
+    // arrangement is showing — which is the whole reason the two were separated.
     const doc = sampleMap();
     const target = projectMap(doc).assets[0];
-    const moved = { ...doc, positions: { [target.id]: { x: 4242, y: 2424 } } };
+    const moved: CyberMapDocument = { ...doc, layouts: { topology: { [target.id]: { x: 4242, y: 2424 } } } };
 
-    expect(projectMap(moved).assets.find((entry) => entry.id === target.id)?.position).toEqual({ x: 4242, y: 2424 });
+    const drawn = layoutMap(projectMap(moved).assets, moved.layouts.topology, "topology", projectMap(moved).subnets);
+    expect(drawn.positions.get(target.id)).toEqual({ x: 4242, y: 2424 });
+
+    // And says nothing about where it goes in the other arrangement.
+    const lanes = layoutMap(projectMap(moved).assets, moved.layouts.purdue ?? {}, "purdue");
+    expect(lanes.positions.get(target.id)).not.toEqual({ x: 4242, y: 2424 });
   });
 
   it("rejects a source with no parse, because nothing can reconstruct the evidence", () => {
@@ -384,10 +393,26 @@ describe("saving and reloading", () => {
 
   it("drops a malformed position instead of rejecting the map", () => {
     const loose = JSON.parse(serializeCyberMap(sampleMap()));
-    loose.positions = { "it:10.0.0.1": { x: "left", y: 3 }, "it:10.0.0.2": { x: 5, y: 6 } };
+    loose.layouts = { topology: { "it:10.0.0.1": { x: "left", y: 3 }, "it:10.0.0.2": { x: 5, y: 6 } } };
     const parsed = parseCyberMapJson(JSON.stringify(loose));
 
-    expect(parsed.ok && parsed.doc.positions).toEqual({ "it:10.0.0.2": { x: 5, y: 6 } });
+    expect(parsed.ok && parsed.doc.layouts.topology).toEqual({ "it:10.0.0.2": { x: 5, y: 6 } });
+  });
+
+  it("files positions from before the split under the arrangement they were dragged in", () => {
+    // Everything on disk today was dragged in the Purdue lanes, because that is the only
+    // arrangement that existed. Reading it as topology instead is exactly the bug this replaced:
+    // every dragged device stranded in a row above the subnet boxes meant to contain it.
+    const older = JSON.parse(serializeCyberMap(sampleMap())) as Record<string, unknown>;
+    delete older.layouts;
+    older.positions = { "it:10.10.1.1": { x: 42, y: 84 } };
+
+    const parsed = parseCyberMapJson(JSON.stringify(older));
+    expect(parsed.ok).toBe(true);
+    if (parsed.ok) {
+      expect(parsed.doc.layouts.purdue).toEqual({ "it:10.10.1.1": { x: 42, y: 84 } });
+      expect(parsed.doc.layouts.topology).toBeUndefined();
+    }
   });
 
   it("refuses a map written by a newer schema rather than dropping what it holds", () => {

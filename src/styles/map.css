@@ -336,10 +336,17 @@
   color: var(--muted);
 }
 
+/* Always present, so an empty space under a device is never ambiguous between "nothing found" and
+   "nothing shown". "none found" is a scan result and reads as one. */
 .map-device-portcount {
   font-size: 0.6rem;
   letter-spacing: 0.04em;
   color: var(--muted);
+}
+
+.map-device-portcount[data-open="no"] {
+  opacity: 0.55;
+  font-style: italic;
 }
 
 /* Service names, not port numbers where a name is known: "smb" is recognised at a glance and 445
@@ -364,9 +371,24 @@
 .map-device-services span {
   padding: 0 0.2rem;
   border: 1px solid var(--line);
+  background: var(--bg);
   font-family: var(--font-mono);
   font-size: 0.56rem;
   line-height: 1.4;
+  color: var(--text);
+}
+
+/* UDP marked, TCP left plain. A scan that found something on UDP is saying something different
+   from one that found a listening socket, and a chip that hid the distinction would flatten it. */
+.map-device-services span[data-transport="udp"] {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+/* The overflow count is not a service, so it does not get a service's box. */
+.map-device-services span.is-more {
+  border-color: transparent;
+  background: transparent;
   color: var(--muted);
 }
 

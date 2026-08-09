@@ -66,6 +66,7 @@ export function MapWorkspace({
   const [fitSignal, setFitSignal] = useState(0);
   const [overlayId, setOverlayId] = useState<OverlayId>("purdue");
   const [importError, setImportError] = useState<string | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
   const [connectMode, setConnectMode] = useState(false);
   const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
   /** The pair being joined, held while the operator says what the line means. */
@@ -86,7 +87,11 @@ export function MapWorkspace({
 
   const commit = useCallback((next: CyberMapDocument) => {
     setDoc(next);
-    saveCyberMap(next);
+    // A refused write used to be swallowed here. An accepted import is up to 24MB against roughly
+    // 5MB of localStorage, so this genuinely fails — and silently losing an operator's afternoon
+    // is the worst thing this application could do. Surfaced as a warning, and the estate stays on
+    // screen so the report can still be exported.
+    setSaveFailed(!saveCyberMap(next));
   }, []);
 
   const addSource = useCallback(
@@ -391,7 +396,15 @@ export function MapWorkspace({
         />
 
         <MapBottomPanel
-          warnings={importError ? [importError, ...map.warnings] : map.warnings}
+          warnings={[
+            ...(saveFailed
+              ? [
+                  "This map could not be saved — the browser refused the write, most likely because storage is full. Export the report before closing the tab."
+                ]
+              : []),
+            ...(importError ? [importError] : []),
+            ...map.warnings
+          ]}
           events={doc.events}
           nameOf={nameOf}
           onSelect={setSelectedId}

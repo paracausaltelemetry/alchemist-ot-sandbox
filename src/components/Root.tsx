@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { App } from "../App";
-import { Dashboard, type DashboardIntent } from "./Dashboard";
-import { ItApp } from "./ItApp";
+import { Dashboard } from "./Dashboard";
 import { MapWorkspace } from "./MapWorkspace";
 import { initialView, LAST_VIEW_STORAGE_KEY, type AppView } from "../lib/appView";
 import { safeGetItem, safeSetItem } from "../lib/safeStorage";
@@ -39,10 +37,10 @@ function initialTheme(): "dark" | "light" {
 
 function readLastView(): AppView | null {
   const stored = safeGetItem(LAST_VIEW_STORAGE_KEY);
-  return stored === "home" || stored === "app" || stored === "it" ? stored : null;
+  return stored === "home" || stored === "map" ? stored : null;
 }
 
-/** Tracks whether the viewport is phone/tablet-sized. The workbench is desktop-only. */
+/** Tracks whether the viewport is phone/tablet-sized. The workspace is desktop-only. */
 function useIsMobile(query = "(max-width: 960px)"): boolean {
   const [isMobile, setIsMobile] = useState(() => window.matchMedia(query).matches);
   useEffect(() => {
@@ -55,15 +53,19 @@ function useIsMobile(query = "(max-width: 960px)"): boolean {
 }
 
 /**
- * Top-level shell: the home dashboard or the workbench. The hash deep-links each (`#home` / `#app`),
- * a reload returns to the last view, and the dashboard is the default front door. Owns the theme so
- * both views match before the heavy workbench mounts.
+ * Top-level shell: the home dashboard, or the estate map.
+ *
+ * There used to be a third branch and a switch in the masthead to reach it. Alchemist shipped an OT
+ * workbench over a hand-authored `OtProject` and an IT view over scan output, and making the
+ * operator pick a side before they could look at anything was the wrong question — a converged
+ * plant is one estate, and the findings that matter live exactly where the corporate network and
+ * the process network touch, which was the one place neither view could draw.
+ *
+ * One document now, one canvas, one analysis suite over it.
  */
 export function Root() {
   const [view, setView] = useState<AppView>(() => initialView(window.location.hash, readLastView()));
-  const [intent, setIntent] = useState<DashboardIntent | undefined>(undefined);
   const [theme, setTheme] = useState<"dark" | "light">(() => initialTheme());
-  const [hash, setHash] = useState(() => window.location.hash);
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -83,29 +85,16 @@ export function Root() {
   }, [view]);
 
   useEffect(() => {
-    const onHashChange = () => {
-      setHash(window.location.hash);
-      setView(initialView(window.location.hash, readLastView()));
-    };
+    const onHashChange = () => setView(initialView(window.location.hash, readLastView()));
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
   const toggleTheme = useCallback(() => setTheme((current) => (current === "dark" ? "light" : "dark")), []);
 
-  const enter = useCallback((nextIntent?: DashboardIntent) => {
-    setIntent(nextIntent);
-    if (window.location.hash === "#app") {
-      setView("app");
-    } else {
-      window.location.hash = "app";
-    }
-  }, []);
-
   // Hash is the source of truth; setView covers the case where the hash already matches
   // (a hashchange would not fire, so nothing would re-render).
-  const switchView = useCallback((next: AppView) => {
-    setIntent(undefined);
+  const open = useCallback((next: AppView) => {
     if (window.location.hash === `#${next}`) {
       setView(next);
     } else {
@@ -113,31 +102,10 @@ export function Root() {
     }
   }, []);
 
-  const goHome = useCallback(() => {
-    setIntent(undefined);
-    if (window.location.hash === "#home") {
-      setView("home");
-    } else {
-      window.location.hash = "home";
-    }
-  }, []);
-
-  const openIt = useCallback(() => switchView("it"), [switchView]);
-
-  // Not an `AppView`: the converged map is not a third app to switch to, it is what replaces both.
-  // It rides on the hash alone so it can be opened and looked at before the workspace around it
-  // exists, and so it is never what a reload lands on. Checked before the remembered view, which
-  // would otherwise win over an explicit link.
-  if (hash === "#map") {
-    return <MapWorkspace theme={theme} onToggleTheme={toggleTheme} isMobile={isMobile} />;
-  }
-
   if (view === "home") {
     return (
       <Dashboard
-        onEnter={enter}
-        onOpenIt={openIt}
-        onSwitchView={switchView}
+        onEnter={() => open("map")}
         theme={theme}
         onToggleTheme={toggleTheme}
         isMobile={isMobile}
@@ -145,28 +113,5 @@ export function Root() {
     );
   }
 
-  if (view === "it") {
-    return (
-      <ItApp
-        onGoHome={goHome}
-        onSwitchView={switchView}
-        theme={theme}
-        onToggleTheme={toggleTheme}
-        isMobile={isMobile}
-      />
-    );
-  }
-
-  // On phone/tablet App renders read-only (the topology canvas is desktop-only);
-  // the assessment, findings, standards mapping and report all work.
-  return (
-    <App
-      onGoHome={goHome}
-      onSwitchView={switchView}
-      initialIntent={intent}
-      theme={theme}
-      onToggleTheme={toggleTheme}
-      isMobile={isMobile}
-    />
-  );
+  return <MapWorkspace theme={theme} onToggleTheme={toggleTheme} isMobile={isMobile} />;
 }

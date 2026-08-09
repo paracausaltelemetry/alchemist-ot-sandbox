@@ -25,18 +25,25 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
-describe("Root mobile gate", () => {
-  it("renders the dashboard with a desktop-editing note below the breakpoint", () => {
+describe("Root", () => {
+  it("renders the dashboard with a desktop-only note below the breakpoint", () => {
     setViewport(true);
     render(<Root />);
-    expect(screen.getByText(/topology editing is desktop-only/i)).toBeInTheDocument();
-    // The dashboard itself still renders (read-only), not a bare gate.
-    expect(screen.getByRole("heading", { name: /saved assessments/i })).toBeInTheDocument();
+    expect(screen.getByText(/canvas is desktop-only/i)).toBeInTheDocument();
+    // The dashboard itself still renders, not a bare gate.
+    expect(screen.getAllByRole("button", { name: /start a map|open the map/i }).length).toBeGreaterThan(0);
   });
 
-  it("does not show the desktop-editing note on a wide viewport at home", () => {
+  it("does not show the desktop-only note on a wide viewport at home", () => {
     setViewport(false);
     render(<Root />);
-    expect(screen.queryByText(/topology editing is desktop-only/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/canvas is desktop-only/i)).not.toBeInTheDocument();
+  });
+
+  it("lands on the map for a link into either of the two apps it replaced", () => {
+    setViewport(false);
+    window.location.hash = "#app";
+    render(<Root />);
+    expect(screen.getByRole("complementary", { name: /sources and assets/i })).toBeInTheDocument();
   });
 });

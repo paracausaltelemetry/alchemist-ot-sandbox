@@ -962,6 +962,8 @@
   border: 1px solid var(--signal);
   font-family: var(--font-mono);
   font-size: 0.62rem;
+  color: var(--text);
+}
 
 /* --- Collapsing the shell ---------------------------------------------------
 

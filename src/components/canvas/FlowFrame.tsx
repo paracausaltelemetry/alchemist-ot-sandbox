@@ -42,6 +42,8 @@ interface FlowFrameProps<T extends Node> {
   dropMimeType?: string;
   onDropAt?: (payload: string, position: Point) => void;
   snapGrid: [number, number];
+  /** Spacing of the dotted background. Defaults to the layout unit; the map draws a finer one. */
+  gridGap?: number;
   fitSignal: number;
   /** Changing this refits the view — used when a layout switch reflows every node. */
   refitKey?: string;
@@ -74,6 +76,7 @@ export function FlowFrame<T extends Node>({
   dropMimeType,
   onDropAt,
   snapGrid,
+  gridGap = CANVAS_GRID_X,
   fitSignal,
   refitKey,
   minimapNodeColor,
@@ -177,13 +180,27 @@ export function FlowFrame<T extends Node>({
           proOptions={{ hideAttribution: true }}
         >
           <ViewportPortal>{children}</ViewportPortal>
+          {/* Two layers: the fine grid a card actually snaps to, and the layout unit over the top
+              so the eye still has something to line up against. One 12px layer alone is visual
+              noise at the zoom this canvas sits at, and the coarse one alone lies about where a
+              card will land. */}
           <Background
             className="snap-grid-background"
             color="#64717d"
-            gap={CANVAS_GRID_X}
-            size={1.1}
+            gap={gridGap}
+            size={gridGap < CANVAS_GRID_X ? 0.7 : 1.1}
             variant={BackgroundVariant.Dots}
           />
+          {gridGap < CANVAS_GRID_X ? (
+            <Background
+              className="snap-grid-background"
+              id="layout-grid"
+              color="#64717d"
+              gap={CANVAS_GRID_X}
+              size={1.3}
+              variant={BackgroundVariant.Dots}
+            />
+          ) : null}
           <MiniMap
             className="canvas-minimap"
             pannable

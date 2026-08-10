@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { detectFormat, parseByFormat } from "../import";
 import { parseNmapNormal } from "../import/nmapText";
 import { SAMPLE_SCAN } from "../data/sampleScan";
@@ -258,6 +258,33 @@ export function MapWorkspace({
     [beginConnection, connectMode, connectSourceId]
   );
 
+  /**
+   * Escape leaves wiring from anywhere on the page.
+   *
+   * The canvas had this on its own key handler, which meant it worked only while the canvas held
+   * focus — click a device in the sidebar list, press Escape, and you were still armed. A mode you
+   * can only leave by finding the button that started it is a mode people stop using. On `window`
+   * it is reachable wherever the operator's focus has drifted to.
+   *
+   * Not while the link dialog is up: there, Escape belongs to the dialog, and stealing it would
+   * dismiss the mode and leave the form open over a canvas that no longer explains it.
+   */
+  useEffect(() => {
+    if (!connectMode || pendingLink) {
+      return;
+    }
+    const leave = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+      event.preventDefault();
+      setConnectMode(false);
+      setConnectSourceId(null);
+    };
+    window.addEventListener("keydown", leave);
+    return () => window.removeEventListener("keydown", leave);
+  }, [connectMode, pendingLink]);
+
   const confirmLink = useCallback(
     (label: string, note: string) => {
       if (!pendingLink) {
@@ -271,7 +298,10 @@ export function MapWorkspace({
         ]
       });
       setPendingLink(null);
-      setConnectMode(false);
+      // Stays on so the next line can be drawn straight away. Somebody documenting what they found
+      // draws several in a row, and dropping out of the mode after each one made them re-arm it
+      // every time. Escape, or the button, ends it.
+      setConnectSourceId(null);
     },
     [commit, doc, pendingLink]
   );
@@ -288,7 +318,9 @@ export function MapWorkspace({
       setEventDraft({ sourceNodeId: pendingLink.source, targetNodeId: pendingLink.target });
     }
     setPendingLink(null);
+    // Recording an action is a change of task, not another line, so wiring ends here.
     setConnectMode(false);
+    setConnectSourceId(null);
   }, [pendingLink]);
 
   const recordEvent = useCallback(
@@ -515,7 +547,7 @@ export function MapWorkspace({
         onRecordAction={escalateToEvent}
         onCancel={() => {
           setPendingLink(null);
-          setConnectMode(false);
+          setConnectSourceId(null);
         }}
       />
 

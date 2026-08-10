@@ -84,3 +84,19 @@ describe("parseNmapXml traceroute", () => {
     ]);
   });
 });
+
+describe("service versions", () => {
+  it("joins the three attributes Nmap splits a banner across", () => {
+    // `product` on its own is "OpenSSH", which narrows nothing; the version is what an operator
+    // takes to an advisory, and `extrainfo` is often what dates the host.
+    const xml = `<?xml version="1.0"?><nmaprun><host><status state="up"/><address addr="10.0.0.5" addrtype="ipv4"/><ports><port protocol="tcp" portid="22"><state state="open"/><service name="ssh" product="OpenSSH" version="8.9p1" extrainfo="Ubuntu 4ubuntu0.5"/></port></ports></host></nmaprun>`;
+    const [host] = parseNmapXml(xml).hosts;
+    expect(host.ports[0].product).toBe("OpenSSH 8.9p1 (Ubuntu 4ubuntu0.5)");
+  });
+
+  it("leaves a port nothing was fingerprinted on without an invented version", () => {
+    const xml = `<?xml version="1.0"?><nmaprun><host><status state="up"/><address addr="10.0.0.6" addrtype="ipv4"/><ports><port protocol="tcp" portid="9100"><state state="open"/><service name="jetdirect"/></port></ports></host></nmaprun>`;
+    const [host] = parseNmapXml(xml).hosts;
+    expect(host.ports[0].product).toBeUndefined();
+  });
+});

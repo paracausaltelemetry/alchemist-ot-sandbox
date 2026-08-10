@@ -1,5 +1,6 @@
 import { assetTypes, getAssetType, zones } from "../data/catalog";
 import { itKindLabel } from "../models/itMap";
+import { portRisk } from "../engine/itAnalysis";
 import type {
   AssetOverride,
   ConnectionOverride,
@@ -248,13 +249,49 @@ export function MapInspector({
           <dd>{asset!.os || "Not identified"}</dd>
           <dt>Seen as</dt>
           <dd>{asset!.deviceKind ? itKindLabel(asset!.deviceKind) : "—"}</dd>
-          <dt>Open services</dt>
-          <dd>
-            {asset!.ports.length === 0
-              ? "None recorded"
-              : asset!.ports.map((port) => port.service || String(port.port)).join(", ")}
-          </dd>
         </dl>
+      </section>
+
+      <section>
+        <h3>
+          Open services <small>{asset!.ports.length}</small>
+        </h3>
+        {asset!.ports.length === 0 ? (
+          <p className="muted">Nothing answered. That is a scan result, not an absence of services.</p>
+        ) : (
+          /**
+           * A table, not a comma-separated line.
+           *
+           * The version column is why: Nmap has been reporting `product` since the first parser and
+           * nothing ever showed it. "ssh" is a fact about a port; "OpenSSH 8.9" is something an
+           * operator can go and look up, and it is the single most useful thing in a scan.
+           */
+          <table className="map-port-table">
+            <thead>
+              <tr>
+                <th>Port</th>
+                <th>Service</th>
+                <th>Version</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...asset!.ports]
+                .sort((a, b) => a.port - b.port)
+                .map((port) => {
+                  const risk = portRisk(port.port);
+                  return (
+                    <tr key={`${port.port}-${port.transport ?? "tcp"}`} data-risk={risk?.severity}>
+                      <td>
+                        {port.port}/{port.transport ?? "tcp"}
+                      </td>
+                      <td title={risk?.reason}>{port.service || "—"}</td>
+                      <td>{port.product || "—"}</td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+        )}
       </section>
 
       <section>

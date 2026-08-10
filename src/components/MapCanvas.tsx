@@ -11,6 +11,7 @@ import { memo, useCallback, useMemo, useRef, useState, type CSSProperties } from
 import { CANVAS_GRID_X, ZONE_BAND_Y_OFFSET, ZONE_ROW_HEIGHT, snapX } from "../data/canvasLayout";
 import { getAssetType } from "../data/catalog";
 import { portRisk } from "../engine/itAnalysis";
+import { describePort, orderedServices, serviceSummary } from "./canvas/services";
 import {
   DEVICE_HEIGHT,
   DEVICE_WIDTH,
@@ -133,6 +134,14 @@ type MapFlowNode = Node<MapNodeData, "mapAsset">;
 const SERVICE_CHIP_LIMIT = 4;
 
 /**
+ * Dots before the row becomes a smear.
+ *
+ * Ten is already a wide host. Past that the count matters more than the pattern, so the overflow
+ * is written as a number.
+ */
+const PORT_DOT_LIMIT = 10;
+
+/**
  * The name where the scan resolved one, the number where it did not.
  *
  * `microsoft-ds` is recognised at a glance and `445` has to be decoded, so the name wins — but a
@@ -140,22 +149,6 @@ const SERVICE_CHIP_LIMIT = 4;
  */
 const serviceLabel = (port: ImportedPort) => port.service || String(port.port);
 
-/**
- * The order a reader expects: by port number, ascending.
- *
- * Scan order is arrival order, which differs between two runs of the same scan and between two
- * hosts running the same services. Sorted, the same stack of services makes the same shape on every
- * device, and a reader recognises "that is a Windows box" without reading a word.
- */
-const orderedServices = (ports: ImportedPort[]) => [...ports].sort((a, b) => a.port - b.port);
-
-/** Everything the scan found, for the tooltip: the canvas shows four, the truth is all of them. */
-const serviceSummary = (ports: ImportedPort[]) =>
-  ports.length === 0
-    ? "No open services recorded"
-    : ports
-        .map((port) => `${port.port}/${port.transport ?? "tcp"} ${port.service ?? ""}`.trim())
-        .join("\n");
 
 /**
  * One device, drawn the way a network diagram draws one: a symbol with a label under it.
@@ -175,9 +168,6 @@ const MapDeviceNode = memo(function MapDeviceNode({ data }: NodeProps<MapFlowNod
   const inferred = asset.confidence < 1;
   const ordered = orderedServices(asset.ports);
   const services = ordered.slice(0, SERVICE_CHIP_LIMIT);
-  // The count that matters to someone enumerating: not how many ports answered, but how many are
-  // worth their time. Kept to the table the analysis already uses rather than a second opinion.
-  const risky = ordered.filter((port) => portRisk(port.port)).length;
 
   return (
     <div
@@ -212,7 +202,7 @@ ${serviceSummary(asset.ports)}`}
 
       {/* Always something, because "how exposed is this box" is the question the map is asked most
           and an empty space under a device answers it ambiguously: nothing found, or nothing
-          shown? The count reads at any zoom; the names need the layer on. */}
+          shown? Names need the layer on; the shape of a host reads without it. */}
       {showServices && services.length > 0 ? (
         <span className="map-device-services">
           {services.map((port) => (
@@ -220,6 +210,7 @@ ${serviceSummary(asset.ports)}`}
               key={`${port.port}-${port.transport ?? "tcp"}`}
               data-transport={port.transport ?? "tcp"}
               data-risk={portRisk(port.port)?.severity}
+              title={describePort(port)}
             >
               {serviceLabel(port)}
             </span>
@@ -228,16 +219,29 @@ ${serviceSummary(asset.ports)}`}
             <span className="is-more">+{ordered.length - services.length}</span>
           ) : null}
         </span>
+      ) : asset.ports.length === 0 ? (
+        <span className="map-device-portcount" data-open="no">
+          none found
+        </span>
       ) : (
-        <span className="map-device-portcount" data-open={asset.ports.length > 0 ? "yes" : "no"}>
-          {asset.ports.length === 0 ? (
-            "none found"
-          ) : (
-            <>
-              {asset.ports.length} open
-              {risky > 0 ? <b data-risk="yes"> · {risky} notable</b> : null}
-            </>
-          )}
+        /**
+         * One dot per open port, in port order.
+         *
+         * A count says "8 open" and a reader still has to click to learn whether that matters. Eight
+         * dots with three of them filled says the same thing and the useful thing at once, in less
+         * width than the sentence took — and the *pattern* is recognisable: a Windows box and a web
+         * server make different shapes.
+         */
+        <span className="map-device-ports" aria-label={`${asset.ports.length} open services`}>
+          {ordered.slice(0, PORT_DOT_LIMIT).map((port) => (
+            <i
+              key={`${port.port}-${port.transport ?? "tcp"}`}
+              data-risk={portRisk(port.port)?.severity ?? "none"}
+              data-transport={port.transport ?? "tcp"}
+              title={describePort(port)}
+            />
+          ))}
+          {ordered.length > PORT_DOT_LIMIT ? <b>+{ordered.length - PORT_DOT_LIMIT}</b> : null}
         </span>
       )}
     </div>
@@ -555,6 +559,8 @@ function MapCanvasInner({
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
+      // Escape is handled on `window` by the workspace, so it works wherever focus has drifted to
+      // rather than only over the canvas.
       const nodeEl = (event.target as HTMLElement)?.closest?.(".react-flow__node");
       const id = nodeEl?.getAttribute("data-id");
       if (!id) return;
@@ -704,11 +710,11 @@ function MapCanvasInner({
             <button
               type="button"
               className={`text-button compact${connectMode ? " is-active" : ""}`}
-              title="Draw a connection by selecting two assets"
+              title="Draw connections by selecting two devices. Escape when you are done."
               aria-pressed={connectMode}
               onClick={onToggleConnect}
             >
-              Connect
+              {connectMode ? "Connecting…" : "Connect"}
             </button>
             <button
               type="button"

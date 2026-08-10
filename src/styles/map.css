@@ -816,3 +816,95 @@
 .map-frame .conduit-overlay-flow {
   display: none;
 }
+
+/* --- Open services ----------------------------------------------------------
+
+   One dot per open port, in port order. A count says "8 open" and the reader still has to click to
+   learn whether that matters; eight dots with three filled says both at once, in less width than
+   the sentence took. The pattern is recognisable too — a Windows box and a web server make
+   different shapes. */
+.map-device-ports {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  min-height: 0.7rem;
+}
+
+.map-device-ports i {
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--muted);
+  border-radius: 50%;
+}
+
+/* Filled with the one colour the brand spends on danger, because "cleartext remote administration"
+   is exactly that, and it is the reading somebody enumerating a network is here for. */
+.map-device-ports i[data-risk="high"] {
+  border-color: var(--signal);
+  background: var(--signal);
+}
+
+.map-device-ports i[data-risk="medium"] {
+  border-color: var(--signal);
+}
+
+/* `--line-strong` is a 28%-alpha hairline colour: correct for a rule, invisible as a 6px dot at the
+   0.74 zoom the map usually sits at. An ordinary open port is not a warning, but it does have to be
+   countable. */
+.map-device-ports i[data-risk="low"],
+.map-device-ports i[data-risk="none"] {
+  border-color: var(--muted);
+  background: var(--muted);
+}
+
+/* UDP hollow: a UDP result is a weaker claim than a listening socket, and the dot should say so. */
+.map-device-ports i[data-transport="udp"] {
+  background: transparent;
+}
+
+.map-device-ports b {
+  font-size: 0.58rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* The canonical table motif: full cell borders, uppercase body-font header, no zebra. */
+.map-port-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.map-port-table th,
+.map-port-table td {
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+.map-port-table th {
+  font-family: var(--font-body);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.map-port-table td {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--text);
+}
+
+/* The left edge carries the grading, so the text stays readable rather than shouting. */
+.map-port-table tr[data-risk="high"] td:first-child {
+  border-left: 3px solid var(--signal);
+}
+
+.map-port-table tr[data-risk="medium"] td:first-child {
+  border-left: 3px solid color-mix(in srgb, var(--signal) 55%, transparent);
+}

@@ -908,3 +908,56 @@
 .map-port-table tr[data-risk="medium"] td:first-child {
   border-left: 3px solid color-mix(in srgb, var(--signal) 55%, transparent);
 }
+
+/* --- Script results ---------------------------------------------------------
+
+   NSE output, kept as the script wrote it. Every script invents its own layout, so the only honest
+   presentation is monospace and preformatted — reflowing it would destroy the alignment the script
+   author used to make it readable. */
+.map-script-list {
+  margin: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.map-script-list > div {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+}
+
+.map-script-list dt {
+  padding: 0.2rem 0.35rem;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  color: var(--text);
+}
+
+.map-script-list dd {
+  margin: 0;
+  padding: 0.3rem 0.35rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--muted);
+}
+
+/* The identifiers, lifted out of the prose they were buried in. Signal-bordered because a named CVE
+   on a host you are looking at is the one thing on this panel that is already a problem. */
+.map-cve-list {
+  margin: 0 0 var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.map-cve-list span {
+  padding: 0.1rem var(--space-2);
+  border: 1px solid var(--signal);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text);
+}

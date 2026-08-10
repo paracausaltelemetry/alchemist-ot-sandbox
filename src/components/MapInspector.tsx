@@ -1,6 +1,7 @@
 import { assetTypes, getAssetType, zones } from "../data/catalog";
 import { itKindLabel } from "../models/itMap";
 import { portRisk } from "../engine/itAnalysis";
+import { cvesFromScripts } from "../import/nse";
 import type {
   AssetOverride,
   ConnectionOverride,
@@ -213,6 +214,10 @@ export function MapInspector({
 
   const override = doc.assetOverrides[asset!.id];
   const overridden = overriddenKeys(override);
+  // Host-level and port-level results read as one list: the operator wants to know what the scripts
+  // found on this machine, not which of Nmap's two buckets each result was filed in.
+  const scripts = [...(asset!.scripts ?? []), ...asset!.ports.flatMap((port) => port.scripts ?? [])];
+  const cves = cvesFromScripts(scripts);
   const type = getAssetType(asset!.type);
 
   const set = (patch: AssetOverride) => onOverride(asset!.id, patch);
@@ -293,6 +298,37 @@ export function MapInspector({
           </table>
         )}
       </section>
+
+      {scripts.length > 0 ? (
+        <section>
+          <h3>
+            Script results <small>{scripts.length}</small>
+          </h3>
+          {/*
+            CVEs first, then the output they came out of.
+
+            `vulners` and the `vuln-*` family bury identifiers in paragraphs of prose, and an
+            identifier is the one part of that output somebody acts on immediately. Pulling them to
+            the top is a reading aid, not a vulnerability model — there is no CVSS here, no state,
+            no lifecycle, and pretending otherwise would be a worse lie than showing nothing.
+          */}
+          {cves.length > 0 ? (
+            <p className="map-cve-list">
+              {cves.map((cve) => (
+                <span key={cve}>{cve}</span>
+              ))}
+            </p>
+          ) : null}
+          <dl className="map-script-list">
+            {scripts.map((script, index) => (
+              <div key={`${script.id}-${index}`}>
+                <dt>{script.id}</dt>
+                <dd>{script.output}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ) : null}
 
       <section>
         <h3>Provenance</h3>

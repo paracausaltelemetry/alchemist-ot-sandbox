@@ -1,6 +1,7 @@
 import { childrenNamed, findAll, firstChild, parseXml, type XmlNode } from "./xml";
 import { scanTimeFromXmlAttrs } from "./scanTime";
-import type { ImportedHop, ImportedHost, ImportedPort, ImportedTrace, ParsedImport } from "./types";
+import { enrichFromScripts } from "./nse";
+import type { ImportedHop, ImportedHost, ImportedPort, ImportedScript, ImportedTrace, ParsedImport } from "./types";
 
 /**
  * Reads a host's `<trace>` block into ordered hops. The final hop reported by Nmap is the
@@ -37,12 +38,26 @@ function parseTrace(traceNode: XmlNode, hostIp: string | undefined): ImportedHop
 }
 
 /**
- * Parses Nmap XML (`nmap -oX`). Each up host becomes a normalized host with its open TCP/UDP
- * ports, MAC vendor, hostname and OS guess — enough for the assembler to infer an asset type
- * and protocols. Nmap is an active host/port scan, so it yields assets but no host-to-host
- * flows (those come from the passive/flow formats). A `--traceroute` scan additionally yields
- * hop chains, which are returned as `traces` and are the only real topology evidence available.
+ * The `<script>` results hanging off a port or a host.
+ *
+ * `childrenNamed`, not `findAll`: a script's output can itself contain XML-ish `<table>` and `<elem>
+ * ` children, and walking the subtree would return the same result several times over.
  */
+function parseScripts(node: XmlNode | undefined): ImportedScript[] | undefined {
+  if (!node) {
+    return undefined;
+  }
+  const scripts: ImportedScript[] = [];
+  for (const scriptNode of childrenNamed(node, "script")) {
+    const id = scriptNode.attrs.id?.trim();
+    const output = scriptNode.attrs.output?.trim();
+    if (id && output) {
+      scripts.push({ id, output });
+    }
+  }
+  return scripts.length > 0 ? scripts : undefined;
+}
+
 /**
  * What the service actually is, assembled from the three attributes Nmap splits it across.
  *
@@ -61,6 +76,13 @@ function serviceVersion(service: { attrs: Record<string, string> } | undefined):
   return full || undefined;
 }
 
+/**
+ * Parses Nmap XML (`nmap -oX`). Each up host becomes a normalized host with its open TCP/UDP
+ * ports, MAC vendor, hostname and OS guess — enough for the assembler to infer an asset type
+ * and protocols. Nmap is an active host/port scan, so it yields assets but no host-to-host
+ * flows (those come from the passive/flow formats). A `--traceroute` scan additionally yields
+ * hop chains, which are returned as `traces` and are the only real topology evidence available.
+ */
 export function parseNmapXml(text: string): ParsedImport {
   const doc = parseXml(text);
   const warnings: string[] = [];
@@ -107,12 +129,17 @@ export function parseNmapXml(text: string): ParsedImport {
         continue;
       }
       const service = firstChild(portNode, "service");
-      ports.push({
+      const port: ImportedPort = {
         port: portId,
         transport: portNode.attrs.protocol,
         service: service?.attrs.name,
         product: serviceVersion(service)
-      });
+      };
+      const scripts = parseScripts(portNode);
+      if (scripts) {
+        port.scripts = scripts;
+      }
+      ports.push(port);
     }
 
     if (!ip && !hostname) {
@@ -122,11 +149,17 @@ export function parseNmapXml(text: string): ParsedImport {
     // firstChild, not findAll: findAll walks the whole subtree and would pick up
     // another host's trace if the document nests unexpectedly.
     const host: ImportedHost = { ip, mac, vendor, hostname, os, ports };
+    // `hostscript` holds the results that belong to the machine rather than to one of its ports —
+    // SMB discovery, NBSTAT, the OS-level checks.
+    const hostScripts = parseScripts(firstChild(hostNode, "hostscript"));
+    if (hostScripts) {
+      host.scripts = hostScripts;
+    }
     const distance = Number(firstChild(hostNode, "distance")?.attrs.value);
     if (Number.isFinite(distance)) {
       host.distance = distance;
     }
-    hosts.push(host);
+    hosts.push(enrichFromScripts(host));
 
     const traceNode = firstChild(hostNode, "trace");
     if (traceNode) {

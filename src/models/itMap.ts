@@ -1,4 +1,4 @@
-import type { ImportedPort } from "../import/types";
+import type { ImportedPort, ImportedScript } from "../import/types";
 import type { Point, Subnet } from "./types";
 
 /**
@@ -47,6 +47,8 @@ export interface ItNode {
   vendor?: string;
   os?: string;
   ports: ImportedPort[];
+  /** Host-level NSE results. Port-level ones travel on the ports themselves. */
+  scripts?: ImportedScript[];
   subnetId?: string;
   position: Point;
   /** 0..1. Below 1 means some part of this node was reasoned rather than observed. */

@@ -43,6 +43,24 @@ function parseTrace(traceNode: XmlNode, hostIp: string | undefined): ImportedHop
  * flows (those come from the passive/flow formats). A `--traceroute` scan additionally yields
  * hop chains, which are returned as `traces` and are the only real topology evidence available.
  */
+/**
+ * What the service actually is, assembled from the three attributes Nmap splits it across.
+ *
+ * `product` alone is "OpenSSH", which narrows nothing — every Linux box on the estate runs OpenSSH.
+ * "OpenSSH 8.9p1" is a version somebody can take to an advisory, and that is the whole reason to
+ * run `-sV`. `extrainfo` carries the rest of the banner ("Ubuntu 4ubuntu0.5", "protocol 2.0") and
+ * is often the part that dates the host.
+ */
+function serviceVersion(service: { attrs: Record<string, string> } | undefined): string | undefined {
+  if (!service) {
+    return undefined;
+  }
+  const named = [service.attrs.product, service.attrs.version].filter(Boolean).join(" ").trim();
+  const extra = service.attrs.extrainfo?.trim();
+  const full = extra ? `${named} (${extra})`.trim() : named;
+  return full || undefined;
+}
+
 export function parseNmapXml(text: string): ParsedImport {
   const doc = parseXml(text);
   const warnings: string[] = [];
@@ -93,7 +111,7 @@ export function parseNmapXml(text: string): ParsedImport {
         port: portId,
         transport: portNode.attrs.protocol,
         service: service?.attrs.name,
-        product: service?.attrs.product
+        product: serviceVersion(service)
       });
     }
 

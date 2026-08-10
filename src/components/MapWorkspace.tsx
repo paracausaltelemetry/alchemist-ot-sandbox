@@ -38,6 +38,8 @@ import type {
 import { ItEventDialog, type ItEventDraft } from "./ItEventDialog";
 import { ItLinkDialog } from "./ItLinkDialog";
 import { AddDeviceDialog } from "./AddDeviceDialog";
+import { ToastViewport } from "./ToastViewport";
+import { useToasts } from "../hooks/useToasts";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { GovernanceEditor } from "./GovernanceEditor";
 import { MapBottomPanel } from "./MapBottomPanel";
@@ -111,20 +113,32 @@ export function MapWorkspace({
     [doc.events, footholdId, map, project]
   );
 
+  const { toasts, push: notify, dismiss: dismissToast } = useToasts();
+
   const commit = useCallback((next: CyberMapDocument) => {
     setDoc(next);
     // A refused write used to be swallowed here. An accepted import is up to 24MB against roughly
     // 5MB of localStorage, so this genuinely fails — and silently losing an operator's afternoon
     // is the worst thing this application could do. Surfaced as a warning, and the estate stays on
     // screen so the report can still be exported.
-    setSaveFailed(!saveCyberMap(next));
-  }, []);
+    const saved = saveCyberMap(next);
+    setSaveFailed((failedBefore) => {
+      // Announced on the edge, not on every commit: a failing store fails on all of them, and a
+      // toast per keystroke would bury the one message that matters under itself.
+      if (!saved && !failedBefore) {
+        notify("This map could not be saved. Export the report before closing the tab.", "danger");
+      }
+      return !saved;
+    });
+  }, [notify]);
 
   const addSource = useCallback(
     (text: string, filename: string) => {
       const format = detectFormat(filename, text);
       if (!format) {
-        setImportError(`${filename} is not a format this reads.`);
+        const message = `${filename} is not a format this reads.`;
+        setImportError(message);
+        notify(message, "danger");
         return;
       }
       const parsed = parseByFormat(text, format);
@@ -132,20 +146,36 @@ export function MapWorkspace({
         // Refused rather than added: an empty source contributes nothing and is indistinguishable
         // afterwards from one whose hosts were merged away, so the operator would never learn the
         // file was wrong.
-        setImportError(`${filename} parsed as ${format} but described no hosts.`);
+        const message = `${filename} parsed as ${format} but described no hosts.`;
+        setImportError(message);
+        notify(message, "danger");
         return;
       }
       setImportError(null);
-      commit({
+      const next = {
         ...doc,
         sources: [
           ...doc.sources,
           newImportSource(parsed, filename, nextMapSequence(doc), { kind: "external", label: "External" })
         ]
-      });
+      };
+      commit(next);
+      // What the import *added*, not what the file contained: re-scanning a subnet reads fifty
+      // hosts and adds none, and "50 hosts read" reports that as progress.
+      //
+      // "devices", not "hosts". The count is of what appeared on the map, and a first scan of a new
+      // segment also puts a gateway there that no host record in the file describes — reporting
+      // that as a host would be claiming the file said something it did not.
+      const added = projectMap(next).assets.length - map.assets.length;
+      notify(
+        `${filename}: ${parsed.hosts.length} host${parsed.hosts.length === 1 ? "" : "s"} read, ${
+          added === 0 ? "nothing new on the map" : `${added} new device${added === 1 ? "" : "s"} on the map`
+        }.`,
+        "success"
+      );
       setFitSignal((signal) => signal + 1);
     },
-    [commit, doc]
+    [commit, doc, map.assets.length, notify]
   );
 
   const importFile = useCallback(
@@ -175,10 +205,12 @@ export function MapWorkspace({
       // The authored layer is deliberately left alone. Its keys are stable, so re-importing the
       // same file brings every decision back; pruning it here would make removal destructive in a
       // way the operator has no reason to expect from a list with a Remove button.
+      const removed = doc.sources.find((source) => source.id === sourceId);
       commit({ ...doc, sources: doc.sources.filter((source) => source.id !== sourceId) });
+      notify(`Removed ${removed?.name ?? "that source"}. Anything you decided about its assets is kept.`);
       setFitSignal((signal) => signal + 1);
     },
-    [commit, doc]
+    [commit, doc, notify]
   );
 
   const placeAsset = useCallback(
@@ -265,8 +297,9 @@ export function MapWorkspace({
       commit({ ...doc, authoredAssets: [...doc.authoredAssets, authored] });
       setAddingDevice(false);
       setSelectedId(authored.id);
+      notify(`Added ${authored.name}. It is yours, not something a scan found.`, "success");
     },
-    [commit, doc]
+    [commit, doc, notify]
   );
 
   /**
@@ -288,8 +321,9 @@ export function MapWorkspace({
         assetOverrides
       });
       setSelectedId(null);
+      notify(`Removed ${doc.authoredAssets.find((asset) => asset.id === assetId)?.name ?? "that device"}.`);
     },
-    [commit, doc]
+    [commit, doc, notify]
   );
 
   const beginConnection = useCallback((source: string, target: string) => {
@@ -624,6 +658,8 @@ export function MapWorkspace({
           onApplyProject={applySimulation}
         />
       </main>
+
+      <ToastViewport toasts={toasts} onDismiss={dismissToast} />
 
       <AddDeviceDialog open={addingDevice} onConfirm={addDevice} onCancel={() => setAddingDevice(false)} />
 

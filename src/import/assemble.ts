@@ -93,6 +93,24 @@ function collectHosts(parsed: ParsedImport, identity: ReturnType<typeof hostKeys
       }
     }
     existing.scripts = mergeScripts(existing.scripts, host.scripts);
+    // The strongest silence wins. Two scans of the same host rarely sweep the same range, and a
+    // later quick scan reporting nothing filtered must not erase what a full sweep found.
+    if (host.silence) {
+      existing.silence = {
+        closed: Math.max(existing.silence?.closed ?? 0, host.silence.closed),
+        filtered: Math.max(existing.silence?.filtered ?? 0, host.silence.filtered)
+      };
+    }
+    for (const port of host.filteredPorts ?? []) {
+      // A port seen open by any scan is open; a later "filtered" is a firewall in that scan's path,
+      // not a service that went away.
+      if (
+        !existing.ports.some((candidate) => candidate.port === port.port) &&
+        !(existing.filteredPorts ?? []).some((candidate) => candidate.port === port.port)
+      ) {
+        (existing.filteredPorts ??= []).push(port);
+      }
+    }
     existing.vendor ??= host.vendor;
     existing.hostname ??= host.hostname;
     existing.os ??= host.os;

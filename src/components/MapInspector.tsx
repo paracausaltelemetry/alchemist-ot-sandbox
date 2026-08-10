@@ -3,6 +3,7 @@ import { assetTypes, getAssetType, zones } from "../data/catalog";
 import { itKindLabel } from "../models/itMap";
 import { portRisk } from "../engine/itAnalysis";
 import { cvesFromScripts } from "../import/nse";
+import { readSilence } from "../engine/portSilence";
 import type {
   AssetOverride,
   ConnectionOverride,
@@ -232,6 +233,7 @@ export function MapInspector({
   // Host-level and port-level results read as one list: the operator wants to know what the scripts
   // found on this machine, not which of Nmap's two buckets each result was filed in.
   const scripts = [...(asset!.scripts ?? []), ...asset!.ports.flatMap((port) => port.scripts ?? [])];
+  const silence = readSilence(asset!.silence, asset!.filteredPorts);
   const cves = cvesFromScripts(scripts);
   const type = getAssetType(asset!.type);
 
@@ -277,6 +279,11 @@ export function MapInspector({
         <h3>
           Open services <small>{asset!.ports.length}</small>
         </h3>
+        {/* The two silences mean opposite things and the difference is segmentation evidence: a
+            closed port is the host itself refusing, a filtered one is something in the way. */}
+        <p className="map-silence" data-verdict={silence.verdict}>
+          {silence.summary}
+        </p>
         {asset!.ports.length === 0 ? (
           <p className="muted">Nothing answered. That is a scan result, not an absence of services.</p>
         ) : (
@@ -310,6 +317,20 @@ export function MapInspector({
                     </tr>
                   );
                 })}
+              {/* Filtered ports sit under the open ones, dimmed and labelled. They are not services
+                  — nobody knows what is behind them — but "22 filtered" on a host is a route
+                  somebody will want to come back to. */}
+              {[...(asset!.filteredPorts ?? [])]
+                .sort((a, b) => a.port - b.port)
+                .map((port) => (
+                  <tr key={`filtered-${port.port}-${port.transport ?? "tcp"}`} data-state="filtered">
+                    <td>
+                      {port.port}/{port.transport ?? "tcp"}
+                    </td>
+                    <td>{port.service || "—"}</td>
+                    <td>filtered</td>
+                  </tr>
+                ))}
             </tbody>
           </table>
         )}

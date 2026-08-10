@@ -1066,3 +1066,25 @@
 .map-bottom-toggle:hover {
   color: var(--text);
 }
+
+/* What the ports that said nothing are telling you. Bordered like the finding rows, because on a
+   filtered host that is exactly what it is: evidence of a control in the path. */
+.map-silence {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.map-silence[data-verdict="unknown"] {
+  border-left-style: dashed;
+}
+
+/* A filtered port is not a service. Dimmed so the eye reads the open rows first, and left in the
+   table so somebody looking for a way in can still see where the wall is. */
+.map-port-table tr[data-state="filtered"] td {
+  color: var(--muted);
+  border-left-color: var(--line);
+}

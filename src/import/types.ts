@@ -56,6 +56,22 @@ export interface ImportedTrace {
   proto?: string;
 }
 
+/**
+ * What a scan learned about the ports that did *not* answer.
+ *
+ * Nmap distinguishes two silences and the difference is the whole finding. `closed` means the host
+ * answered with a refusal — it is reachable, and nothing is listening. `filtered` means nothing came
+ * back at all, which is a device in the path dropping traffic. A host showing 997 filtered and 3
+ * open is behind a firewall; a host showing 997 closed and 3 open is not.
+ *
+ * Counts rather than a port list, because that is how Nmap reports it (`Not shown: 997 closed tcp
+ * ports`, `<extraports>`), and because 65,000 rows of "nothing here" is not a finding.
+ */
+export interface PortSilence {
+  closed: number;
+  filtered: number;
+}
+
 /** A normalized host extracted from any source format, before mapping to a full Asset. */
 export interface ImportedHost {
   ip?: string;
@@ -75,6 +91,17 @@ export interface ImportedHost {
   notes?: string;
   /** Host-level NSE results — Nmap's `<hostscript>`, which is not tied to any one port. */
   scripts?: ImportedScript[];
+  /**
+   * Ports Nmap named individually as filtered.
+   *
+   * Kept apart from `ports` rather than flagged inside it. Everything downstream — asset-type
+   * inference, the risk grading, the service dots — reads `ports` as "this host is running this",
+   * and a filtered port is the opposite claim: nobody knows what is behind it. One shared list with
+   * a state field would have every one of those consumers get it right or quietly get it wrong.
+   */
+  filteredPorts?: ImportedPort[];
+  /** How many ports the scan swept past without an answer, and which kind of silence it was. */
+  silence?: PortSilence;
 }
 
 /** A normalized observed connection, before mapping to a full Conduit. */

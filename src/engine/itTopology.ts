@@ -123,6 +123,24 @@ function mergeHosts(hosts: ImportedHost[]): {
       }
     }
     existing.scripts = mergeScripts(existing.scripts, host.scripts);
+    // The strongest silence wins. Two scans of the same host rarely sweep the same range, and a
+    // later quick scan reporting nothing filtered must not erase what a full sweep found.
+    if (host.silence) {
+      existing.silence = {
+        closed: Math.max(existing.silence?.closed ?? 0, host.silence.closed),
+        filtered: Math.max(existing.silence?.filtered ?? 0, host.silence.filtered)
+      };
+    }
+    for (const port of host.filteredPorts ?? []) {
+      // A port seen open by any scan is open; a later "filtered" is a firewall in that scan's path,
+      // not a service that went away.
+      if (
+        !existing.ports.some((candidate) => candidate.port === port.port) &&
+        !(existing.filteredPorts ?? []).some((candidate) => candidate.port === port.port)
+      ) {
+        (existing.filteredPorts ??= []).push(port);
+      }
+    }
     // The address is the identity: a hostname-only record folded in must not blank it.
     existing.ip ||= host.ip;
     existing.hostname = host.hostname || existing.hostname;
@@ -235,6 +253,8 @@ export function synthesiseItTopology(parsed: ParsedImport, name = "Scanned netwo
       os: host.os,
       ports: host.ports,
       ...(host.scripts ? { scripts: host.scripts } : {}),
+      ...(host.filteredPorts ? { filteredPorts: host.filteredPorts } : {}),
+      ...(host.silence ? { silence: host.silence } : {}),
       subnetId: subnetIdByHostKey.get(key),
       position: { x: 0, y: 0 },
       confidence: 1,

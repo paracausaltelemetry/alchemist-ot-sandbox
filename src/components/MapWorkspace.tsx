@@ -266,6 +266,12 @@ export function MapWorkspace({
         setConnectSourceId(id);
         return;
       }
+      // Clicking the armed device again releases it rather than doing nothing. `beginConnection`
+      // silently refused a self-link, which read as the mode being broken.
+      if (connectSourceId === id) {
+        setConnectSourceId(null);
+        return;
+      }
       beginConnection(connectSourceId, id);
     },
     [beginConnection, connectMode, connectSourceId]

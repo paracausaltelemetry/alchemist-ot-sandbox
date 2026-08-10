@@ -502,9 +502,44 @@
   cursor: crosshair;
 }
 
+/* Solid and thick, not a dashed hint: on a map of twenty symbols the operator has to find this one
+   at a glance to know the first click registered. */
 .map-frame .map-device.is-connect-source .map-device-symbol {
-  outline: 2px dashed var(--accent);
-  outline-offset: 2px;
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.map-frame .map-device.is-connect-source .map-device-name {
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* The running instruction for a two-click act. Top-centre, clear of the legend in the corner and of
+   the titlebar the eye has already left. */
+.map-wiring-banner {
+  position: absolute;
+  top: var(--space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  max-width: min(46rem, calc(100% - 2rem));
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  background: var(--bg);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.map-wiring-banner strong {
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.map-wiring-banner span {
+  min-width: 0;
 }
 
 /* --- Subnet enclosures -----------------------------------------------------

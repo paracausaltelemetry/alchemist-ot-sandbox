@@ -42,6 +42,8 @@ interface FlowFrameProps<T extends Node> {
   dropMimeType?: string;
   onDropAt?: (payload: string, position: Point) => void;
   snapGrid: [number, number];
+  /** Off while wiring: a click that wanders a pixel becomes a drag and never reaches the node. */
+  nodesDraggable?: boolean;
   /** Spacing of the dotted background. Defaults to the layout unit; the map draws a finer one. */
   gridGap?: number;
   fitSignal: number;
@@ -76,6 +78,7 @@ export function FlowFrame<T extends Node>({
   dropMimeType,
   onDropAt,
   snapGrid,
+  nodesDraggable = true,
   gridGap = CANVAS_GRID_X,
   fitSignal,
   refitKey,
@@ -176,6 +179,7 @@ export function FlowFrame<T extends Node>({
           deleteKeyCode={null}
           connectionRadius={38}
           snapGrid={snapGrid}
+          nodesDraggable={nodesDraggable}
           autoPanOnNodeDrag={false}
           proOptions={{ hideAttribution: true }}
         >

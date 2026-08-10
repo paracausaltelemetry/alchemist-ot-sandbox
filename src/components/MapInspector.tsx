@@ -88,10 +88,10 @@ export function MapInspector({
   if (!asset && !connection) {
     return (
       <aside className="map-inspector" aria-label="Inspector">
-      {collapse}
         <div className="panel-heading">
           <span>Inspector</span>
           <small>No selection</small>
+          {collapse}
         </div>
         <div className="empty-state">
           <strong>Select an asset or a connection</strong>
@@ -109,10 +109,10 @@ export function MapInspector({
 
     return (
       <aside className="map-inspector" aria-label="Inspector">
-      {collapse}
         <div className="panel-heading">
           <span>Connection</span>
           <small>{connection.provenance === "authored" ? "You drew this" : "From a source"}</small>
+          {collapse}
         </div>
 
         <section>
@@ -241,10 +241,10 @@ export function MapInspector({
 
   return (
     <aside className="map-inspector" aria-label="Inspector">
-      {collapse}
       <div className="panel-heading">
         <span>{asset!.name}</span>
         <small>{asset!.provenance === "authored" ? "Yours" : "Imported"}</small>
+        {collapse}
       </div>
 
       <button

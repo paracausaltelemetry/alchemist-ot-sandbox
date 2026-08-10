@@ -1,3 +1,4 @@
+import { parseIpv4 } from "./ipv4";
 import { mergeScripts } from "../import/nse";
 import { classifyItDevice, isRouterLike } from "../import/itInference";
 import { resolveIdentities } from "./identity";
@@ -25,7 +26,6 @@ import { isPublicIp } from "./itAnalysis";
  * apart means the canvas can re-arrange without re-inferring.
  */
 
-const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 /** Host parts conventionally used for a subnet's gateway. */
 const GATEWAY_HOST_PARTS = new Set(["1", "254"]);
 /**
@@ -44,7 +44,7 @@ const EVIDENCE_RANK: Record<ItLinkEvidence, number> = {
 };
 
 function isIpv4(value: string | undefined): value is string {
-  return !!value && IPV4.test(value);
+  return !!value && parseIpv4(value) !== null;
 }
 
 /** The /24 an address sits in — the only segmentation an address alone can testify to. */

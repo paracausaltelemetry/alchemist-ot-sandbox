@@ -477,6 +477,37 @@
   font-weight: 600;
 }
 
+/* --- Search ----------------------------------------------------------------
+
+   A device the current search did not match.
+
+   Figure and ground: matches are drawn exactly as they always were, and everything else recedes.
+   By ink, never by opacity — a translucent card over the dotted grid reads as fuzz, which is the
+   rule the cable layer already keeps. `--signal` is not available here either: it means danger, and
+   "you did not ask about this one" is not danger.
+
+   Placed before `.is-selected` on purpose, so a selected device that does not match still reads as
+   selected. `border-style` is left alone, so an inferred non-match stays dashed. */
+.map-device.is-unmatched .map-device-symbol {
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+.map-device.is-unmatched .map-device-name {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.map-device.is-unmatched .map-device-addr {
+  color: var(--line-strong);
+}
+
+/* The detail row is the noisiest thing on a dense map and it is not what is being looked for. */
+.map-device.is-unmatched .map-device-services,
+.map-device.is-unmatched .map-device-ports {
+  display: none;
+}
+
 .map-device.is-selected .map-device-symbol {
   border-color: var(--accent);
   box-shadow: inset 0 0 0 1px var(--accent);
@@ -1136,4 +1167,58 @@
 .map-confidence[data-sure="low"] {
   font-style: italic;
   color: var(--text);
+}
+
+
+/* The unknown-field hint under the search box. Not an error and not `--signal`: the term was still
+   searched, and saying which fields exist is more use than refusing the input. */
+.map-query-hint {
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+}
+
+.map-query-hint code {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text);
+}
+
+.map-query-actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+/* The syntax, from the field registry, folded away until somebody wants it. */
+.map-query-help summary {
+  font-family: var(--font-body);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.map-query-help dl {
+  margin: var(--space-2) 0 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.map-query-help dt {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--text);
+}
+
+.map-query-help dd {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+
+.map-query-help p {
+  margin: 0;
+  font-size: var(--text-sm);
 }

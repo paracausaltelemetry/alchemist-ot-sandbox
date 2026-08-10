@@ -4,6 +4,7 @@ import { parseNmapNormal } from "../import/nmapText";
 import { SAMPLE_SCAN } from "../data/sampleScan";
 import { asOtProject, projectMap } from "../engine/mapProjection";
 import { buildOverlayContext, type OverlayId } from "../engine/overlays";
+import { buildQueryContext, runQuery } from "../engine/mapQuery";
 import type { MapGrouping } from "../data/mapLayout";
 import { applyOverrideDiff, diffToOverrides } from "../engine/mapOverrides";
 import { findReachability } from "../engine/reachability";
@@ -91,6 +92,13 @@ export function MapWorkspace({
     });
   }, []);
 
+  /**
+   * The query, here rather than in the sidebar, for the reason the selection is here: the list and
+   * the canvas are answering one question and must never disagree about the answer.
+   */
+  const [query, setQuery] = useState("");
+  const [fitMatchesSignal, setFitMatchesSignal] = useState(0);
+
   const [addingDevice, setAddingDevice] = useState(false);
   const [connectMode, setConnectMode] = useState(false);
   const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
@@ -108,6 +116,22 @@ export function MapWorkspace({
   const project = useMemo(() => asOtProject(doc, map), [doc, map]);
   // Built once per document, not per overlay switch: three overlays want assessment output and two
   // want a graph walk, so rebuilding on click would put a full `assessProject` on every change.
+  const queryResult = useMemo(
+    () => runQuery(query, map.assets, buildQueryContext(map)),
+    [map, query]
+  );
+
+  /**
+   * Null when nothing is being asked, so the canvas can tell "no query" from "no matches".
+   *
+   * Zero matches deliberately leaves the map alone. Every device receded at once reads as broken
+   * software rather than as an answer, and the sidebar is already saying nothing matched.
+   */
+  const matchedIds = useMemo(
+    () => (queryResult.active && queryResult.matched.size > 0 ? queryResult.matched : null),
+    [queryResult]
+  );
+
   const overlayContext = useMemo(
     () => buildOverlayContext(map, project, footholdId, doc.events),
     [doc.events, footholdId, map, project]
@@ -518,6 +542,10 @@ export function MapWorkspace({
           onRemoveSource={removeSource}
           onExportReport={doc.sources.length > 0 ? exportReport : undefined}
           onCollapse={() => togglePanel("sidebar")}
+          query={query}
+          onQueryChange={setQuery}
+          result={queryResult}
+          onFitMatches={() => setFitMatchesSignal((signal) => signal + 1)}
         />
         ) : (
           <PanelRail side="left" label="Sources and assets" onExpand={() => togglePanel("sidebar")} />
@@ -552,6 +580,16 @@ export function MapWorkspace({
               onConnect={beginConnection}
               connectMode={connectMode}
               connectSourceId={connectSourceId}
+              matchedIds={matchedIds}
+              fitMatchesSignal={fitMatchesSignal}
+              queryStatus={
+                queryResult.active && !panels.sidebar
+                  ? {
+                      text: `${queryResult.matched.size} of ${queryResult.total} match “${query.trim()}”`,
+                      onClear: () => setQuery("")
+                    }
+                  : null
+              }
               onToggleConnect={() => {
                 setConnectMode((on) => !on);
                 setConnectSourceId(null);

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { projectMap } from "./mapProjection";
 import { newAuthoredAsset, newCyberMap, newImportSource, newUserConnection } from "../models/cyberMap";
 import { parseNmapXml } from "../import/nmap";
+import { DEFAULT_VANTAGE } from "../models/itEngagement";
 import type { CyberMapDocument } from "../models/cyberMap";
 
 const SCAN = `<?xml version="1.0"?>
@@ -10,7 +11,7 @@ const SCAN = `<?xml version="1.0"?>
 
 function scanned(): CyberMapDocument {
   const doc = newCyberMap();
-  return { ...doc, sources: [newImportSource(parseNmapXml(SCAN), "nmap-xml", "scan.xml")] };
+  return { ...doc, sources: [newImportSource(parseNmapXml(SCAN), "scan.xml", 1, DEFAULT_VANTAGE)] };
 }
 
 describe("devices somebody added by hand", () => {
@@ -46,7 +47,7 @@ describe("devices somebody added by hand", () => {
     const withDevice = { ...doc, authoredAssets: [device] };
     const reimported = {
       ...withDevice,
-      sources: [...withDevice.sources, newImportSource(parseNmapXml(SCAN), "nmap-xml", "scan-again.xml")]
+      sources: [...withDevice.sources, newImportSource(parseNmapXml(SCAN), "scan-again.xml", 2, DEFAULT_VANTAGE)]
     };
 
     expect(projectMap(reimported).assets.filter((asset) => asset.name === "jump-host")).toHaveLength(1);

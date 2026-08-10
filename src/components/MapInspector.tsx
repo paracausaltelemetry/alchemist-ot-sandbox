@@ -39,6 +39,8 @@ interface MapInspectorProps {
   /** The asset the operator is working from, if they have named one. */
   foothold: string | null;
   onSetFoothold: (assetId: string | null) => void;
+  /** Only ever called for a device somebody added: an imported one comes back on the next parse. */
+  onDeleteAsset: (assetId: string) => void;
   /** Folds the panel down to a rail. */
   onCollapse: () => void;
 }
@@ -74,6 +76,7 @@ export function MapInspector({
   onClearConnectionOverride,
   foothold,
   onSetFoothold,
+  onDeleteAsset,
   onCollapse
 }: MapInspectorProps) {
   // Rendered into all three branches: the panel is a rail's width away from gone whether it is
@@ -256,6 +259,19 @@ export function MapInspector({
       >
         {foothold === asset!.id ? "Stop working from here" : "Work from here"}
       </button>
+
+      {/* Only for a device somebody added. Deleting an imported one would be deleting a fact: the
+          next projection reads it straight back out of the source file it came from. */}
+      {asset!.provenance === "authored" ? (
+        <button
+          type="button"
+          className="text-button compact"
+          onClick={() => onDeleteAsset(asset!.id)}
+          title="Remove this device and any lines drawn to it"
+        >
+          Remove this device
+        </button>
+      ) : null}
 
       <section>
         <h3>What the sources said</h3>

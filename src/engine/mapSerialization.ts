@@ -1,6 +1,7 @@
 import {
   CYBER_MAP_SCHEMA_VERSION,
   type AssetOverride,
+  type AuthoredAsset,
   type ConnectionOverride,
   type CyberMapDocument,
   type MapGovernance,
@@ -284,6 +285,9 @@ export function parseCyberMapJson(raw: string): CyberMapParse {
       })),
       assetOverrides: readOverrides(value.assetOverrides),
       connections: readConnections(value.connections),
+      // Absent in maps written before hand-added devices existed; an empty list is the truthful
+      // reading of a document that never had any.
+      authoredAssets: Array.isArray(value.authoredAssets) ? (value.authoredAssets as AuthoredAsset[]) : [],
       connectionOverrides: readConnectionOverrides(value.connectionOverrides),
       events: readEvents(value.events),
       layouts,

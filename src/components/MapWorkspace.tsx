@@ -10,6 +10,7 @@ import { findReachability } from "../engine/reachability";
 import {
   newCyberMap,
   newImportSource,
+  newAuthoredAsset,
   newUserConnection,
   nextMapSequence,
   type AssetOverride,
@@ -26,6 +27,7 @@ import { loadCyberMap, saveCyberMap } from "../lib/mapStore";
 import type {
   CafPrincipleId,
   CafStatus,
+  AssetTypeId,
   EngagementContext,
   Finding,
   OtProject,
@@ -35,6 +37,7 @@ import type {
 } from "../models/types";
 import { ItEventDialog, type ItEventDraft } from "./ItEventDialog";
 import { ItLinkDialog } from "./ItLinkDialog";
+import { AddDeviceDialog } from "./AddDeviceDialog";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { GovernanceEditor } from "./GovernanceEditor";
 import { MapBottomPanel } from "./MapBottomPanel";
@@ -86,6 +89,7 @@ export function MapWorkspace({
     });
   }, []);
 
+  const [addingDevice, setAddingDevice] = useState(false);
   const [connectMode, setConnectMode] = useState(false);
   const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
   /** The pair being joined, held while the operator says what the line means. */
@@ -242,6 +246,51 @@ export function MapWorkspace({
   );
 
   // --- The engagement record ------------------------------------------------
+
+  /**
+   * Adds a device nobody scanned.
+   *
+   * Selected on the way in, because the operator has just described a thing and the next question
+   * is always what else is known about it — and because a device that appears somewhere on a map of
+   * twenty others, unannounced, is a device they now have to hunt for.
+   */
+  const addDevice = useCallback(
+    (device: { name: string; ipAddress: string; type: AssetTypeId; note: string }) => {
+      const authored = newAuthoredAsset({
+        name: device.name,
+        type: device.type,
+        ...(device.ipAddress ? { ipAddress: device.ipAddress } : {}),
+        ...(device.note ? { note: device.note } : {})
+      });
+      commit({ ...doc, authoredAssets: [...doc.authoredAssets, authored] });
+      setAddingDevice(false);
+      setSelectedId(authored.id);
+    },
+    [commit, doc]
+  );
+
+  /**
+   * Removes one, and everything keyed to it.
+   *
+   * Its lines go with it: a connection to a device that is no longer on the map is the dangling
+   * case the projection already warns about, and leaving a warning behind as the result of a
+   * deliberate delete would be reporting the operator's own decision back to them as a problem.
+   */
+  const deleteDevice = useCallback(
+    (assetId: string) => {
+      const { [assetId]: _removed, ...assetOverrides } = doc.assetOverrides;
+      commit({
+        ...doc,
+        authoredAssets: doc.authoredAssets.filter((asset) => asset.id !== assetId),
+        connections: doc.connections.filter(
+          (connection) => connection.source !== assetId && connection.target !== assetId
+        ),
+        assetOverrides
+      });
+      setSelectedId(null);
+    },
+    [commit, doc]
+  );
 
   const beginConnection = useCallback((source: string, target: string) => {
     if (source !== target) {
@@ -430,6 +479,7 @@ export function MapWorkspace({
           nameOf={nameOf}
           onToggleInferred={() => setShowInferred((shown) => !shown)}
           onLoadSample={loadSample}
+          onAddDevice={() => setAddingDevice(true)}
           onImportFile={importFile}
           onRemoveSource={removeSource}
           onExportReport={doc.sources.length > 0 ? exportReport : undefined}
@@ -495,6 +545,7 @@ export function MapWorkspace({
           onOverride={override}
           onClearOverride={clearOverride}
           onConnectionOverride={overrideConnection}
+          onDeleteAsset={deleteDevice}
           onClearConnectionOverride={clearConnectionOverride}
           onCollapse={() => togglePanel("inspector")}
         />
@@ -573,6 +624,8 @@ export function MapWorkspace({
           onApplyProject={applySimulation}
         />
       </main>
+
+      <AddDeviceDialog open={addingDevice} onConfirm={addDevice} onCancel={() => setAddingDevice(false)} />
 
       <ItLinkDialog
         open={pendingLink !== null}

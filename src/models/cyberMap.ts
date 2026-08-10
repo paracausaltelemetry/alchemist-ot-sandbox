@@ -1,4 +1,4 @@
-import type { ImportFormat, ImportedPort, ImportedScript, ParsedImport } from "../import/types";
+import type { ImportFormat, ImportedPort, ImportedScript, ParsedImport, PortSilence } from "../import/types";
 import type { ScanTime } from "../import/scanTime";
 import type { ItAccessState, ItEvent, ItVantage } from "./itEngagement";
 import type { ItLinkEvidence, ItNodeKind } from "./itMap";
@@ -187,6 +187,9 @@ export interface MapAsset extends Asset {
   ports: ImportedPort[];
   /** Host-level NSE results (`-sC`). Port-level ones travel on the ports. */
   scripts?: ImportedScript[];
+  /** Ports that answered nothing but were named — a device in the path is dropping traffic. */
+  filteredPorts?: ImportedPort[];
+  silence?: PortSilence;
   identifiers: { ips: string[]; macs: string[]; hostnames: string[] };
   /** 0..1. Below 1 means some part of this asset was reasoned rather than observed. */
   confidence: number;

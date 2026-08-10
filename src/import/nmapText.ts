@@ -6,7 +6,8 @@ import type {
   ImportedPort,
   ImportedScript,
   ImportedTrace,
-  ParsedImport
+  ParsedImport,
+  PortSilence
 } from "./types";
 
 /**
@@ -34,6 +35,11 @@ function parseTarget(target: string): { ip?: string; hostname?: string } {
     return { hostname: name || undefined, ip: looksLikeIp(addr) ? addr : undefined };
   }
   return looksLikeIp(trimmed) ? { ip: trimmed } : { hostname: trimmed };
+}
+
+/** The silence record, created on the host the first time the scan reports one. */
+function silence(host: ImportedHost): PortSilence {
+  return (host.silence ??= { closed: 0, filtered: 0 });
 }
 
 function pushHost(hosts: ImportedHost[], host: ImportedHost | null): void {
@@ -182,6 +188,24 @@ export function parseNmapNormal(text: string): ParsedImport {
       continue;
     }
 
+    // "Not shown: 997 closed tcp ports (conn-refused)", sometimes several kinds on one line.
+    const notShown = line.match(/^Not shown:\s*(.+)$/i);
+    if (notShown) {
+      for (const part of notShown[1].split(",")) {
+        const counted = part.trim().match(/^(\d+)\s+(\S+)\s+(?:tcp|udp)?\s*ports?/i);
+        if (!counted) {
+          continue;
+        }
+        const state = counted[2].toLowerCase();
+        if (state === "closed") {
+          silence(current).closed += Number(counted[1]);
+        } else if (state.includes("filtered")) {
+          silence(current).filtered += Number(counted[1]);
+        }
+      }
+      continue;
+    }
+
     if (/^PORT\s+STATE\s+SERVICE/i.test(line)) {
       inPortTable = true;
       continue;
@@ -221,15 +245,26 @@ export function parseNmapNormal(text: string): ParsedImport {
     if (inPortTable) {
       const port = line.match(/^(\d+)\/(tcp|udp)\s+(\S+)\s+(\S+)(?:\s+(.*))?$/i);
       if (port) {
-        if (port[3].toLowerCase().startsWith("open")) {
+        const state = port[3].toLowerCase();
+        // `open|filtered` is Nmap saying it could not tell. Not evidence of a service, so it is
+        // filed with the filtered ports rather than the open ones.
+        const isOpen = state === "open";
+        const isFiltered = state.includes("filtered");
+        if (isOpen || isFiltered) {
           const entry: ImportedPort = { port: Number(port[1]), transport: port[2].toLowerCase(), service: port[4] };
           const product = port[5]?.trim();
           if (product) {
             entry.product = product;
           }
-          current.ports.push(entry);
-          lastPort = entry;
-          scriptTarget = "port";
+          if (isOpen) {
+            current.ports.push(entry);
+            lastPort = entry;
+            scriptTarget = "port";
+          } else {
+            (current.filteredPorts ??= []).push(entry);
+          }
+        } else if (state === "closed") {
+          silence(current).closed += 1;
         }
         continue;
       }
@@ -305,10 +340,19 @@ export function parseNmapGreppable(text: string): ParsedImport {
         const parts = token.trim().split("/");
         const portId = Number(parts[0]);
         const state = (parts[1] || "").toLowerCase();
-        if (!Number.isFinite(portId) || !state.startsWith("open")) {
+        if (!Number.isFinite(portId)) {
           continue;
         }
-        if (host.ports.some((existing) => existing.port === portId)) {
+        const isOpen = state === "open";
+        const isFiltered = state.includes("filtered");
+        if (!isOpen && !isFiltered) {
+          if (state === "closed") {
+            silence(host).closed += 1;
+          }
+          continue;
+        }
+        const kept = isOpen ? host.ports : (host.filteredPorts ??= []);
+        if (kept.some((existing) => existing.port === portId)) {
           continue;
         }
         const entry: ImportedPort = { port: portId, transport: (parts[2] || "").toLowerCase() || undefined, service: parts[4] || undefined };
@@ -316,7 +360,7 @@ export function parseNmapGreppable(text: string): ParsedImport {
         if (version) {
           entry.product = version;
         }
-        host.ports.push(entry);
+        kept.push(entry);
       }
     }
 

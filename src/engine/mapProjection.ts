@@ -148,7 +148,7 @@ function withOverride<T extends object, O extends object>(base: T, override: O |
  */
 const PROTECTED_CONNECTION_FIELDS = ["provenance", "evidence", "id", "source", "target"];
 
-const PROTECTED_ASSET_FIELDS = ["provenance", "sourceIds", "confidence", "rationale", "id", "identifiers", "ports", "scripts"];
+const PROTECTED_ASSET_FIELDS = ["provenance", "sourceIds", "confidence", "rationale", "id", "identifiers", "ports", "scripts", "filteredPorts", "silence"];
 
 /** Controls merge rather than replace; everything else follows the shared rule. */
 function applyOverride(asset: MapAsset, override: AssetOverride | undefined): MapAsset {
@@ -232,6 +232,8 @@ export function projectMap(doc: CyberMapDocument): ProjectedMap {
       ...(node.os ? { os: node.os } : {}),
       ports: node.ports,
       ...(node.scripts ? { scripts: node.scripts } : {}),
+      ...(node.filteredPorts ? { filteredPorts: node.filteredPorts } : {}),
+      ...(node.silence ? { silence: node.silence } : {}),
       identifiers: {
         ips: node.ip ? [node.ip] : [],
         macs: node.mac ? [node.mac] : [],

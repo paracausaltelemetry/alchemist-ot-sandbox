@@ -1,7 +1,15 @@
 import { childrenNamed, findAll, firstChild, parseXml, type XmlNode } from "./xml";
 import { scanTimeFromXmlAttrs } from "./scanTime";
 import { enrichFromScripts } from "./nse";
-import type { ImportedHop, ImportedHost, ImportedPort, ImportedScript, ImportedTrace, ParsedImport } from "./types";
+import type {
+  ImportedHop,
+  ImportedHost,
+  ImportedPort,
+  ImportedScript,
+  ImportedTrace,
+  ParsedImport,
+  PortSilence
+} from "./types";
 
 /**
  * Reads a host's `<trace>` block into ordered hops. The final hop reported by Nmap is the
@@ -119,9 +127,29 @@ export function parseNmapXml(text: string): ParsedImport {
     const os = findAll(hostNode, "osmatch")[0]?.attrs.name;
 
     const ports: ImportedPort[] = [];
+    const filteredPorts: ImportedPort[] = [];
+    const silence: PortSilence = { closed: 0, filtered: 0 };
+    // `<extraports>` is the "Not shown: 997 closed tcp ports" line in structured form. A host whose
+    // silence is filtered rather than closed has something in front of it dropping traffic.
+    for (const extra of findAll(hostNode, "extraports")) {
+      const count = Number(extra.attrs.count);
+      if (!Number.isFinite(count)) {
+        continue;
+      }
+      if (extra.attrs.state === "closed") {
+        silence.closed += count;
+      } else if (extra.attrs.state?.includes("filtered")) {
+        silence.filtered += count;
+      }
+    }
     for (const portNode of findAll(hostNode, "port")) {
-      const state = firstChild(portNode, "state");
-      if (state && state.attrs.state && !state.attrs.state.startsWith("open")) {
+      const state = firstChild(portNode, "state")?.attrs.state;
+      // `open|filtered` is Nmap saying it could not tell, which for a UDP sweep is most of the
+      // scan. It is not evidence of a service, so it is counted with the silences.
+      const isOpen = state ? state === "open" : true;
+      const isFiltered = Boolean(state?.includes("filtered"));
+      if (!isOpen && !isFiltered) {
+        silence.closed += 1;
         continue;
       }
       const portId = Number(portNode.attrs.portid);
@@ -139,7 +167,7 @@ export function parseNmapXml(text: string): ParsedImport {
       if (scripts) {
         port.scripts = scripts;
       }
-      ports.push(port);
+      (isOpen ? ports : filteredPorts).push(port);
     }
 
     if (!ip && !hostname) {
@@ -149,6 +177,12 @@ export function parseNmapXml(text: string): ParsedImport {
     // firstChild, not findAll: findAll walks the whole subtree and would pick up
     // another host's trace if the document nests unexpectedly.
     const host: ImportedHost = { ip, mac, vendor, hostname, os, ports };
+    if (filteredPorts.length > 0) {
+      host.filteredPorts = filteredPorts;
+    }
+    if (silence.closed > 0 || silence.filtered > 0) {
+      host.silence = silence;
+    }
     // `hostscript` holds the results that belong to the machine rather than to one of its ports —
     // SMB discovery, NBSTAT, the OS-level checks.
     const hostScripts = parseScripts(firstChild(hostNode, "hostscript"));

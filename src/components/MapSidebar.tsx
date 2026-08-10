@@ -1,6 +1,7 @@
 import { PanelLeftClose } from "lucide-react";
-import { useMemo, useState } from "react";
-import { getAssetType, getZone } from "../data/catalog";
+import { QUERY_FIELDS, type QueryResult } from "../engine/mapQuery";
+import { useEffect, useMemo, useRef } from "react";
+import { getZone } from "../data/catalog";
 import { importFormatLabels } from "../import/types";
 import { vantageLabel } from "../models/itEngagement";
 import type { CyberMapDocument, MapAsset } from "../models/cyberMap";
@@ -31,6 +32,12 @@ interface MapSidebarProps {
   onExportReport?: () => void;
   /** Folds the panel down to a rail, for when the map wants the width more than the list does. */
   onCollapse: () => void;
+  /** The query, owned by the workspace so the canvas and this list cannot disagree about it. */
+  query: string;
+  onQueryChange: (query: string) => void;
+  result: QueryResult;
+  /** Frames the matches on the canvas — three hits in two hundred nodes is still a hunt. */
+  onFitMatches: () => void;
 }
 
 export function MapSidebar({
@@ -46,25 +53,47 @@ export function MapSidebar({
   onImportFile,
   onRemoveSource,
   onExportReport,
-  onCollapse
+  onCollapse,
+  query,
+  onQueryChange,
+  result,
+  onFitMatches
 }: MapSidebarProps) {
-  const [filter, setFilter] = useState("");
+  const searchRef = useRef<HTMLInputElement | null>(null);
+
+  /**
+   * `/` puts the caret in the search box, the way every tool that has a search box does it.
+   *
+   * Ignored while something else has focus that takes text, or a slash typed into the event note
+   * would teleport the caret out of the sentence being written.
+   */
+  useEffect(() => {
+    const focusSearch = (event: KeyboardEvent) => {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      const active = document.activeElement;
+      const typing =
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        active instanceof HTMLSelectElement ||
+        (active instanceof HTMLElement && active.isContentEditable);
+      if (typing) {
+        return;
+      }
+      event.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", focusSearch);
+    return () => window.removeEventListener("keydown", focusSearch);
+  }, []);
 
   const matches = useMemo(() => {
-    const needle = filter.trim().toLowerCase();
     const listed = [...assets].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
-    if (!needle) {
-      return listed;
-    }
-    // Address, name and class all searched, because an assessor arrives with whichever one they
-    // happen to have: an IP from a scan, a hostname from a ticket, "firewall" from a conversation.
-    return listed.filter((asset) =>
-      [asset.name, asset.ipAddress, getAssetType(asset.type).label, getZone(asset.zone).name]
-        .join(" ")
-        .toLowerCase()
-        .includes(needle)
-    );
-  }, [assets, filter]);
+    // The list is the query's result set; the canvas dims to the same set. Filtering here and
+    // matching there from two different computations is how the two would come to disagree.
+    return result.active ? listed.filter((asset) => result.matched.has(asset.id)) : listed;
+  }, [assets, result]);
 
   return (
     <aside className="map-sidebar" aria-label="Sources and assets">
@@ -140,18 +169,69 @@ export function MapSidebar({
         </label>
       </section>
 
+      <details className="map-query-help">
+        <summary>What you can search</summary>
+        <dl>
+          {QUERY_FIELDS.map((field) => (
+            <div key={field.id}>
+              <dt>{field.example}</dt>
+              <dd>{field.hint}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="muted">
+          Terms narrow together. Put <code>-</code> in front to exclude, and commas between
+          alternatives.
+        </p>
+      </details>
+
       <section className="map-sidebar-assets">
         <h3>
-          Assets <small>{matches.length === assets.length ? assets.length : `${matches.length} of ${assets.length}`}</small>
+          Assets{" "}
+          <small aria-live="polite">
+            {matches.length === assets.length ? assets.length : `${matches.length} of ${assets.length}`}
+          </small>
         </h3>
         <input
+          ref={searchRef}
           className="map-asset-filter"
           type="search"
-          value={filter}
-          placeholder="Filter by name, address or class"
-          aria-label="Filter assets"
-          onChange={(event) => setFilter(event.target.value)}
+          value={query}
+          placeholder="port:445  -cidr:10.10.9.0/24"
+          aria-label="Search the estate"
+          onChange={(event) => onQueryChange(event.target.value)}
+          // On the input rather than on `window`: connect mode already owns Escape globally, and
+          // two handlers for one key means whichever mounted last silently wins.
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && query) {
+              event.preventDefault();
+              event.stopPropagation();
+              onQueryChange("");
+            }
+          }}
         />
+
+        {/* A prefix that is not a field is not an error — it was searched as text, and saying which
+            fields exist is more use than refusing. Rendered from the registry, so it cannot list a
+            field the parser does not have. */}
+        {result.unknownFields.length > 0 ? (
+          <p className="muted map-query-hint">
+            No field called <code>{result.unknownFields[0]}</code> — searched as text. Fields:{" "}
+            {QUERY_FIELDS.map((field) => field.prefixes[0]).join(", ")}.
+          </p>
+        ) : null}
+
+        {result.active ? (
+          <div className="map-query-actions">
+            <button type="button" className="text-button compact" onClick={onFitMatches} disabled={matches.length === 0}>
+              Fit to matches
+            </button>
+            <button type="button" className="text-button compact" onClick={() => onQueryChange("")}>
+              Clear
+            </button>
+          </div>
+        ) : null}
+
         {matches.length === 0 ? (
           <p className="muted">Nothing matches that.</p>
         ) : (

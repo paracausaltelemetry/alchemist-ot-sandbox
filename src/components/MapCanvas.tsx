@@ -7,7 +7,7 @@ import {
   type OnNodeDrag,
   useReactFlow
 } from "@xyflow/react";
-import { memo, useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ASSET_MIN_X, CANVAS_SNAP, ZONE_BAND_Y_OFFSET, ZONE_ROW_HEIGHT, snapFine } from "../data/canvasLayout";
 import { getAssetType } from "../data/catalog";
 import { portRisk } from "../engine/itAnalysis";
@@ -110,6 +110,12 @@ interface MapCanvasProps {
   connectMode: boolean;
   connectSourceId: string | null;
   onToggleConnect: () => void;
+  /** Ids the query matched. Null means nothing is being asked — see `matched` below. */
+  matchedIds: ReadonlySet<string> | null;
+  /** Bumped to frame the matches, the same counter idiom as `fitSignal`. */
+  fitMatchesSignal: number;
+  /** How many matched, and how to drop the query — only used when the sidebar is folded away. */
+  queryStatus: { text: string; onClear: () => void } | null;
 }
 
 type MapNodeData = {
@@ -121,6 +127,12 @@ type MapNodeData = {
   connectMode: boolean;
   connectSource: boolean;
   showServices: boolean;
+  /**
+   * Tri-state, like `bucket` above it. `false` recedes the card; `null` is "no query is running"
+   * and must draw it normally — a plain boolean would mark the whole estate a non-match whenever
+   * the search box is empty.
+   */
+  matched: boolean | null;
 };
 
 type MapFlowNode = Node<MapNodeData, "mapAsset">;
@@ -166,7 +178,7 @@ const serviceLabel = (port: ImportedPort) => port.service || String(port.port);
  * hundreds of these down, and moving one rebuilds the whole node array.
  */
 const MapDeviceNode = memo(function MapDeviceNode({ data }: NodeProps<MapFlowNode>) {
-  const { asset, selected, access, bucket, connectMode, connectSource, showServices } = data;
+  const { asset, selected, access, bucket, connectMode, connectSource, showServices, matched } = data;
   const type = getAssetType(asset.type);
   const inferred = asset.confidence < 1;
   const ordered = orderedServices(asset.ports);
@@ -176,7 +188,9 @@ const MapDeviceNode = memo(function MapDeviceNode({ data }: NodeProps<MapFlowNod
     <div
       className={`map-device${selected ? " is-selected" : ""}${inferred ? " is-ghost" : ""}${
         access ? ` has-access` : ""
-      }${connectMode ? " is-connectable" : ""}${connectSource ? " is-connect-source" : ""}`}
+      }${connectMode ? " is-connectable" : ""}${connectSource ? " is-connect-source" : ""}${
+        matched === false ? " is-unmatched" : ""
+      }`}
       style={bucket ? bucketStyle(bucket) : undefined}
       title={`${asset.rationale || asset.name}
 
@@ -296,6 +310,9 @@ function MapCanvasInner({
   onConnect,
   connectMode,
   connectSourceId,
+  matchedIds,
+  fitMatchesSignal,
+  queryStatus,
   onToggleConnect
 }: MapCanvasProps) {
   const reactFlow = useReactFlow();
@@ -325,6 +342,7 @@ function MapCanvasInner({
       const access = map.access.get(asset.id) ?? null;
       const bucket = assetBuckets.get(asset.id) ?? null;
       const connectSource = connectSourceId === asset.id;
+      const matched = matchedIds ? matchedIds.has(asset.id) : null;
       const position = laidOut.get(asset.id) ?? asset.position;
 
       const cached = cache.get(asset.id);
@@ -339,6 +357,7 @@ function MapCanvasInner({
         cached.flow.data.connectMode === connectMode &&
         cached.flow.data.connectSource === connectSource &&
         cached.flow.data.showServices === showServices &&
+        cached.flow.data.matched === matched &&
         cached.flow.position.x === position.x &&
         cached.flow.position.y === position.y
       ) {
@@ -353,11 +372,13 @@ function MapCanvasInner({
         // The symbol carries the first two visually and a screen reader gets nothing from an icon.
         ariaLabel: `${asset.name}, ${asset.deviceKind ? itKindLabel(asset.deviceKind) : getAssetType(asset.type).label}${
           asset.ipAddress ? `, ${asset.ipAddress}` : ""
-        }${asset.ports.length > 0 ? `, ${asset.ports.length} open services` : ""}. Press Enter to select.`,
+        }${asset.ports.length > 0 ? `, ${asset.ports.length} open services` : ""}${
+          matched ? ", matches your search" : ""
+        }. Press Enter to select.`,
         width: DEVICE_WIDTH,
         height: DEVICE_HEIGHT,
         style: { width: DEVICE_WIDTH, minHeight: DEVICE_HEIGHT },
-        data: { asset, selected, access, bucket, connectMode, connectSource, showServices }
+        data: { asset, selected, access, bucket, connectMode, connectSource, showServices, matched }
       };
       cache.set(asset.id, { source: asset, flow });
       return flow;
@@ -372,7 +393,7 @@ function MapCanvasInner({
       }
     }
     return next;
-  }, [assetBuckets, connectMode, connectSourceId, laidOut, map.access, map.assets, selectedId, showServices]);
+  }, [assetBuckets, connectMode, connectSourceId, laidOut, map.access, map.assets, matchedIds, selectedId, showServices]);
 
   // Snap x to the grid and y to the band its centre falls in: vertical position *is* the grouping
   // here, so a free y would let a card sit between two bands and mean nothing.
@@ -622,6 +643,19 @@ function MapCanvasInner({
     [bands.length, handleNodesChange, livePositions, onPlaceAsset, onSelect, snapToLane, zoneDroppedInto]
   );
 
+  /**
+   * Frames the matches when the sidebar asks.
+   *
+   * Zero is the initial value and means "never asked", so a mount does not steal the viewport from
+   * the fit that has just run for the estate as a whole.
+   */
+  useEffect(() => {
+    if (fitMatchesSignal === 0 || !matchedIds || matchedIds.size === 0) {
+      return;
+    }
+    void reactFlow.fitView({ padding: 0.3, nodes: [...matchedIds].map((id) => ({ id })), duration: 220 });
+  }, [fitMatchesSignal, matchedIds, reactFlow]);
+
   const minimapNodeColor = useCallback(() => "#8e979c", []);
 
   const counts = useMemo(() => {
@@ -782,6 +816,16 @@ function MapCanvasInner({
             Naming the device that was picked is the other half: a dashed ring on one symbol is easy
             to miss on a dense map, and easy to misread as the selection.
           */}
+          {/* With the sidebar folded away the search box goes with it, and a half-receded map with
+              no way to clear it is a trap. Same banner as wiring uses, different words. */}
+          {queryStatus ? (
+            <div className="map-wiring-banner" role="status">
+              <strong>{queryStatus.text}</strong>
+              <button type="button" className="text-button compact" onClick={queryStatus.onClear}>
+                Clear
+              </button>
+            </div>
+          ) : null}
           {connectMode ? (
             <div className="map-wiring-banner" role="status">
               <strong>{connectSourceId ? `From ${nameOf(connectSourceId)}` : "Drawing a connection"}</strong>

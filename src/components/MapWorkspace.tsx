@@ -17,6 +17,8 @@ import {
   type CyberMapDocument
 } from "../models/cyberMap";
 import { newItEvent } from "../models/itEngagement";
+import { readPanelLayout, writePanelLayout, type PanelLayout } from "../lib/panelLayout";
+import { PanelRail } from "./PanelRail";
 import { buildMapReport } from "../engine/mapReport";
 import { mapReportMarkdown } from "../engine/mapReportMarkdown";
 import { downloadMarkdown } from "../lib/exporters";
@@ -73,6 +75,17 @@ export function MapWorkspace({
   const [footholdId, setFootholdId] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
+  // Which panels are open, remembered between sessions. Not in the document: how somebody likes
+  // their sidebar is not part of the estate they are describing, and it would travel with an export.
+  const [panels, setPanels] = useState<PanelLayout>(readPanelLayout);
+  const togglePanel = useCallback((panel: keyof PanelLayout) => {
+    setPanels((open) => {
+      const next = { ...open, [panel]: !open[panel] };
+      writePanelLayout(next);
+      return next;
+    });
+  }, []);
+
   const [connectMode, setConnectMode] = useState(false);
   const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
   /** The pair being joined, held while the operator says what the line means. */
@@ -396,8 +409,13 @@ export function MapWorkspace({
     <>
       <div className="site-frame map-workspace">
       <SiteMasthead theme={theme} onToggleTheme={onToggleTheme} isMobile={isMobile} />
-      <main className="map-workspace-grid">
-        <MapSidebar
+      <main
+        className="map-workspace-grid"
+        data-sidebar={panels.sidebar ? "open" : "shut"}
+        data-inspector={panels.inspector ? "open" : "shut"}
+      >
+        {panels.sidebar ? (
+          <MapSidebar
           doc={doc}
           assets={map.assets}
           selectedId={selectedId}
@@ -409,7 +427,11 @@ export function MapWorkspace({
           onImportFile={importFile}
           onRemoveSource={removeSource}
           onExportReport={doc.sources.length > 0 ? exportReport : undefined}
+          onCollapse={() => togglePanel("sidebar")}
         />
+        ) : (
+          <PanelRail side="left" label="Sources and assets" onExpand={() => togglePanel("sidebar")} />
+        )}
 
         <div className="map-workspace-canvas">
           {map.assets.length === 0 ? (
@@ -448,7 +470,8 @@ export function MapWorkspace({
           )}
         </div>
 
-        <MapInspector
+        {panels.inspector ? (
+          <MapInspector
           doc={doc}
           asset={selectedAsset}
           connection={selectedConnection}
@@ -467,7 +490,11 @@ export function MapWorkspace({
           onClearOverride={clearOverride}
           onConnectionOverride={overrideConnection}
           onClearConnectionOverride={clearConnectionOverride}
+          onCollapse={() => togglePanel("inspector")}
         />
+        ) : (
+          <PanelRail side="right" label="Inspector" onExpand={() => togglePanel("inspector")} />
+        )}
 
         <MapBottomPanel
           warnings={[
@@ -486,6 +513,8 @@ export function MapWorkspace({
           onDeleteEvent={deleteEvent}
           movement={overlayContext.movement}
           footholdName={footholdId ? nameOf(footholdId) : null}
+          open={panels.bottom}
+          onToggleOpen={() => togglePanel("bottom")}
         />
 
         {/* The twelve analysis tabs, over the converged estate rather than a separate OT document.

@@ -47,7 +47,8 @@ function isIpv4(value: string | undefined): value is string {
   return !!value && IPV4.test(value);
 }
 
-function cidrOf(ip: string | undefined): string | undefined {
+/** The /24 an address sits in — the only segmentation an address alone can testify to. */
+export function cidrOf(ip: string | undefined): string | undefined {
   return isIpv4(ip) ? `${ip.split(".").slice(0, 3).join(".")}.0/24` : undefined;
 }
 

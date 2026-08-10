@@ -4,6 +4,7 @@ import type { ItAccessState, ItEvent, ItVantage } from "./itEngagement";
 import type { ItLinkEvidence, ItNodeKind } from "./itMap";
 import type {
   Asset,
+  AssetTypeId,
   CafOverride,
   CafPrincipleId,
   Conduit,
@@ -140,6 +141,27 @@ export interface UserConnection {
   firewallRule?: Conduit["firewallRule"];
 }
 
+/**
+ * A device somebody knows about that no scan has seen.
+ *
+ * Enumeration turns up hosts before it turns up packets from them: a domain controller named in an
+ * LDAP reply, a jump host somebody mentioned, a PLC on a drawing. Until now the only way to put one
+ * on the map was to fake a scan file, so they went unrecorded — and a map that can only show what
+ * has already been scanned is no use during the part of the job where you are still finding things.
+ *
+ * Stored as a source of its own rather than as an override, because there is nothing underneath it
+ * to override. It survives every re-import for the same reason authored connections do.
+ */
+export interface AuthoredAsset {
+  id: AssetId;
+  name: string;
+  ipAddress?: string;
+  type: AssetTypeId;
+  /** Which network-map symbol to draw. Defaults from the asset type when absent. */
+  deviceKind?: ItNodeKind;
+  note?: string;
+}
+
 export interface CyberMapDocument {
   schemaVersion: number;
   id: string;
@@ -150,6 +172,8 @@ export interface CyberMapDocument {
   /** Authored metadata, keyed by the id `resolveIdentities` mints. */
   assetOverrides: Record<AssetId, AssetOverride>;
   connections: UserConnection[];
+  /** Devices added by hand. Not derived from anything, so nothing recomputes them away. */
+  authoredAssets: AuthoredAsset[];
   /** Authored metadata over a *derived* connection, keyed by the id the projection mints. */
   connectionOverrides: Record<string, ConnectionOverride>;
   /** What the operator did. Access and attack edges are folded from this and never stored. */
@@ -226,6 +250,7 @@ export function newCyberMap(name = "Untitled map"): CyberMapDocument {
     sources: [],
     assetOverrides: {},
     connections: [],
+    authoredAssets: [],
     connectionOverrides: {},
     events: [],
     layouts: {},
@@ -261,6 +286,22 @@ export function nextMapSequence(doc: CyberMapDocument): number {
 }
 
 /** The `link:` prefix is what tells a connection id from an asset id in a single selection slot. */
+/**
+ * A hand-added device.
+ *
+ * The id is minted once and never re-derived. An imported asset's id comes from its identifiers, so
+ * re-importing lands on the same asset; an authored one has no identifiers to key on, and a
+ * regenerated id would orphan every position, note and line attached to it.
+ */
+export function newAuthoredAsset(rest: Partial<AuthoredAsset> = {}): AuthoredAsset {
+  return {
+    id: `authored:${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    name: "New device",
+    type: "enterprise-it",
+    ...rest
+  };
+}
+
 export function newUserConnection(source: AssetId, target: AssetId, rest: Partial<UserConnection> = {}): UserConnection {
   return { id: `link:user:${source}->${target}`, source, target, ...rest };
 }

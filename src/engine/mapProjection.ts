@@ -1,7 +1,7 @@
 import { getAssetType, getZone } from "../data/catalog";
 import { createAsset } from "../models/factory";
 import { inferAssetType, protocolsForHost } from "../import/inference";
-import { synthesiseItTopology } from "./itTopology";
+import { cidrOf, synthesiseItTopology } from "./itTopology";
 import { accessByNode, attackLinks } from "./itAccess";
 import { isPublicIp } from "./itAnalysis";
 import type { ImportedHost, ParsedImport } from "../import/types";
@@ -199,10 +199,99 @@ export const blankConnection = (id: string, source: AssetId, target: AssetId): C
   notes: ""
 });
 
+/**
+ * The devices somebody added by hand, as assets.
+ *
+ * `confidence: 1` and not a fraction. Below one means *inferred* — reasoned from evidence — and the
+ * canvas dims those and the inferred filter hides them. A device an operator put there on purpose
+ * is an assertion, not a guess, and hiding it behind the inferred toggle would lose the one thing
+ * on the map that nothing else can recreate.
+ */
+function authoredAssetsOf(doc: CyberMapDocument, subnets: Subnet[]): MapAsset[] {
+  const bySubnetCidr = new Map(subnets.map((subnet) => [subnet.cidr, subnet.id] as const));
+
+  return doc.authoredAssets.map((authored) => {
+    const zone = getAssetType(authored.type)?.defaultZone ?? "level3";
+    const base = createAsset(authored.type, { x: 0, y: 0 }, zone);
+    // Placed in a segment by its address, exactly as a scanned host is. Anything else would make a
+    // hand-added device sit outside the box its address says it belongs in.
+    const cidr = cidrOf(authored.ipAddress);
+    const asset: MapAsset = {
+      ...base,
+      id: authored.id,
+      name: authored.name,
+      ipAddress: authored.ipAddress ?? "",
+      subnetId: cidr ? bySubnetCidr.get(cidr) : undefined,
+      notes: authored.note ?? "",
+      provenance: "authored",
+      ...(authored.deviceKind ? { deviceKind: authored.deviceKind } : {}),
+      ports: [],
+      identifiers: { ips: authored.ipAddress ? [authored.ipAddress] : [], macs: [], hostnames: [] },
+      confidence: 1,
+      rationale: "Added by hand. No scan has seen this device.",
+      sourceIds: []
+    };
+    return applyOverride(asset, doc.assetOverrides[authored.id]);
+  });
+}
+
+/**
+ * The lines somebody drew, as connections.
+ *
+ * Split out so a map holding nothing but hand-added devices still shows the lines between them —
+ * an assessment can be entirely authored before the first scan lands.
+ *
+ * Endpoints that no longer exist are dropped and counted, not rejected: removing a source takes its
+ * assets with it, and a line that outlived them is the ordinary consequence of that.
+ */
+function authoredConnectionsOf(
+  doc: CyberMapDocument,
+  assetIds: Set<string>,
+  zoneOf: Map<string, ZoneId>
+): { connections: MapConnection[]; dangling: number } {
+  let dangling = 0;
+  const connections: MapConnection[] = [];
+  for (const connection of doc.connections) {
+    if (!assetIds.has(connection.source) || !assetIds.has(connection.target)) {
+      dangling += 1;
+      continue;
+    }
+    connections.push(
+      withOverride<MapConnection, ConnectionOverride>(
+        {
+          ...blankConnection(connection.id, connection.source, connection.target),
+          name: connection.label ?? "",
+          protocol: connection.protocol ?? "",
+          port: connection.port ?? "",
+          encrypted: connection.encrypted ?? false,
+          direction: connection.direction ?? "bidirectional",
+          firewallRule: connection.firewallRule ?? "unknown",
+          trustBoundary: zoneOf.get(connection.source) !== zoneOf.get(connection.target),
+          notes: connection.note ?? "",
+          provenance: "authored",
+          evidence: "asserted"
+        },
+        doc.connectionOverrides[connection.id],
+        PROTECTED_CONNECTION_FIELDS
+      )
+    );
+  }
+  return { connections, dangling };
+}
+
 export function projectMap(doc: CyberMapDocument): ProjectedMap {
   const parsed = mergedSourceParse(doc);
   if (!parsed) {
-    return { assets: [], connections: [], subnets: [], warnings: [], access: new Map() };
+    // A map with no scans is not necessarily an empty map: enumeration turns up devices before it
+    // turns up packets, and somebody sketching what they have heard about deserves to see it.
+    const authoredOnly = authoredAssetsOf(doc, []);
+    return {
+      assets: authoredOnly,
+      connections: authoredConnectionsOf(doc, new Set(authoredOnly.map((asset) => asset.id)), new Map()).connections,
+      subnets: [],
+      warnings: [],
+      access: new Map()
+    };
   }
 
   const synthesised = synthesiseItTopology(parsed);
@@ -210,7 +299,7 @@ export function projectMap(doc: CyberMapDocument): ProjectedMap {
   const sourcesByIdentifier = sourceIdsByIdentifier(doc);
 
   // --- Assets -------------------------------------------------------------
-  const assets: MapAsset[] = synthesised.nodes.map((node) => {
+  const importedAssets: MapAsset[] = synthesised.nodes.map((node) => {
     const host = hostFor(node);
     const type = assetTypeFor(node, host);
     const zone = zoneFor(node, type);
@@ -256,6 +345,14 @@ export function projectMap(doc: CyberMapDocument): ProjectedMap {
     return applyOverride(asset, doc.assetOverrides[node.id]);
   });
 
+  const subnets: Subnet[] = synthesised.subnets.map((subnet) => ({
+    ...subnet,
+    ...doc.subnetOverrides[subnet.id]
+  }));
+
+  // Hand-added devices join the estate before anything reads it, so they are in the id set the
+  // connections are checked against, in the zone map, and in the assessment.
+  const assets = [...importedAssets, ...authoredAssetsOf(doc, subnets)];
   const assetIds = new Set(assets.map((asset) => asset.id));
 
   // --- Connections --------------------------------------------------------
@@ -301,33 +398,7 @@ export function projectMap(doc: CyberMapDocument): ProjectedMap {
     )
   );
 
-  let dangling = 0;
-  const authored: MapConnection[] = [];
-  for (const connection of doc.connections) {
-    if (!assetIds.has(connection.source) || !assetIds.has(connection.target)) {
-      dangling += 1;
-      continue;
-    }
-    authored.push(
-      withOverride<MapConnection, ConnectionOverride>(
-        {
-          ...blankConnection(connection.id, connection.source, connection.target),
-          name: connection.label ?? "",
-          protocol: connection.protocol ?? "",
-          port: connection.port ?? "",
-          encrypted: connection.encrypted ?? false,
-          direction: connection.direction ?? "bidirectional",
-          firewallRule: connection.firewallRule ?? "unknown",
-          trustBoundary: zoneOf.get(connection.source) !== zoneOf.get(connection.target),
-          notes: connection.note ?? "",
-          provenance: "authored",
-          evidence: "asserted"
-        },
-        doc.connectionOverrides[connection.id],
-        PROTECTED_CONNECTION_FIELDS
-      )
-    );
-  }
+  const { connections: authored, dangling } = authoredConnectionsOf(doc, assetIds, zoneOf);
   if (dangling > 0) {
     // Warned, not rejected. Removing a source takes its assets with it, and a connection that
     // outlived its endpoints is the ordinary consequence of that.
@@ -345,11 +416,6 @@ export function projectMap(doc: CyberMapDocument): ProjectedMap {
     name: link.label ?? "",
     provenance: "authored",
     evidence: "attack"
-  }));
-
-  const subnets: Subnet[] = synthesised.subnets.map((subnet) => ({
-    ...subnet,
-    ...doc.subnetOverrides[subnet.id]
   }));
 
   return {

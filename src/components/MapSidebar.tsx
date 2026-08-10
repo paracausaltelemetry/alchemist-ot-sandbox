@@ -23,6 +23,8 @@ interface MapSidebarProps {
   nameOf: (assetId: string) => string;
   onToggleInferred: () => void;
   onLoadSample: () => void;
+  /** Adds a device nothing scanned — the half of enumeration that arrives as hearsay. */
+  onAddDevice: () => void;
   onImportFile: (file: File) => void;
   onRemoveSource: (sourceId: string) => void;
   /** Absent until something has been imported — an engagement report over nothing is not a document. */
@@ -40,6 +42,7 @@ export function MapSidebar({
   nameOf,
   onToggleInferred,
   onLoadSample,
+  onAddDevice,
   onImportFile,
   onRemoveSource,
   onExportReport,
@@ -115,6 +118,9 @@ export function MapSidebar({
               }}
             />
           </label>
+          <button type="button" className="text-button compact" onClick={onAddDevice}>
+            Add device
+          </button>
           <button type="button" className="text-button compact" onClick={onLoadSample}>
             Load sample
           </button>

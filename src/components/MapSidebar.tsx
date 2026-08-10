@@ -65,16 +65,15 @@ export function MapSidebar({
 
   return (
     <aside className="map-sidebar" aria-label="Sources and assets">
-      <button
-        type="button"
-        className="panel-collapse"
-        aria-expanded
-        title="Hide this panel"
-        onClick={onCollapse}
-      >
-        <PanelLeftClose size={15} aria-hidden="true" />
-        <span className="visually-hidden">Hide sources and assets</span>
-      </button>
+      {/* A titlebar rather than a button floated over the panel: absolutely positioned, it sat on
+          top of whatever the panel's first line happened to be. */}
+      <div className="panel-heading">
+        <span>Sources and assets</span>
+        <button type="button" className="panel-collapse" aria-expanded title="Hide this panel" onClick={onCollapse}>
+          <PanelLeftClose size={15} aria-hidden="true" />
+          <span className="visually-hidden">Hide sources and assets</span>
+        </button>
+      </div>
       <section>
         <h3>Sources</h3>
         {doc.sources.length === 0 ? (

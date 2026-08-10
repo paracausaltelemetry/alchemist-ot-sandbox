@@ -1023,19 +1023,20 @@
   overflow: hidden;
 }
 
-/* Floated into the panel's top-right corner rather than given a row of its own: it is furniture,
-   and a whole line of chrome to hold one 15px icon is the sort of thing that made the sidebar
-   crowded in the first place. */
-.map-sidebar,
-.map-inspector {
-  position: relative;
+/* In the panel's titlebar, at the end of the row.
+   It was absolutely positioned in the corner, which put it on top of whatever the panel's first
+   line happened to be — over "No selection" in the inspector, and over the Sources heading in the
+   sidebar. Furniture that covers the content is worse than furniture with a row of its own. */
+.panel-heading .panel-collapse {
+  margin-left: auto;
+  align-self: center;
+  flex: none;
 }
 
-.panel-collapse {
-  position: absolute;
-  top: var(--space-2);
-  right: var(--space-2);
-  z-index: 1;
+/* With three items, `space-between` puts the middle one in the middle of the panel rather than
+   beside the title it belongs to. Packed left, with the button pushed right by its own margin. */
+.panel-heading:has(.panel-collapse) {
+  justify-content: flex-start;
 }
 
 /* Shut, the bottom panel is its own tab strip and nothing else — the tabs carry their counts, so a

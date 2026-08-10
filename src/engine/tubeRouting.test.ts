@@ -269,3 +269,33 @@ describe("routing in the transit idiom", () => {
     expect(routeCables([], [])).toEqual([]);
   });
 });
+
+describe("nearly-straight cables", () => {
+  const corners = (path: string) => (path.match(/A /g) ?? []).length;
+
+  it("draws one line between two devices a nudge apart", () => {
+    // Four pixels of vertical difference produced a staircase: down eighteen, across three hundred,
+    // back up. The picture said "different levels" when the truth was that somebody had moved a
+    // card once.
+    const [only] = routeCables([cable("a", [100, 200], [500, 204])], []);
+    expect(corners(only.path)).toBe(0);
+  });
+
+  it("still bends when the two really are apart", () => {
+    const [only] = routeCables([cable("a", [100, 200], [500, 300])], []);
+    expect(corners(only.path)).toBeGreaterThan(0);
+  });
+
+  it("moves the end that can move, and leaves the symbol alone", () => {
+    // A border end slides along its enclosure's edge; a symbol end is where the icon is drawn.
+    const [only] = routeCables([
+      {
+        id: "a",
+        from: { at: { x: 100, y: 200 } },
+        to: { at: { x: 500, y: 206 }, onBorder: true }
+      }
+    ], []);
+    expect(only.path).toContain("200");
+    expect(only.path).not.toContain("206");
+  });
+});

@@ -139,6 +139,9 @@ const SERVICE_CHIP_LIMIT = 4;
  * Ten is already a wide host. Past that the count matters more than the pattern, so the overflow
  * is written as a number.
  */
+/** How close to a box's corner a cable may enter before it is nicer to take the middle. */
+const CORNER_MARGIN = 24;
+
 const PORT_DOT_LIMIT = 10;
 
 /**
@@ -373,6 +376,12 @@ function MapCanvasInner({
 
   // Snap x to the grid and y to the band its centre falls in: vertical position *is* the grouping
   // here, so a free y would let a card sit between two bands and mean nothing.
+  /** An id is not a name a reader recognises, and the banner has to say which device was picked. */
+  const nameOf = useCallback(
+    (assetId: string) => map.assets.find((asset) => asset.id === assetId)?.name ?? assetId,
+    [map.assets]
+  );
+
   const snapToLane = useCallback(
     (point: Point): Point => {
       const band = bandAt(point.y + DEVICE_HEIGHT / 2, bands);
@@ -430,10 +439,25 @@ function MapCanvasInner({
      * cable's end on the border instead of running it through the enclosure to reach a device in
      * the middle, which is what had lines crossing the subnet labels.
      */
-    const anchorFor = (end: string): { at: Point; enclosureId?: string; onBorder?: boolean } | null => {
+    const anchorFor = (end: string, other?: Point): { at: Point; enclosureId?: string; onBorder?: boolean } | null => {
       if (end.startsWith("subnet:")) {
         const box = boxes.get(end.slice("subnet:".length));
-        return box ? { at: { x: box.x + box.width / 2, y: box.y }, enclosureId: box.id, onBorder: true } : null;
+        if (!box) {
+          return null;
+        }
+        /**
+         * Enter under whatever is connecting, when it is over the box at all.
+         *
+         * Always entering at the box's centre meant a router sitting off to one side dropped a
+         * line, jogged sideways with two corners, then dropped again — for no reason a reader could
+         * see. A border is a whole edge, not a point: the cable can meet it wherever it arrives,
+         * and the straight drop is both truer and quieter.
+         */
+        const entry =
+          other && other.x >= box.x + CORNER_MARGIN && other.x <= box.x + box.width - CORNER_MARGIN
+            ? other.x
+            : box.x + box.width / 2;
+        return { at: { x: entry, y: box.y }, enclosureId: box.id, onBorder: true };
       }
       const at = livePositions.get(end);
       return at ? { at: symbolCentre(at), enclosureId: subnetOf.get(end) } : null;
@@ -454,8 +478,12 @@ function MapCanvasInner({
 
     // Routed as a set, not one at a time: lanes exist because cables know about each other.
     const requests: CableRequest[] = cables.flatMap((cable) => {
-      const from = anchorFor(cable.from);
-      const to = anchorFor(cable.to);
+      // The device end first, so the box end can be placed under it.
+      const deviceFirst = !cable.from.startsWith("subnet:");
+      const anchor = deviceFirst ? anchorFor(cable.from) : anchorFor(cable.to);
+      const opposite = deviceFirst ? anchorFor(cable.to, anchor?.at) : anchorFor(cable.from, anchor?.at);
+      const from = deviceFirst ? anchor : opposite;
+      const to = deviceFirst ? opposite : anchor;
       return from && to ? [{ id: cable.id, from, to }] : [];
     });
     // Every symbol on the canvas, so a cable detours around a device it does not connect.
@@ -623,6 +651,8 @@ function MapCanvasInner({
       }}
       onKeyDown={handleKeyDown}
       snapGrid={[CANVAS_SNAP, bands.length > 0 ? ZONE_ROW_HEIGHT : CANVAS_SNAP]}
+      // While wiring, a click that wanders one pixel became a drag and the node never heard it.
+      nodesDraggable={!connectMode}
       gridGap={CANVAS_SNAP}
       fitSignal={fitSignal}
       minimapNodeColor={minimapNodeColor}
@@ -742,7 +772,31 @@ function MapCanvasInner({
           </div>
         </div>
       }
-      overlay={<MapLegend overlay={overlay} />}
+      overlay={
+        <>
+          <MapLegend overlay={overlay} />
+          {/*
+            The running instruction, over the canvas rather than in the titlebar.
+            Wiring is a two-click act with a state between the clicks, and the only thing that said
+            so was a line of subtitle text three inches away from where the operator was looking.
+            Naming the device that was picked is the other half: a dashed ring on one symbol is easy
+            to miss on a dense map, and easy to misread as the selection.
+          */}
+          {connectMode ? (
+            <div className="map-wiring-banner" role="status">
+              <strong>{connectSourceId ? `From ${nameOf(connectSourceId)}` : "Drawing a connection"}</strong>
+              <span>
+                {connectSourceId
+                  ? "Click the device at the other end, or click this one again to pick a different start."
+                  : "Click the device this connection starts from."}
+              </span>
+              <button type="button" className="text-button compact" onClick={onToggleConnect}>
+                Cancel
+              </button>
+            </div>
+          ) : null}
+        </>
+      }
     >
       {/* Subnet enclosures: the boxes a network diagram draws around a segment. Behind the link
           overlay so a cable crossing a segment reads as crossing it. */}

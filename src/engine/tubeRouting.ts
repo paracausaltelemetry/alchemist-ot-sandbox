@@ -185,12 +185,51 @@ function bundlesOn(members: Array<{ id: string; corridor: Corridor }>): string[]
  * - **A single dogleg** otherwise: out, across, in. Never more than two corners, because a third
  *   makes a route that has to be traced rather than read.
  */
+/**
+ * Endpoints that are nearly on one line, pulled onto it exactly.
+ *
+ * Two devices four pixels apart vertically cannot be joined by a horizontal line, so the router
+ * built a staircase: down eighteen, across three hundred, back up. The picture said "these two are
+ * on different levels" when the truth was that somebody had nudged one of them. A transit diagram
+ * does not do that — near enough to straight *is* straight, and the line is what the reader
+ * believes.
+ *
+ * The tolerance is the drag grid: anything a person could have caused by nudging a card once.
+ */
+const ALIGN_TOLERANCE = 12;
+
+function straighten(from: CableEnd, to: CableEnd): { from: Point; to: Point } {
+  const a = from.at;
+  const b = to.at;
+
+  // A border end slides along its enclosure's edge; a symbol end is where the icon is. So when one
+  // end can move, it moves, and only when both are fixed do they meet in the middle.
+  const settle = (av: number, bv: number): [number, number] => {
+    if (from.onBorder && !to.onBorder) return [bv, bv];
+    if (to.onBorder && !from.onBorder) return [av, av];
+    const mid = (av + bv) / 2;
+    return [mid, mid];
+  };
+
+  if (Math.abs(a.y - b.y) <= ALIGN_TOLERANCE && Math.abs(a.x - b.x) > ALIGN_TOLERANCE) {
+    const [ay, by] = settle(a.y, b.y);
+    return { from: { x: a.x, y: ay }, to: { x: b.x, y: by } };
+  }
+  if (Math.abs(a.x - b.x) <= ALIGN_TOLERANCE && Math.abs(a.y - b.y) > ALIGN_TOLERANCE) {
+    const [ax, bx] = settle(a.x, b.x);
+    return { from: { x: ax, y: a.y }, to: { x: bx, y: b.y } };
+  }
+  return { from: a, to: b };
+}
+
 function polylineFor(
   request: CableRequest,
   enclosures: Map<string, MapEnclosure>,
   obstacles: CableObstacle[]
 ): Point[] {
-  const { from, to } = request;
+  const straightened = straighten(request.from, request.to);
+  const from = { ...request.from, at: straightened.from };
+  const to = { ...request.to, at: straightened.to };
 
   if (isHorizontal(from.at, to.at) || isVertical(from.at, to.at)) {
     const inTheWay = obstaclesOn(from.at, to.at, obstacles);

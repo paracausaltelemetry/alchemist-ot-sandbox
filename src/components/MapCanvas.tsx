@@ -8,7 +8,7 @@ import {
   useReactFlow
 } from "@xyflow/react";
 import { memo, useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
-import { CANVAS_GRID_X, ZONE_BAND_Y_OFFSET, ZONE_ROW_HEIGHT, snapX } from "../data/canvasLayout";
+import { ASSET_MIN_X, CANVAS_SNAP, ZONE_BAND_Y_OFFSET, ZONE_ROW_HEIGHT, snapFine } from "../data/canvasLayout";
 import { getAssetType } from "../data/catalog";
 import { portRisk } from "../engine/itAnalysis";
 import { describePort, orderedServices, serviceSummary } from "./canvas/services";
@@ -376,7 +376,10 @@ function MapCanvasInner({
   const snapToLane = useCallback(
     (point: Point): Point => {
       const band = bandAt(point.y + DEVICE_HEIGHT / 2, bands);
-      return { x: snapX(point.x), y: band ? bandAssetY(band) : point.y };
+      // Purdue keeps its lanes: vertical position *is* the grouping there, so a free y would let a
+      // card sit between two levels and mean nothing. Topology has no lanes, so y is free to the
+      // same fine grid as x.
+      return { x: snapFine(point.x, ASSET_MIN_X), y: band ? bandAssetY(band) : snapFine(point.y) };
     },
     [bands]
   );
@@ -569,12 +572,15 @@ function MapCanvasInner({
         onSelect(id);
         return;
       }
-      // Up and down move a whole lane, because a half-lane move is not a position this canvas has.
+      // One grid step per press, and under Purdue a whole lane vertically — a half-lane move is not
+      // a position that canvas has. Shift moves a full lane width, for crossing the map.
+      const step = event.shiftKey ? CANVAS_SNAP * 4 : CANVAS_SNAP;
+      const lane = bands.length > 0 ? ZONE_ROW_HEIGHT : step;
       const delta: Record<string, [number, number]> = {
-        ArrowLeft: [-CANVAS_GRID_X, 0],
-        ArrowRight: [CANVAS_GRID_X, 0],
-        ArrowUp: [0, -ZONE_ROW_HEIGHT],
-        ArrowDown: [0, ZONE_ROW_HEIGHT]
+        ArrowLeft: [-step, 0],
+        ArrowRight: [step, 0],
+        ArrowUp: [0, -lane],
+        ArrowDown: [0, lane]
       };
       const move = delta[event.key];
       if (!move) return;
@@ -585,7 +591,7 @@ function MapCanvasInner({
       handleNodesChange([{ id, type: "position", position, dragging: false }]);
       onPlaceAsset(id, position, zoneDroppedInto(position));
     },
-    [handleNodesChange, livePositions, onPlaceAsset, onSelect, snapToLane, zoneDroppedInto]
+    [bands.length, handleNodesChange, livePositions, onPlaceAsset, onSelect, snapToLane, zoneDroppedInto]
   );
 
   const minimapNodeColor = useCallback(() => "#8e979c", []);
@@ -616,7 +622,8 @@ function MapCanvasInner({
         }
       }}
       onKeyDown={handleKeyDown}
-      snapGrid={[CANVAS_GRID_X, ZONE_ROW_HEIGHT]}
+      snapGrid={[CANVAS_SNAP, bands.length > 0 ? ZONE_ROW_HEIGHT : CANVAS_SNAP]}
+      gridGap={CANVAS_SNAP}
       fitSignal={fitSignal}
       minimapNodeColor={minimapNodeColor}
       sectionLabel="Estate map"

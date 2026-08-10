@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { Point, Subnet, ZoneId } from "../models/types";
 import {
+  ASSET_MIN_X,
   ASSET_NODE_HEIGHT,
   ASSET_NODE_WIDTH,
   CANVAS_GRID_X,
+  CANVAS_SNAP,
   SUBNET_BOX_PAD,
   SUBNET_LABEL_HEIGHT,
   assetYForZone,
@@ -11,6 +13,7 @@ import {
   projectPurduePositions,
   resolveAssetX,
   resolveFreePosition,
+  snapFine,
   snapToGrid,
   snapX,
   subnetBoundingBoxes
@@ -205,5 +208,24 @@ describe("layoutTiered", () => {
     const first = layoutTiered(assets, subnets, conduits);
     const second = layoutTiered(assets, subnets, conduits);
     expect([...first.entries()]).toEqual([...second.entries()]);
+  });
+});
+
+describe("the fine drag grid", () => {
+  it("divides the layout unit, so lane geometry stays aligned", () => {
+    // 48 is the unit the tiered layout, the lanes and the free-position search all work in. A drag
+    // step that did not divide it would knock a card off the lane it was placed on the first time
+    // anybody touched it.
+    expect(CANVAS_GRID_X % CANVAS_SNAP).toBe(0);
+  });
+
+  it("is a small enough step to line a card up by eye", () => {
+    // The whole complaint: at 48 a nudge threw a 128px-wide card a third of its own width.
+    expect(snapFine(100)).toBe(96);
+    expect(snapFine(103)).toBe(108);
+  });
+
+  it("keeps assets clear of the zone-label gutter when asked", () => {
+    expect(snapFine(-500, ASSET_MIN_X)).toBe(ASSET_MIN_X);
   });
 });

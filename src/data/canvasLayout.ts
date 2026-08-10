@@ -8,6 +8,24 @@ export const ASSET_NODE_WIDTH = 212;
 export const ASSET_NODE_HEIGHT = 96;
 export const DEFAULT_VIEWPORT = { x: 210, y: 58, zoom: 0.74 };
 export const CANVAS_GRID_X = 48;
+/**
+ * The step a dragged device actually moves in.
+ *
+ * `CANVAS_GRID_X` is the *layout* unit — every laid-out position, lane and enclosure is a multiple
+ * of 48, and that is worth keeping. It is a terrible drag step, though: nudging a card two pixels
+ * left threw it a third of its own width, so fine adjustment was impossible and the map fought
+ * anyone trying to tidy it.
+ *
+ * 12 divides 48, so everything the layout produced is still exactly on this grid and nothing
+ * shifts when a saved map is reopened. Four positions between lanes is enough to line a card up by
+ * eye without letting it drift somewhere meaningless.
+ */
+export const CANVAS_SNAP = 12;
+
+/** Rounds to the fine drag grid, keeping assets clear of the zone-label gutter. */
+export function snapFine(value: number, min = 0) {
+  return Math.max(min, Math.round(value / CANVAS_SNAP) * CANVAS_SNAP);
+}
 export const CANVAS_GRID_Y = ZONE_ROW_HEIGHT;
 // Left edge for assets — keeps them clear of the Purdue zone-label gutter.
 export const ASSET_MIN_X = 48;

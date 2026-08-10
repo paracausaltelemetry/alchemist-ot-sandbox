@@ -12,11 +12,27 @@ export const importFormatLabels: Record<ImportFormat, string> = {
   "csv-inventory": "CSV inventory"
 };
 
+/**
+ * One NSE script result, kept as the script said it.
+ *
+ * `-sC` output is the richest thing an Nmap run produces and the least structured: every script
+ * writes its own format, and there are hundreds of them. Parsing each one into fields would be a
+ * project in itself and would silently drop whatever we had not written a reader for, so the text
+ * is kept whole and only the few scripts worth acting on are interpreted.
+ */
+export interface ImportedScript {
+  /** The script name, e.g. `smb-os-discovery`, `http-title`, `ssl-cert`. */
+  id: string;
+  output: string;
+}
+
 export interface ImportedPort {
   port: number;
   transport?: string;
   service?: string;
   product?: string;
+  /** NSE results for this port (`-sC` / `--script`). */
+  scripts?: ImportedScript[];
 }
 
 /** One hop of a traceroute, nearest hop first. A hop that timed out keeps its ttl so distance stays correct. */
@@ -57,6 +73,8 @@ export interface ImportedHost {
   criticalityHint?: string;
   protocolsHint?: string[];
   notes?: string;
+  /** Host-level NSE results — Nmap's `<hostscript>`, which is not tied to any one port. */
+  scripts?: ImportedScript[];
 }
 
 /** A normalized observed connection, before mapping to a full Conduit. */

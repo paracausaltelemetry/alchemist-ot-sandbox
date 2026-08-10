@@ -1,3 +1,4 @@
+import { mergeScripts } from "../import/nse";
 import { classifyItDevice, isRouterLike } from "../import/itInference";
 import { resolveIdentities } from "./identity";
 import type { ImportedHost, ParsedImport } from "../import/types";
@@ -112,10 +113,16 @@ function mergeHosts(hosts: ImportedHost[]): {
       continue;
     }
     for (const port of host.ports) {
-      if (!existing.ports.some((candidate) => candidate.port === port.port)) {
+      const already = existing.ports.find((candidate) => candidate.port === port.port);
+      if (!already) {
         existing.ports.push(port);
+      } else if (port.scripts) {
+        // A later scan of a port already seen still brings its script output with it, and that is
+        // usually the reason the port was scanned again.
+        already.scripts = mergeScripts(already.scripts, port.scripts);
       }
     }
+    existing.scripts = mergeScripts(existing.scripts, host.scripts);
     // The address is the identity: a hostname-only record folded in must not blank it.
     existing.ip ||= host.ip;
     existing.hostname = host.hostname || existing.hostname;
@@ -227,6 +234,7 @@ export function synthesiseItTopology(parsed: ParsedImport, name = "Scanned netwo
       vendor: host.vendor,
       os: host.os,
       ports: host.ports,
+      ...(host.scripts ? { scripts: host.scripts } : {}),
       subnetId: subnetIdByHostKey.get(key),
       position: { x: 0, y: 0 },
       confidence: 1,

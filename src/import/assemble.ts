@@ -1,3 +1,4 @@
+import { mergeScripts } from "./nse";
 import { ASSET_MIN_X, ASSET_NODE_HEIGHT, ASSET_NODE_WIDTH } from "../data/canvasLayout";
 import { getAssetType } from "../data/catalog";
 import { resolveIdentities, type HostIdentifiers } from "../engine/identity";
@@ -82,10 +83,16 @@ function collectHosts(parsed: ParsedImport, identity: ReturnType<typeof hostKeys
       continue;
     }
     for (const port of host.ports) {
-      if (!existing.ports.some((candidate) => candidate.port === port.port)) {
+      const already = existing.ports.find((candidate) => candidate.port === port.port);
+      if (!already) {
         existing.ports.push(port);
+      } else if (port.scripts) {
+        // A later scan of a port already seen still brings its script output with it, and that is
+        // usually the reason the port was scanned again.
+        already.scripts = mergeScripts(already.scripts, port.scripts);
       }
     }
+    existing.scripts = mergeScripts(existing.scripts, host.scripts);
     existing.vendor ??= host.vendor;
     existing.hostname ??= host.hostname;
     existing.os ??= host.os;

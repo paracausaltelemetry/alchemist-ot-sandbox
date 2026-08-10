@@ -1,5 +1,13 @@
 import { scanTimeFromGreppable, scanTimeFromNormal } from "./scanTime";
-import type { ImportedHop, ImportedHost, ImportedPort, ImportedTrace, ParsedImport } from "./types";
+import { enrichFromScripts } from "./nse";
+import type {
+  ImportedHop,
+  ImportedHost,
+  ImportedPort,
+  ImportedScript,
+  ImportedTrace,
+  ParsedImport
+} from "./types";
 
 /**
  * Parsers for Nmap's text outputs, alongside the XML parser in `nmap.ts`:
@@ -30,7 +38,7 @@ function parseTarget(target: string): { ip?: string; hostname?: string } {
 
 function pushHost(hosts: ImportedHost[], host: ImportedHost | null): void {
   if (host && (host.ip || host.hostname)) {
-    hosts.push(host);
+    hosts.push(enrichFromScripts(host));
   }
 }
 
@@ -84,6 +92,11 @@ export function parseNmapNormal(text: string): ParsedImport {
   let current: ImportedHost | null = null;
   let inPortTable = false;
   let trace: ImportedTrace | null = null;
+  // NSE output arrives as `|` lines under whatever it belongs to, so the reader has to remember
+  // what that was: the port printed above, or the host-script block near the end of the report.
+  let lastPort: ImportedPort | null = null;
+  let scriptTarget: "host" | "port" = "port";
+  let openScript: ImportedScript | null = null;
   // Hops exactly as printed, keyed by the host they were traced to. Nmap prints a path in full
   // once and then refers back to it, so later hosts need the earlier one still on hand.
   const rawHopsByTarget = new Map<string, ImportedHop[]>();
@@ -115,6 +128,9 @@ export function parseNmapNormal(text: string): ParsedImport {
       const { ip, hostname } = parseTarget(report[1]);
       current = { ip, hostname, ports: [] };
       inPortTable = false;
+      lastPort = null;
+      scriptTarget = "port";
+      openScript = null;
       continue;
     }
     if (!current) {
@@ -171,6 +187,37 @@ export function parseNmapNormal(text: string): ParsedImport {
       continue;
     }
 
+    // `Host script results:` opens the block of NSE output that belongs to the machine rather than
+    // to any one of its ports — SMB discovery, NBSTAT, the OS-level checks.
+    if (/^Host script results:/i.test(line)) {
+      inPortTable = false;
+      scriptTarget = "host";
+      openScript = null;
+      continue;
+    }
+
+    // A `|` line continues whatever came before it: the port above it, or the host-script block.
+    if (line.startsWith("|")) {
+      const rest = line.replace(/^\|_?/, "");
+      const head = rest.match(/^ ?([A-Za-z][\w.-]*):\s?(.*)$/);
+      // One space then a name then a colon starts a script. Two or more spaces is a continuation
+      // line, which can carry a colon of its own — `|   3072 aa:bb (RSA)` is a key, not a script.
+      if (head && !/^ {2}/.test(rest)) {
+        // Held by reference so the continuation lines below append straight into the stored result.
+        openScript = { id: head[1], output: head[2].trim() };
+        if (scriptTarget === "host") {
+          (current.scripts ??= []).push(openScript);
+        } else if (lastPort) {
+          (lastPort.scripts ??= []).push(openScript);
+        }
+      } else if (openScript) {
+        const continued = rest.replace(/^\s+/, "");
+        openScript.output = openScript.output ? `${openScript.output}\n${continued}` : continued;
+      }
+      continue;
+    }
+    openScript = null;
+
     if (inPortTable) {
       const port = line.match(/^(\d+)\/(tcp|udp)\s+(\S+)\s+(\S+)(?:\s+(.*))?$/i);
       if (port) {
@@ -181,6 +228,8 @@ export function parseNmapNormal(text: string): ParsedImport {
             entry.product = product;
           }
           current.ports.push(entry);
+          lastPort = entry;
+          scriptTarget = "port";
         }
         continue;
       }

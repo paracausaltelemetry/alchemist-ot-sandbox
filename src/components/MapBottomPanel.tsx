@@ -1,3 +1,4 @@
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { ACCESS_LABELS, EVENT_KIND_LABELS, type ItEvent } from "../models/itEngagement";
 import type { MovementView } from "../engine/movement";
@@ -26,6 +27,9 @@ interface MapBottomPanelProps {
   onSelect: (id: string) => void;
   onRecordEvent: () => void;
   onDeleteEvent: (eventId: string) => void;
+  /** Closed by default: it is a place to look things up, not a thing to read. */
+  open: boolean;
+  onToggleOpen: () => void;
 }
 
 export function MapBottomPanel({
@@ -36,7 +40,9 @@ export function MapBottomPanel({
   nameOf,
   onSelect,
   onRecordEvent,
-  onDeleteEvent
+  onDeleteEvent,
+  open,
+  onToggleOpen
 }: MapBottomPanelProps) {
   // Opens on whatever has something to say. A panel that always opens on an empty tab teaches the
   // reader that it is empty, and they stop looking.
@@ -49,23 +55,39 @@ export function MapBottomPanel({
   ];
 
   return (
-    <section className="map-bottom" aria-label="Warnings, findings and events">
+    <section className={`map-bottom${open ? "" : " is-collapsed"}`} aria-label="Warnings, findings and events">
       <div className="map-bottom-tabs" role="tablist" aria-label="Bottom panel">
         {tabs.map((entry) => (
           <button
             key={entry.id}
             type="button"
             role="tab"
-            aria-selected={tab === entry.id}
-            className={tab === entry.id ? "active" : ""}
-            onClick={() => setTab(entry.id)}
+            aria-selected={open && tab === entry.id}
+            className={open && tab === entry.id ? "active" : ""}
+            // Picking a tab on a shut panel means "show me that", not "select it and stay shut".
+            onClick={() => {
+              setTab(entry.id);
+              if (!open || tab === entry.id) {
+                onToggleOpen();
+              }
+            }}
           >
             {entry.label} <small>{entry.count}</small>
           </button>
         ))}
+        <button
+          type="button"
+          className="map-bottom-toggle"
+          aria-expanded={open}
+          title={open ? "Collapse this panel" : "Expand this panel"}
+          onClick={onToggleOpen}
+        >
+          {open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronUp size={14} aria-hidden="true" />}
+          <span className="visually-hidden">{open ? "Collapse" : "Expand"} warnings, findings and events</span>
+        </button>
       </div>
 
-      <div className="map-bottom-body">
+      <div className="map-bottom-body" hidden={!open}>
         {tab === "movement" ? (
           movement.fromId === null ? (
             <p className="muted">

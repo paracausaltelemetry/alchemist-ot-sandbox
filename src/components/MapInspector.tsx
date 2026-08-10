@@ -1,3 +1,4 @@
+import { PanelRightClose } from "lucide-react";
 import { assetTypes, getAssetType, zones } from "../data/catalog";
 import { itKindLabel } from "../models/itMap";
 import { portRisk } from "../engine/itAnalysis";
@@ -37,6 +38,8 @@ interface MapInspectorProps {
   /** The asset the operator is working from, if they have named one. */
   foothold: string | null;
   onSetFoothold: (assetId: string | null) => void;
+  /** Folds the panel down to a rail. */
+  onCollapse: () => void;
 }
 
 /** The conduit properties an assessment turns on that a scan can never report. */
@@ -69,11 +72,22 @@ export function MapInspector({
   onConnectionOverride,
   onClearConnectionOverride,
   foothold,
-  onSetFoothold
+  onSetFoothold,
+  onCollapse
 }: MapInspectorProps) {
+  // Rendered into all three branches: the panel is a rail's width away from gone whether it is
+  // showing an asset, a connection, or telling you to pick one.
+  const collapse = (
+    <button type="button" className="panel-collapse" aria-expanded title="Hide this panel" onClick={onCollapse}>
+      <PanelRightClose size={15} aria-hidden="true" />
+      <span className="visually-hidden">Hide the inspector</span>
+    </button>
+  );
+
   if (!asset && !connection) {
     return (
       <aside className="map-inspector" aria-label="Inspector">
+      {collapse}
         <div className="panel-heading">
           <span>Inspector</span>
           <small>No selection</small>
@@ -94,6 +108,7 @@ export function MapInspector({
 
     return (
       <aside className="map-inspector" aria-label="Inspector">
+      {collapse}
         <div className="panel-heading">
           <span>Connection</span>
           <small>{connection.provenance === "authored" ? "You drew this" : "From a source"}</small>
@@ -224,6 +239,7 @@ export function MapInspector({
 
   return (
     <aside className="map-inspector" aria-label="Inspector">
+      {collapse}
       <div className="panel-heading">
         <span>{asset!.name}</span>
         <small>{asset!.provenance === "authored" ? "Yours" : "Imported"}</small>

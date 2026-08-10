@@ -15,6 +15,9 @@
    reserved gap, and `auto` lets it grow to whatever `--dock-height` the operator dragged. */
 .map-workspace-grid {
   --dock-height: 22rem;
+  /* A collapsed sidebar folds to a rail rather than to nothing. A panel that disappears completely
+     takes its own way back with it, and somebody who shut one by accident is left hunting a menu. */
+  --rail: 1.75rem;
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
@@ -959,5 +962,105 @@
   border: 1px solid var(--signal);
   font-family: var(--font-mono);
   font-size: 0.62rem;
+
+/* --- Collapsing the shell ---------------------------------------------------
+
+   Every panel here can be folded away, because the map is the document and the panels are how you
+   got to it. Three sidebars and a dock over a 1280px screen leaves under half the width for the
+   thing being read. */
+.map-workspace-grid[data-sidebar="shut"] {
+  grid-template-columns: var(--rail) minmax(24rem, 1fr) 20rem;
+}
+
+.map-workspace-grid[data-inspector="shut"] {
+  grid-template-columns: 15rem minmax(24rem, 1fr) var(--rail);
+}
+
+.map-workspace-grid[data-sidebar="shut"][data-inspector="shut"] {
+  grid-template-columns: var(--rail) minmax(24rem, 1fr) var(--rail);
+}
+
+.panel-rail {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.panel-rail button,
+.panel-collapse {
+  display: inline-grid;
+  place-items: center;
+  padding: 0.15rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.panel-rail button:hover,
+.panel-collapse:hover {
+  color: var(--text);
+}
+
+/* Sideways, so a shut panel still says what it is. `mixed` keeps the glyphs upright inside the
+   rotated line rather than laying each letter on its side. */
+.panel-rail-label {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-family: var(--font-body);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Floated into the panel's top-right corner rather than given a row of its own: it is furniture,
+   and a whole line of chrome to hold one 15px icon is the sort of thing that made the sidebar
+   crowded in the first place. */
+.map-sidebar,
+.map-inspector {
+  position: relative;
+}
+
+.panel-collapse {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 1;
+}
+
+/* Shut, the bottom panel is its own tab strip and nothing else — the tabs carry their counts, so a
+   glance still says whether there is anything in there worth opening. */
+.map-bottom.is-collapsed {
+  grid-template-rows: auto;
+}
+
+.map-workspace-grid:has(.map-bottom.is-collapsed) {
+  grid-template-rows: minmax(0, 1fr) auto auto;
+}
+
+.map-bottom-tabs {
+  align-items: center;
+}
+
+.map-bottom-toggle {
+  margin-left: auto;
+  display: inline-grid;
+  place-items: center;
+  padding: 0.15rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.map-bottom-toggle:hover {
   color: var(--text);
 }

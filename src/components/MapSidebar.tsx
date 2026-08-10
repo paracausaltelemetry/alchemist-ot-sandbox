@@ -1,3 +1,4 @@
+import { PanelLeftClose } from "lucide-react";
 import { useMemo, useState } from "react";
 import { getAssetType, getZone } from "../data/catalog";
 import { importFormatLabels } from "../import/types";
@@ -26,6 +27,8 @@ interface MapSidebarProps {
   onRemoveSource: (sourceId: string) => void;
   /** Absent until something has been imported — an engagement report over nothing is not a document. */
   onExportReport?: () => void;
+  /** Folds the panel down to a rail, for when the map wants the width more than the list does. */
+  onCollapse: () => void;
 }
 
 export function MapSidebar({
@@ -39,7 +42,8 @@ export function MapSidebar({
   onLoadSample,
   onImportFile,
   onRemoveSource,
-  onExportReport
+  onExportReport,
+  onCollapse
 }: MapSidebarProps) {
   const [filter, setFilter] = useState("");
 
@@ -61,6 +65,16 @@ export function MapSidebar({
 
   return (
     <aside className="map-sidebar" aria-label="Sources and assets">
+      <button
+        type="button"
+        className="panel-collapse"
+        aria-expanded
+        title="Hide this panel"
+        onClick={onCollapse}
+      >
+        <PanelLeftClose size={15} aria-hidden="true" />
+        <span className="visually-hidden">Hide sources and assets</span>
+      </button>
       <section>
         <h3>Sources</h3>
         {doc.sources.length === 0 ? (

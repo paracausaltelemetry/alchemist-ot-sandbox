@@ -1088,3 +1088,16 @@
   color: var(--muted);
   border-left-color: var(--line);
 }
+
+/* The percentage next to a fingerprint. Dimmed when Nmap was sure, because a confident match is
+   what a reader already assumes; italic when it was not, because that is the part worth noticing. */
+.map-confidence {
+  margin-left: var(--space-2);
+  font-size: 0.62rem;
+  color: var(--muted);
+}
+
+.map-confidence[data-sure="low"] {
+  font-style: italic;
+  color: var(--text);
+}

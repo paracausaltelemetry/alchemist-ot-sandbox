@@ -103,6 +103,8 @@ export function parseNmapNormal(text: string): ParsedImport {
   let lastPort: ImportedPort | null = null;
   let scriptTarget: "host" | "port" = "port";
   let openScript: ImportedScript | null = null;
+  // How good the OS line we have already taken was; see the three-way precedence below.
+  let osRank = 0;
   // Hops exactly as printed, keyed by the host they were traced to. Nmap prints a path in full
   // once and then refers back to it, so later hosts need the earlier one still on hand.
   const rawHopsByTarget = new Map<string, ImportedHop[]>();
@@ -137,6 +139,7 @@ export function parseNmapNormal(text: string): ParsedImport {
       lastPort = null;
       scriptTarget = "port";
       openScript = null;
+      osRank = 0;
       continue;
     }
     if (!current) {
@@ -288,12 +291,35 @@ export function parseNmapNormal(text: string): ParsedImport {
       continue;
     }
 
+    // `Device type: firewall` — the fingerprint database's own verdict on what kind of box this is,
+    // which is better evidence than our port heuristics. `general purpose` is it declining to say.
+    const deviceType = line.match(/^Device type:\s*(.+)$/i);
+    if (deviceType && !current.deviceTypeHint) {
+      const named = deviceType[1]
+        .split("|")
+        .map((part) => part.trim())
+        .find((part) => part && part.toLowerCase() !== "general purpose");
+      if (named) {
+        current.deviceTypeHint = named;
+      }
+      continue;
+    }
+
+    // Nmap prints the OS three ways and they are not equally good. `Running:` is the family
+    // ("Cisco ASA"); `Aggressive OS guesses` is a specific build with a confidence attached, and it
+    // only appears when the fingerprint did not match outright; `OS details` is a confirmed match.
+    // Taking whichever came first in the file picked the family off the line above the guess.
     const os =
-      line.match(/^OS details:\s*(.+)$/i) ||
-      line.match(/^Running:\s*(.+)$/i) ||
-      line.match(/^Aggressive OS guesses:\s*(.+?)(?:\s*\(\d+%\).*)?$/i);
-    if (os && !current.os) {
-      current.os = os[1].trim();
+      line.match(/^OS details:\s*(.+)$/i) ??
+      line.match(/^Aggressive OS guesses:\s*(.+?)\s*\((\d+)%\)/i) ??
+      line.match(/^Running:\s*(.+)$/i);
+    if (os) {
+      const rank = /^OS details/i.test(line) ? 3 : /^Aggressive/i.test(line) ? 2 : 1;
+      if (rank > osRank) {
+        osRank = rank;
+        current.os = os[1].trim();
+        current.osAccuracy = os[2] ? Number(os[2]) : undefined;
+      }
     }
   }
   flushTrace();

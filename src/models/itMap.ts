@@ -46,6 +46,8 @@ export interface ItNode {
   mac?: string;
   vendor?: string;
   os?: string;
+  /** How sure Nmap was about `os`, 0–100. Absent when the scan did not fingerprint. */
+  osAccuracy?: number;
   ports: ImportedPort[];
   /** Host-level NSE results. Port-level ones travel on the ports themselves. */
   scripts?: ImportedScript[];

@@ -80,6 +80,23 @@ export interface ImportedHost {
   hostname?: string;
   os?: string;
   vlan?: string;
+  /**
+   * How sure Nmap was about `os`, 0–100.
+   *
+   * Worth keeping because the OS string is shown as though it were a fact. A 100% match on a full
+   * TCP/IP fingerprint and an 85% guess from two open ports read identically once the percentage is
+   * dropped, and the second one is regularly wrong.
+   */
+  osAccuracy?: number;
+  /**
+   * What Nmap thought the *kind* of device was — `router`, `firewall`, `printer`, `WAP`,
+   * `general purpose`.
+   *
+   * This is the useful half of OS detection. The fingerprint database knows a Cisco ASA from a
+   * Windows box, where our own classifier is guessing from open ports and a hostname, and it has
+   * been sitting unread in `<osclass type>` and the `Device type:` line all along.
+   */
+  deviceTypeHint?: string;
   ports: ImportedPort[];
   /** Router hops between the scanner and this host, when the scan reported one. */
   distance?: number;

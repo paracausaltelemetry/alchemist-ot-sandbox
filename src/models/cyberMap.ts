@@ -184,6 +184,8 @@ export interface MapAsset extends Asset {
    * and parsing it back out of prose would make the overlay depend on the wording of a comment.
    */
   os?: string;
+  /** How sure the scan was about `os`, 0–100. An OS string shown without it reads as a fact. */
+  osAccuracy?: number;
   ports: ImportedPort[];
   /** Host-level NSE results (`-sC`). Port-level ones travel on the ports. */
   scripts?: ImportedScript[];

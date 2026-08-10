@@ -145,7 +145,15 @@ function mergeHosts(hosts: ImportedHost[]): {
     existing.ip ||= host.ip;
     existing.hostname = host.hostname || existing.hostname;
     existing.vendor = host.vendor || existing.vendor;
-    existing.os = host.os || existing.os;
+    // The more confident fingerprint wins, rather than the last file imported. Two scans of one
+    // host regularly disagree, and "the newest" is not the same claim as "the better evidenced".
+    if (host.os && (host.osAccuracy ?? 0) >= (existing.osAccuracy ?? 0)) {
+      existing.os = host.os;
+      existing.osAccuracy = host.osAccuracy;
+    } else {
+      existing.os ||= host.os;
+    }
+    existing.deviceTypeHint ||= host.deviceTypeHint;
     existing.mac = host.mac || existing.mac;
     existing.vlan = host.vlan || existing.vlan;
     existing.distance = host.distance ?? existing.distance;
@@ -251,6 +259,7 @@ export function synthesiseItTopology(parsed: ParsedImport, name = "Scanned netwo
       mac: host.mac,
       vendor: host.vendor,
       os: host.os,
+      ...(host.osAccuracy !== undefined ? { osAccuracy: host.osAccuracy } : {}),
       ports: host.ports,
       ...(host.scripts ? { scripts: host.scripts } : {}),
       ...(host.filteredPorts ? { filteredPorts: host.filteredPorts } : {}),

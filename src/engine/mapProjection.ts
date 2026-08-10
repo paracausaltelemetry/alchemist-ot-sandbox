@@ -75,6 +75,7 @@ function hostFor(node: ItNode): ImportedHost {
     mac: node.mac,
     vendor: node.vendor,
     os: node.os,
+    osAccuracy: node.osAccuracy,
     ports: node.ports
   };
 }
@@ -230,6 +231,7 @@ export function projectMap(doc: CyberMapDocument): ProjectedMap {
       provenance: "imported",
       deviceKind: node.kind,
       ...(node.os ? { os: node.os } : {}),
+      ...(node.osAccuracy !== undefined ? { osAccuracy: node.osAccuracy } : {}),
       ports: node.ports,
       ...(node.scripts ? { scripts: node.scripts } : {}),
       ...(node.filteredPorts ? { filteredPorts: node.filteredPorts } : {}),

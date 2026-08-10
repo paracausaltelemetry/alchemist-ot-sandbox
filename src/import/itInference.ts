@@ -58,6 +58,31 @@ export function isRouterLike(host: ImportedHost): boolean {
   return host.ports.every((port) => MANAGEMENT_PORTS.has(port.port));
 }
 
+/**
+ * Nmap's own word for the kind of device, mapped onto our symbols.
+ *
+ * The fingerprint database knows a Cisco ASA from a Windows box by its TCP/IP stack. Everything
+ * below this function is inference from open ports and a hostname, so where the database has
+ * spoken it is the better evidence — and `<osclass type>` has been in every `-O` scan we have ever
+ * parsed, unread.
+ */
+const OS_CLASS_KINDS: Array<[RegExp, ItNodeKind]> = [
+  [/^firewall$/i, "firewall"],
+  [/^(router|broadband router)$/i, "router"],
+  [/^switch$/i, "switch"],
+  [/^(printer|print server)$/i, "printer"],
+  [/^(wap|wireless access point)$/i, "wireless-ap"],
+  [/^load balancer$/i, "load-balancer"],
+  [/^storage-misc$/i, "server"]
+];
+
+function kindFromDeviceType(hint: string | undefined): ItNodeKind | null {
+  if (!hint) {
+    return null;
+  }
+  return OS_CLASS_KINDS.find(([pattern]) => pattern.test(hint.trim()))?.[1] ?? null;
+}
+
 /** Maps a scanned host onto the standard network-map symbol that best describes it. */
 export function classifyItDevice(host: ImportedHost, hints: ItClassificationHints = {}): ItNodeKind {
   const name = nameOf(host);
@@ -66,6 +91,14 @@ export function classifyItDevice(host: ImportedHost, hints: ItClassificationHint
 
   if (FIREWALL_NAME.test(name) || FIREWALL_VENDOR.test(vendor) || serviceMatches(host, /fortinet|palo ?alto|checkpoint/i)) {
     return "firewall";
+  }
+
+  // Below the name checks, above everything derived from ports: a hostname is what somebody called
+  // the box, which beats a fingerprint, but an open port on a printer is not evidence of a printer.
+  // Routing seen in a traceroute still wins — that is observed behaviour, not a database lookup.
+  const fingerprinted = kindFromDeviceType(host.deviceTypeHint);
+  if (fingerprinted && !hints.isTracerouteHop) {
+    return fingerprinted;
   }
 
   // Routing is observed behaviour, so it outranks every name or address heuristic below.

@@ -269,7 +269,17 @@ export function MapInspector({
           <dt>Vendor</dt>
           <dd>{asset!.manufacturer || "—"}</dd>
           <dt>Operating system</dt>
-          <dd>{asset!.os || "Not identified"}</dd>
+          {/* With the percentage, because without it a 100% match on a full TCP/IP fingerprint and
+              an 88% guess off two open ports read exactly the same, and the second is often wrong.
+              Under 90 is Nmap itself hedging, and the panel should hedge with it. */}
+          <dd>
+            {asset!.os || "Not identified"}
+            {asset!.osAccuracy !== undefined ? (
+              <small className="map-confidence" data-sure={asset!.osAccuracy >= 90 ? "high" : "low"}>
+                {asset!.osAccuracy}% match
+              </small>
+            ) : null}
+          </dd>
           <dt>Seen as</dt>
           <dd>{asset!.deviceKind ? itKindLabel(asset!.deviceKind) : "—"}</dd>
         </dl>

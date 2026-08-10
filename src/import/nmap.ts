@@ -124,7 +124,19 @@ export function parseNmapXml(text: string): ParsedImport {
     }
 
     const hostname = findAll(hostNode, "hostname")[0]?.attrs.name;
-    const os = findAll(hostNode, "osmatch")[0]?.attrs.name;
+    // Highest accuracy, not first: Nmap usually prints them in order but nothing in the format
+    // guarantees it, and taking the wrong one names the host after a worse guess.
+    const matches = findAll(hostNode, "osmatch")
+      .map((match) => ({ name: match.attrs.name, accuracy: Number(match.attrs.accuracy) }))
+      .filter((match) => Boolean(match.name))
+      .sort((a, b) => (Number.isFinite(b.accuracy) ? b.accuracy : 0) - (Number.isFinite(a.accuracy) ? a.accuracy : 0));
+    const os = matches[0]?.name;
+    const osAccuracy = Number.isFinite(matches[0]?.accuracy) ? matches[0].accuracy : undefined;
+    // `general purpose` is Nmap declining to say, which is most hosts; it would displace better
+    // evidence with nothing.
+    const deviceTypeHint = findAll(hostNode, "osclass")
+      .map((entry) => entry.attrs.type?.trim())
+      .find((type) => Boolean(type) && type!.toLowerCase() !== "general purpose");
 
     const ports: ImportedPort[] = [];
     const filteredPorts: ImportedPort[] = [];
@@ -177,6 +189,12 @@ export function parseNmapXml(text: string): ParsedImport {
     // firstChild, not findAll: findAll walks the whole subtree and would pick up
     // another host's trace if the document nests unexpectedly.
     const host: ImportedHost = { ip, mac, vendor, hostname, os, ports };
+    if (osAccuracy !== undefined) {
+      host.osAccuracy = osAccuracy;
+    }
+    if (deviceTypeHint) {
+      host.deviceTypeHint = deviceTypeHint;
+    }
     if (filteredPorts.length > 0) {
       host.filteredPorts = filteredPorts;
     }

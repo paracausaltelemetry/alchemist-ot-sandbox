@@ -8,14 +8,15 @@ const SITE = "https://paracausaltelemetry.com";
  * The shared Paracausal Telemetry site header, mirrored from the main site so the Alchemist
  * subdomain opens inside the same familiar frame: radar brand-mark, primary nav (absolute
  * links back to the main site, with Alchemist marked current), and the theme toggle.
+ *
+ * Three links, matching the main site. Observer and the threat-actor dossiers live in
+ * homepage sections there rather than in the bar, and the projects, design and
+ * credentials pages no longer exist.
  */
 const NAV_LINKS: Array<{ label: string; href: string; current?: boolean }> = [
   { label: "Home", href: `${SITE}/` },
-  { label: "Projects", href: `${SITE}/projects/` },
   { label: "Writeups", href: `${SITE}/writeups/` },
-  { label: "Alchemist", href: "https://alchemist.paracausaltelemetry.com/", current: true },
-  { label: "Observer", href: `${SITE}/observer/` },
-  { label: "Threat Actors", href: `${SITE}/threat-actors/` }
+  { label: "Alchemist", href: "https://alchemist.paracausaltelemetry.com/", current: true }
 ];
 
 interface SiteMastheadProps {
